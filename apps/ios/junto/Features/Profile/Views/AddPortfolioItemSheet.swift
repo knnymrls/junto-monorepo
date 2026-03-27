@@ -1,0 +1,374 @@
+//
+//  AddPortfolioItemSheet.swift
+//  mkrs-world
+//
+//  Sheet for adding new portfolio items — type picker then type-specific form
+//
+
+import SwiftUI
+import PhotosUI
+
+struct AddPortfolioItemSheet: View {
+    let userId: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedType: PortfolioItemResponse.PortfolioType?
+    @State private var isSaving = false
+
+    // GitHub fields
+    @State private var githubUrl = ""
+
+    // Gallery fields
+    @State private var galleryTitle = ""
+    @State private var galleryImages: [UIImage] = []
+
+    // Link fields
+    @State private var linkUrl = ""
+    @State private var linkTitle = ""
+
+    // Experience fields
+    @State private var expTitle = ""
+    @State private var expOrganization = ""
+    @State private var expDescription = ""
+    @State private var expStartDate = ""
+    @State private var expEndDate = ""
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let type = selectedType {
+                    formForType(type)
+                } else {
+                    typePicker
+                }
+            }
+            .background(Color.appBackground)
+            .navigationTitle(selectedType == nil ? "Add to Portfolio" : typeTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: {
+                        if selectedType != nil {
+                            selectedType = nil
+                        } else {
+                            dismiss()
+                        }
+                    }) {
+                        if selectedType != nil {
+                            Image(systemName: "chevron.left")
+                                .font(.bodyMedium)
+                        } else {
+                            Text("Cancel")
+                                .font(.bodyLarge)
+                        }
+                    }
+                    .foregroundColor(.appPrimary)
+                }
+
+                if selectedType != nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Save") { save() }
+                            .font(.bodyLargeSemibold)
+                            .foregroundColor(canSave ? .appPrimary : .appSecondary)
+                            .disabled(!canSave || isSaving)
+                    }
+                }
+            }
+        }
+        .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - Type Picker
+
+    private var typePicker: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.md) {
+            typeButton(type: .github, icon: "chevron.left.forwardslash.chevron.right", label: "GitHub")
+            typeButton(type: .gallery, icon: "photo.on.rectangle.angled", label: "Image Gallery")
+            typeButton(type: .link, icon: "link", label: "Link")
+            typeButton(type: .experience, icon: "briefcase.fill", label: "Experience")
+        }
+        .padding(Spacing.lg)
+    }
+
+    private func typeButton(type: PortfolioItemResponse.PortfolioType, icon: String, label: String) -> some View {
+        Button(action: { selectedType = type }) {
+            VStack(spacing: Spacing.xs + Spacing.xxs) {
+                Image(systemName: icon)
+                    .font(.system(size: 24))
+                    .foregroundColor(.appPrimary)
+                Text(label)
+                    .font(.bodyMedium)
+                    .foregroundColor(.appPrimary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 100)
+            .cardStyle()
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Type-Specific Forms
+
+    private var typeTitle: String {
+        switch selectedType {
+        case .github: return "GitHub"
+        case .gallery: return "Image Gallery"
+        case .link: return "Link"
+        case .experience: return "Experience"
+        case nil: return "Add to Portfolio"
+        }
+    }
+
+    @ViewBuilder
+    private func formForType(_ type: PortfolioItemResponse.PortfolioType) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                switch type {
+                case .github:
+                    githubForm
+                case .gallery:
+                    galleryForm
+                case .link:
+                    linkForm
+                case .experience:
+                    experienceForm
+                }
+            }
+            .padding(Spacing.lg)
+        }
+    }
+
+    // MARK: GitHub Form
+
+    private var githubForm: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("GitHub Username")
+                .font(.bodySmallMedium)
+                .foregroundColor(.appSecondary)
+
+            TextField("e.g. knnymrls", text: $githubUrl)
+                .font(.bodyLarge)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .padding(Spacing.md)
+                .background(Color.appSurfaceSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        }
+    }
+
+    // MARK: Gallery Form
+
+    private var galleryForm: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Title (optional)")
+                    .font(.bodySmallMedium)
+                    .foregroundColor(.appSecondary)
+
+                TextField("e.g. Design Portfolio", text: $galleryTitle)
+                    .font(.bodyLarge)
+                    .padding(Spacing.md)
+                    .background(Color.appSurfaceSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            }
+
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Images (max 6)")
+                    .font(.bodySmallMedium)
+                    .foregroundColor(.appSecondary)
+
+                MultiImagePickerButton(selectedImages: $galleryImages, maxImages: 6)
+            }
+
+            if !galleryImages.isEmpty {
+                let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+                LazyVGrid(columns: columns, spacing: Spacing.sm) {
+                    ForEach(galleryImages.indices, id: \.self) { index in
+                        ZStack(alignment: .topTrailing) {
+                            Image(uiImage: galleryImages[index])
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: 80)
+                                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+
+                            Button(action: { galleryImages.remove(at: index) }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.white)
+                                    .shadow(radius: 2)
+                            }
+                            .offset(x: -Spacing.xxs, y: Spacing.xxs)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Link Form
+
+    private var linkForm: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("URL")
+                    .font(.bodySmallMedium)
+                    .foregroundColor(.appSecondary)
+
+                HStack {
+                    TextField("https://...", text: $linkUrl)
+                        .font(.bodyLarge)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+
+                    Button(action: pasteFromClipboard) {
+                        Image(systemName: "doc.on.clipboard")
+                            .font(.system(size: 16))
+                            .foregroundColor(.appSecondary)
+                    }
+                }
+                .padding(Spacing.md)
+                .background(Color.appSurfaceSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            }
+
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Title (optional)")
+                    .font(.bodySmallMedium)
+                    .foregroundColor(.appSecondary)
+
+                TextField("e.g. My Portfolio Website", text: $linkTitle)
+                    .font(.bodyLarge)
+                    .padding(Spacing.md)
+                    .background(Color.appSurfaceSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            }
+        }
+    }
+
+    // MARK: Experience Form
+
+    private var experienceForm: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            formField("Title", text: $expTitle, placeholder: "e.g. Software Engineering Intern")
+            formField("Organization", text: $expOrganization, placeholder: "e.g. Google")
+            formField("Start Date", text: $expStartDate, placeholder: "e.g. Jan 2025")
+            formField("End Date (optional)", text: $expEndDate, placeholder: "e.g. May 2025 or leave blank for Present")
+
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Description (optional)")
+                    .font(.bodySmallMedium)
+                    .foregroundColor(.appSecondary)
+
+                TextEditor(text: $expDescription)
+                    .font(.bodyLarge)
+                    .frame(minHeight: 80)
+                    .padding(Spacing.sm)
+                    .background(Color.appSurfaceSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            }
+        }
+    }
+
+    private func formField(_ label: String, text: Binding<String>, placeholder: String) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text(label)
+                .font(.bodySmallMedium)
+                .foregroundColor(.appSecondary)
+
+            TextField(placeholder, text: text)
+                .font(.bodyLarge)
+                .padding(Spacing.md)
+                .background(Color.appSurfaceSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+        }
+    }
+
+    // MARK: - Validation
+
+    private var canSave: Bool {
+        switch selectedType {
+        case .github:
+            return !githubUrl.trimmingCharacters(in: .whitespaces).isEmpty
+        case .gallery:
+            return !galleryImages.isEmpty
+        case .link:
+            return !linkUrl.trimmingCharacters(in: .whitespaces).isEmpty
+        case .experience:
+            return !expTitle.trimmingCharacters(in: .whitespaces).isEmpty
+        case nil:
+            return false
+        }
+    }
+
+    // MARK: - Save
+
+    private func save() {
+        guard let type = selectedType else { return }
+        isSaving = true
+
+        Task {
+            do {
+                switch type {
+                case .github:
+                    let username = githubUrl
+                        .trimmingCharacters(in: .whitespaces)
+                        .replacingOccurrences(of: "https://github.com/", with: "")
+                        .replacingOccurrences(of: "http://github.com/", with: "")
+                        .replacingOccurrences(of: "github.com/", with: "")
+                        .replacingOccurrences(of: "@", with: "")
+                        .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                    _ = try await ConvexClientManager.shared.createPortfolioItem(
+                        userId: userId,
+                        type: "github",
+                        url: username
+                    )
+
+                case .gallery:
+                    var storageIds: [String] = []
+                    for image in galleryImages {
+                        let storageId = try await ConvexClientManager.shared.uploadImage(image)
+                        storageIds.append(storageId)
+                    }
+                    _ = try await ConvexClientManager.shared.createPortfolioItem(
+                        userId: userId,
+                        type: "gallery",
+                        title: galleryTitle.isEmpty ? nil : galleryTitle,
+                        imageUrls: storageIds
+                    )
+
+                case .link:
+                    _ = try await ConvexClientManager.shared.createPortfolioItem(
+                        userId: userId,
+                        type: "link",
+                        title: linkTitle.isEmpty ? nil : linkTitle,
+                        url: linkUrl.trimmingCharacters(in: .whitespaces)
+                    )
+
+                case .experience:
+                    _ = try await ConvexClientManager.shared.createPortfolioItem(
+                        userId: userId,
+                        type: "experience",
+                        title: expTitle.trimmingCharacters(in: .whitespaces),
+                        description: expDescription.isEmpty ? nil : expDescription,
+                        organization: expOrganization.isEmpty ? nil : expOrganization,
+                        startDate: expStartDate.isEmpty ? nil : expStartDate,
+                        endDate: expEndDate.isEmpty ? nil : expEndDate
+                    )
+                }
+
+                dismiss()
+            } catch {
+                print("AddPortfolioItemSheet: save error: \(error)")
+                isSaving = false
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func pasteFromClipboard() {
+        if let string = UIPasteboard.general.string {
+            linkUrl = string
+        }
+    }
+}

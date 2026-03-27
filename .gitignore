@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+
+# Turbo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# iOS
+*.xcuserdata
+*.xcworkspace/xcuserdata/
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Convex
+packages/backend/convex/_generated/
+
+# Misc
+*.log

@@ -1,0 +1,15 @@
+{
+  "name": "junto",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "convex:dev": "cd packages/backend && npx convex dev",
+    "convex:deploy": "cd packages/backend && npx convex deploy"
+  },
+  "devDependencies": {
+    "turbo": "^2"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

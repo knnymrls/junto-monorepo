@@ -1,0 +1,320 @@
+//
+//  FeedViewModel.swift
+//  mkrs-world
+//
+//  State management for the Feed
+//
+
+import SwiftUI
+
+@MainActor
+class FeedViewModel: ObservableObject {
+    // MARK: - Published State
+
+    @Published var posts: [PostResponse] = []
+    @Published var suggestedMatches: [SuggestedMatchResponse] = []
+    @Published var isLoading = false
+    @Published var isLoadingMore = false
+    @Published var error: String?
+    @Published var hasMorePosts = true
+
+    // Current user's user profile (set by FeedView from CurrentUserManager)
+    @Published var currentUser: UserResponse?
+
+    // Connected user IDs for quick lookup
+    @Published var connectedUserIds: Set<String> = []
+
+    // Pending connection request IDs (users we sent requests to)
+    @Published var pendingConnectionIds: Set<String> = []
+
+    // MARK: - Private
+
+    private let convex = ConvexClientManager.shared
+    private let initialBatchSize = 6
+    private let loadMoreBatchSize = 10
+
+    // MARK: - Init
+
+    init() {}
+
+    // MARK: - Public Methods
+
+    /// Load initial feed
+    func loadInitialFeed(userId: String) async {
+        guard !isLoading else { return }
+
+        isLoading = true
+        hasMorePosts = true
+
+        do {
+            let fetchedPosts = try await convex.fetchFeed(userId: userId, limit: initialBatchSize)
+            posts = fetchedPosts
+            hasMorePosts = fetchedPosts.count >= initialBatchSize
+            print("FeedViewModel: Loaded \(fetchedPosts.count) initial posts")
+        } catch {
+            self.error = error.localizedDescription
+            print("FeedViewModel: Error loading feed: \(error)")
+        }
+
+        isLoading = false
+    }
+
+    /// Load more posts (pagination)
+    func loadMorePosts() async {
+        guard !isLoadingMore, !isLoading, hasMorePosts, let userId = currentUser?._id else { return }
+
+        isLoadingMore = true
+
+        do {
+            // Fetch more posts with offset
+            let offset = posts.count
+            let fetchedPosts = try await convex.fetchFeed(userId: userId, limit: loadMoreBatchSize, offset: offset)
+
+            if fetchedPosts.isEmpty {
+                hasMorePosts = false
+            } else {
+                let existingIds = Set(posts.map { $0._id })
+                let newPosts = fetchedPosts.filter { !existingIds.contains($0._id) }
+                posts.append(contentsOf: newPosts)
+                hasMorePosts = fetchedPosts.count >= loadMoreBatchSize
+            }
+            print("FeedViewModel: Loaded \(fetchedPosts.count) more posts, total: \(posts.count)")
+        } catch {
+            print("FeedViewModel: Error loading more posts: \(error)")
+        }
+
+        isLoadingMore = false
+    }
+
+    /// Bootstrap feed from user profile (called by FeedView after setting currentUser)
+    func bootstrap(userId: String) async {
+        await loadInitialFeed(userId: userId)
+        await loadSuggestedMatches(userId: userId)
+        await loadConnections(userId: userId)
+    }
+
+    /// Load suggested matches (pre-computed daily, with on-demand fallback)
+    func loadSuggestedMatches(userId: String) async {
+        do {
+            let matches = try await convex.fetchSuggestedMatches(userId: userId)
+
+            if matches.isEmpty {
+                // No matches for today yet — trigger on-demand generation
+                print("FeedViewModel: No daily matches yet, generating on-demand...")
+                try await convex.generateDailyMatchesAction(userId: userId)
+                // Re-fetch after generation
+                suggestedMatches = try await convex.fetchSuggestedMatches(userId: userId)
+            } else {
+                suggestedMatches = matches
+            }
+
+            print("FeedViewModel: Loaded \(suggestedMatches.count) suggested matches")
+        } catch {
+            print("FeedViewModel: Error loading suggested matches: \(error)")
+            // Don't set error - suggested matches are optional
+        }
+    }
+
+    /// Create a new post
+    func createPost(content: String, category: PostResponse.PostCategory, imageUrls: [String]? = nil, linkUrl: String? = nil, gifUrl: String? = nil, mentions: [String]? = nil) async -> Bool {
+        guard let userId = currentUser?._id else {
+            error = "Not signed in"
+            return false
+        }
+
+        let input = PostInput(
+            content: content,
+            category: category,
+            imageUrls: imageUrls,
+            linkUrl: linkUrl,
+            gifUrl: gifUrl,
+            mentions: mentions
+        )
+
+        do {
+            _ = try await convex.createPost(input, authorId: userId)
+
+            // Track post creation
+            AnalyticsService.shared.track(.postCreated(category: category.rawValue))
+
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Delete a post
+    func deletePost(_ postId: String) async -> Bool {
+        do {
+            _ = try await convex.deletePost(postId: postId)
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Update a post
+    func updatePost(postId: String, content: String, category: PostResponse.PostCategory, imageUrls: [String]? = nil, linkUrl: String? = nil) async -> Bool {
+        do {
+            _ = try await convex.updatePost(
+                postId: postId,
+                content: content,
+                category: category,
+                imageUrl: imageUrls?.first,
+                linkUrl: linkUrl
+            )
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Refresh feed (pull to refresh)
+    func refresh() async {
+        guard let userId = currentUser?._id else { return }
+        await loadInitialFeed(userId: userId)
+    }
+
+    /// Check if current user is author of post
+    func isAuthor(of post: PostResponse) -> Bool {
+        return post.authorId == currentUser?._id
+    }
+
+    /// Load user's connections
+    func loadConnections(userId: String) async {
+        do {
+            let connections = try await convex.fetchConnections(userId: userId)
+            connectedUserIds = Set(connections.map { $0._id })
+            print("FeedViewModel: Loaded \(connectedUserIds.count) connections")
+
+            // Also load pending sent requests
+            let pendingIds = try await convex.fetchPendingSentIds(userId: userId)
+            pendingConnectionIds = Set(pendingIds)
+            print("FeedViewModel: Loaded \(pendingConnectionIds.count) pending requests")
+        } catch {
+            print("FeedViewModel: Error loading connections: \(error)")
+        }
+    }
+
+    /// Check if a user is connected
+    func isConnected(userId: String) -> Bool {
+        return connectedUserIds.contains(userId)
+    }
+
+    /// Check if we have a pending request to this user
+    func isPending(userId: String) -> Bool {
+        return pendingConnectionIds.contains(userId)
+    }
+
+    /// Get connection status for a user
+    func connectionStatus(userId: String) -> ConnectionDisplayStatus {
+        if connectedUserIds.contains(userId) {
+            return .connected
+        } else if pendingConnectionIds.contains(userId) {
+            return .pending
+        } else {
+            return .none
+        }
+    }
+
+    /// Send a connection request
+    func sendConnectionRequest(toUserId: String, source: ConnectionSource = .feed) async -> Bool {
+        guard let myUserId = currentUser?._id else {
+            error = "Not signed in"
+            return false
+        }
+
+        // Optimistically add to pending
+        pendingConnectionIds.insert(toUserId)
+
+        do {
+            _ = try await convex.sendConnectionRequest(requesterId: myUserId, accepterId: toUserId)
+            print("FeedViewModel: Sent connection request to \(toUserId)")
+
+            // Track connection request
+            AnalyticsService.shared.track(.connectionSent(toUserId: toUserId, source: source))
+
+            // Reload connections in case they had already sent us a request (auto-accept)
+            await loadConnections(userId: myUserId)
+            return true
+        } catch {
+            // Revert optimistic update
+            pendingConnectionIds.remove(toUserId)
+            self.error = error.localizedDescription
+            print("FeedViewModel: Error sending connection request: \(error)")
+            return false
+        }
+    }
+
+    /// Withdraw a pending connection request
+    func withdrawConnectionRequest(toUserId: String) async -> Bool {
+        guard let myUserId = currentUser?._id else {
+            error = "Not signed in"
+            return false
+        }
+
+        // Optimistically remove from pending
+        pendingConnectionIds.remove(toUserId)
+
+        do {
+            _ = try await convex.withdrawConnectionRequest(requesterId: myUserId, accepterId: toUserId)
+            print("FeedViewModel: Withdrew connection request to \(toUserId)")
+            await loadConnections(userId: myUserId)
+            return true
+        } catch {
+            // Revert optimistic update
+            pendingConnectionIds.insert(toUserId)
+            self.error = error.localizedDescription
+            print("FeedViewModel: Error withdrawing connection request: \(error)")
+            return false
+        }
+    }
+
+    /// Handle disconnect/withdraw based on current connection status
+    @discardableResult
+    func handleDisconnect(userId: String) async -> Bool {
+        let status = connectionStatus(userId: userId)
+        if status == .connected {
+            return await removeConnection(withUserId: userId)
+        } else if status == .pending {
+            return await withdrawConnectionRequest(toUserId: userId)
+        }
+        return false
+    }
+
+    /// Remove an existing connection
+    func removeConnection(withUserId: String) async -> Bool {
+        guard let myUserId = currentUser?._id else {
+            error = "Not signed in"
+            return false
+        }
+
+        // Optimistically remove from connections
+        connectedUserIds.remove(withUserId)
+
+        do {
+            _ = try await convex.removeConnection(userId1: myUserId, userId2: withUserId)
+            print("FeedViewModel: Removed connection with \(withUserId)")
+            // Reload to stay in sync with backend
+            await loadConnections(userId: myUserId)
+            return true
+        } catch {
+            // Revert optimistic update
+            connectedUserIds.insert(withUserId)
+            self.error = error.localizedDescription
+            print("FeedViewModel: Error removing connection: \(error)")
+            return false
+        }
+    }
+}
+
+// MARK: - Connection Display Status
+
+enum ConnectionDisplayStatus {
+    case none
+    case pending
+    case connected
+}
