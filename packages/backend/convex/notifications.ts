@@ -226,8 +226,10 @@ export const sendPushNotification = internalAction({
           // Token is invalid, mark for removal
           invalidTokens.push(tokenDoc.token);
           failed++;
+          console.error(`APNs rejected token: ${response.reason}`);
         } else {
           failed++;
+          console.error(`APNs error: ${response.reason}`);
         }
       } catch (error) {
         console.error(`Error sending push to ${tokenDoc.token}:`, error);
@@ -333,9 +335,14 @@ export const notifySystem = internalAction({
 async function generateApnsJwt(
   keyId: string,
   teamId: string,
-  privateKeyPem: string
+  privateKeyRaw: string
 ): Promise<string> {
-  const privateKey = await importPKCS8(privateKeyPem, "ES256");
+  // Ensure key is in proper PEM format (env vars may strip headers/newlines)
+  let pem = privateKeyRaw.trim();
+  if (!pem.startsWith("-----BEGIN PRIVATE KEY-----")) {
+    pem = `-----BEGIN PRIVATE KEY-----\n${pem}\n-----END PRIVATE KEY-----`;
+  }
+  const privateKey = await importPKCS8(pem, "ES256");
   return await new SignJWT({})
     .setProtectedHeader({ alg: "ES256", kid: keyId })
     .setIssuer(teamId)

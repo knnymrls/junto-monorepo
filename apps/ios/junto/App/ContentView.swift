@@ -69,8 +69,13 @@ struct ContentView: View {
         }
         .onChange(of: currentUser.user?._id) { _, newUserId in
             if let userId = newUserId {
-                PushNotificationManager.shared.requestPermission()
-                Task { await PushNotificationManager.shared.registerWithBackend(userId: userId) }
+                PushNotificationManager.shared.requestPermissionAndRegister(userId: userId)
+            }
+        }
+        .task {
+            // Also register on app launch if already signed in
+            if let userId = currentUser.user?._id {
+                PushNotificationManager.shared.requestPermissionAndRegister(userId: userId)
             }
         }
     }
