@@ -172,8 +172,9 @@ struct TabBarView: View {
         }
         // Settings sheet
         .sheet(isPresented: $showSettings) {
-            SettingsPlaceholderView()
-                .presentationDragIndicator(.visible)
+            SettingsView()
+                .environmentObject(currentUser)
+                .environmentObject(ThemeManager.shared)
         }
         // Search sheet
         .sheet(isPresented: $showSearch) {
