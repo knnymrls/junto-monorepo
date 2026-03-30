@@ -34,6 +34,7 @@ import type * as searchSessions from "../searchSessions.js";
 import type * as seed from "../seed.js";
 import type * as storage from "../storage.js";
 import type * as users from "../users.js";
+import type * as vouches from "../vouches.js";
 import type * as weeklyMatches from "../weeklyMatches.js";
 
 import type {
@@ -69,6 +70,7 @@ declare const fullApi: ApiFromModules<{
   seed: typeof seed;
   storage: typeof storage;
   users: typeof users;
+  vouches: typeof vouches;
   weeklyMatches: typeof weeklyMatches;
 }>;
 

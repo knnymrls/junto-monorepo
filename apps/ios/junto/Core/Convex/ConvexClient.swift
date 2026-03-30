@@ -550,6 +550,60 @@ extension ConvexClientManager {
         ])
     }
 
+    // MARK: Vouches
+
+    /// Create a vouch for someone
+    func createVouch(fromUserId: String, toUserId: String, reason: String) async throws -> String {
+        return try await client.mutation("vouches:create", with: [
+            "fromUserId": fromUserId,
+            "toUserId": toUserId,
+            "reason": reason
+        ])
+    }
+
+    /// Fetch vouches for a user
+    func fetchVouches(userId: String) async throws -> [VouchResponse] {
+        return try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = client.subscribe(to: "vouches:listForUser", with: ["userId": userId], yielding: [VouchResponse].self)
+                .first()
+                .sink(
+                    receiveCompletion: { completion in
+                        if case .failure(let error) = completion {
+                            continuation.resume(throwing: error)
+                        }
+                        cancellable?.cancel()
+                    },
+                    receiveValue: { vouches in
+                        continuation.resume(returning: vouches)
+                    }
+                )
+        }
+    }
+
+    /// Check if current user has vouched for someone
+    func hasVouched(fromUserId: String, toUserId: String) async throws -> Bool {
+        return try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = client.subscribe(to: "vouches:hasVouched", with: [
+                "fromUserId": fromUserId,
+                "toUserId": toUserId
+            ], yielding: Bool.self)
+                .first()
+                .sink(
+                    receiveCompletion: { completion in
+                        if case .failure(let error) = completion {
+                            continuation.resume(throwing: error)
+                        }
+                        cancellable?.cancel()
+                    },
+                    receiveValue: { result in
+                        continuation.resume(returning: result)
+                    }
+                )
+        }
+    }
+
     // MARK: Events
 
     /// RSVP to an event
@@ -1227,6 +1281,26 @@ enum ConnectionStatus: String {
     case pendingSent = "pending_sent"
     case pendingReceived = "pending_received"
     case connected = "connected"
+}
+
+// MARK: - Vouches
+
+struct VouchResponse: Codable, Identifiable {
+    let _id: String
+    let fromUserId: String
+    let toUserId: String
+    let reason: String
+    let createdAt: Double
+    let fromUser: VouchUserInfo?
+
+    var id: String { _id }
+
+    struct VouchUserInfo: Codable {
+        let _id: String
+        let name: String
+        let avatarUrl: String?
+        let headline: String?
+    }
 }
 
 // MARK: - Invite Links

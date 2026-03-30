@@ -8,8 +8,8 @@ export default defineSchema({
     clerkId: v.string(),
     email: v.optional(v.string()),          // Auth email (from Clerk sign-in)
     phone: v.optional(v.string()),
-    eduEmail: v.optional(v.string()),       // Verified .edu email
-    eduVerified: v.optional(v.boolean()),   // Whether .edu email is verified
+    eduEmail: v.optional(v.string()),       // Legacy — removed, kept for data compat
+    eduVerified: v.optional(v.boolean()),   // Legacy — removed, kept for data compat
 
     // Core identity
     name: v.string(),
@@ -358,6 +358,7 @@ export default defineSchema({
       connectionId: v.optional(v.id("connections")),
       eventId: v.optional(v.id("events")),
       conversationId: v.optional(v.id("conversations")),
+      vouchId: v.optional(v.id("vouches")),
     })),
     readAt: v.optional(v.number()),
     createdAt: v.number(),
