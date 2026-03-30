@@ -76,6 +76,10 @@ export default function ProfilePage({
     await sendRequest({
       requesterId: currentMaker._id,
       accepterId: makerId,
+      source: {
+        type: "profile",
+        label: "from their profile",
+      },
     });
   }
 

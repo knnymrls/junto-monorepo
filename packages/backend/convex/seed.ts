@@ -722,25 +722,25 @@ export const seedConnections = internalMutation({
     const now = Date.now();
     const day = 86400000;
 
-    const pairs: Array<[string, string, number]> = [
+    const pairs: Array<[string, string, number, { type: string; label: string; referenceId?: string }]> = [
       // designer + developers
-      ["test_marcus", "test_sarah", 10],
-      ["test_marcus", "test_jake", 8],
-      ["test_sophie", "test_caleb", 3],
+      ["test_marcus", "test_sarah", 10, { type: "post", label: "from their post about LostHusker" }],
+      ["test_marcus", "test_jake", 8, { type: "match", label: "from your daily match" }],
+      ["test_sophie", "test_caleb", 3, { type: "profile", label: "from their profile" }],
       // business + tech
-      ["test_chris", "test_maya", 7],
-      ["test_noah", "test_maya", 5],
-      ["test_alex", "test_jordan", 4],
+      ["test_chris", "test_maya", 7, { type: "event", label: "from Pitch Night" }],
+      ["test_noah", "test_maya", 5, { type: "match", label: "from your daily match" }],
+      ["test_alex", "test_jordan", 4, { type: "search", label: "from search" }],
       // research + builders
-      ["test_ava", "test_lisa", 6],
-      ["test_emily", "test_sarah", 9],
+      ["test_ava", "test_lisa", 6, { type: "profile", label: "from their profile" }],
+      ["test_emily", "test_sarah", 9, { type: "post", label: "from their post about needing a designer" }],
       // agtech connections
-      ["test_tyler", "test_jake", 3],
-      ["test_tyler", "test_priya", 2],
+      ["test_tyler", "test_jake", 3, { type: "match", label: "from your daily match" }],
+      ["test_tyler", "test_priya", 2, { type: "event", label: "from AgTech Demo Day" }],
     ];
 
     let count = 0;
-    for (const [requesterClerk, accepterClerk, daysAgo] of pairs) {
+    for (const [requesterClerk, accepterClerk, daysAgo, source] of pairs) {
       const requester = await getUser(ctx, requesterClerk);
       const accepter = await getUser(ctx, accepterClerk);
       if (!requester || !accepter) continue;
@@ -757,6 +757,7 @@ export const seedConnections = internalMutation({
         requesterId: requester,
         accepterId: accepter,
         status: "connected",
+        source,
         connectedAt: now - daysAgo * day,
         createdAt: now - (daysAgo + 1) * day,
       });

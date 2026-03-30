@@ -3,11 +3,19 @@ import { query, mutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
+// Source validator for connection context
+const sourceValidator = v.optional(v.object({
+  type: v.string(),
+  label: v.string(),
+  referenceId: v.optional(v.string()),
+}));
+
 // Create connection between two users (instant mutual connection for MVP)
 export const connect = mutation({
   args: {
     requesterId: v.id("users"),
     accepterId: v.id("users"),
+    source: sourceValidator,
   },
   handler: async (ctx, args) => {
     // Check if connection already exists (in either direction)
@@ -39,6 +47,7 @@ export const connect = mutation({
       requesterId: args.requesterId,
       accepterId: args.accepterId,
       status: "connected",
+      source: args.source,
       connectedAt: now,
       createdAt: now,
     });
@@ -201,6 +210,7 @@ export const sendRequest = mutation({
   args: {
     requesterId: v.id("users"),
     accepterId: v.id("users"),
+    source: sourceValidator,
   },
   handler: async (ctx, args) => {
     // Check if connection already exists (in either direction)
@@ -251,17 +261,23 @@ export const sendRequest = mutation({
       requesterId: args.requesterId,
       accepterId: args.accepterId,
       status: "pending",
+      source: args.source,
       createdAt: now,
     });
 
     // Notify the recipient about the connection request
     const requester = await ctx.db.get(args.requesterId);
     const requesterName = requester?.name || "Someone";
+    const sourceLabel = args.source?.label;
+    const title = sourceLabel
+      ? `${requesterName} wants to connect — ${sourceLabel}`
+      : `${requesterName} wants to connect with you`;
+
     await ctx.scheduler.runAfter(0, internal.notifications.notifyUser, {
       recipientId: args.accepterId,
       senderId: args.requesterId,
       type: "connection_request",
-      title: `${requesterName} wants to connect with you`,
+      title,
       data: {
         connectionId: connectionId,
       },
@@ -450,6 +466,7 @@ export const listPendingRequests = query({
         return {
           connectionId: conn._id,
           requester,
+          source: conn.source,
           createdAt: conn.createdAt,
         };
       })
