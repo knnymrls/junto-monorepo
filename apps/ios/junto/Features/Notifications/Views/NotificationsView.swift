@@ -16,6 +16,7 @@ struct NotificationsView: View {
     @State private var selectedPost: PostResponse?
     @State private var selectedUserProfile: UserResponse?
     @State private var selectedEvent: EventWithRsvpResponse?
+    @State private var showComposer = false
     @State private var chatParticipant: UserResponse?
     @State private var chatConversationId: String?
 
@@ -59,6 +60,9 @@ struct NotificationsView: View {
                     currentUserId: userId
                 )
             }
+        }
+        .sheet(isPresented: $showComposer) {
+            PostComposerView()
         }
         .task {
             if let userId = currentUser.userId {
@@ -184,7 +188,20 @@ struct NotificationsView: View {
                     }
                 }
             }
-        case "weekly_digest", "inactivity_nudge", "milestone", "content_prompt":
+        case "content_prompt":
+            showComposer = true
+        case "meet_nudge":
+            if let conversationId = notification.data?.conversationId {
+                if let senderId = notification.data?.senderId {
+                    Task {
+                        if let user = try? await ConvexClientManager.shared.fetchUser(id: senderId) {
+                            chatConversationId = conversationId
+                            chatParticipant = user
+                        }
+                    }
+                }
+            }
+        case "weekly_digest", "inactivity_nudge", "milestone":
             break
         default:
             break

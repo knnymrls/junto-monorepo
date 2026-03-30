@@ -265,6 +265,7 @@ export default defineSchema({
     participant2UnreadCount: v.number(),
     status: v.optional(v.string()),            // "active" | "request" (default active)
     initiatorId: v.optional(v.id("users")),   // Who started the conversation (for requests)
+    meetNudgeSentAt: v.optional(v.number()),  // When "grab coffee" nudge was sent (prevents dups)
     createdAt: v.number(),
   })
     .index("by_participant1", ["participant1Id"])

@@ -45,6 +45,13 @@ crons.weekly(
   internal.reengagement.sendContentPrompts
 );
 
+// Meet nudges — every 6 hours, nudge conversations with 5+ messages to meet IRL
+crons.interval(
+  "meet nudges",
+  { hours: 6 },
+  internal.reengagement.sendMeetNudges
+);
+
 // Weekly match batches — Monday 6am CT (12:00 UTC)
 crons.weekly(
   "weekly match batches",

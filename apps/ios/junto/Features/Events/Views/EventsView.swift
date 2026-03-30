@@ -15,6 +15,7 @@ struct EventsView: View {
     @State private var events: [EventResponse] = []
     @State private var isLoading = true
     @State private var selectedEvent: EventWithRsvpResponse?
+    @State private var showCreateEvent = false
     @State private var cancellables = Set<AnyCancellable>()
 
     private let convex = ConvexClientManager.shared
@@ -38,6 +39,24 @@ struct EventsView: View {
                 }
             }
             .navigationBarHidden(true)
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    showCreateEvent = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 52, height: 52)
+                        .background(Color.appAccent)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+                }
+                .padding(.trailing, Spacing.xxl)
+                .padding(.bottom, Spacing.xxl)
+            }
+            .sheet(isPresented: $showCreateEvent) {
+                CreateEventSheet()
+            }
         }
         .sheet(item: $selectedEvent) { event in
             EventDetailView(event: event)

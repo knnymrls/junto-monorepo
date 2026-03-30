@@ -839,6 +839,28 @@ extension ConvexClientManager {
         return try await client.mutation("reports:create", with: args)
     }
 
+    // MARK: Events
+
+    func createEvent(
+        title: String,
+        description: String?,
+        date: Double,
+        location: String?,
+        type: String,
+        createdBy: String,
+        universityId: String?
+    ) async throws {
+        let _: String? = try await client.mutation("events:create", with: [
+            "title": title,
+            "description": description,
+            "date": date,
+            "location": location,
+            "type": type,
+            "createdBy": createdBy,
+            "universityId": universityId,
+        ] as [String: (any ConvexEncodable)?])
+    }
+
     // MARK: Device Tokens
 
     func registerDeviceToken(userId: String, token: String, appVersion: String?, deviceModel: String?, osVersion: String?) async throws {

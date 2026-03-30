@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalQuery, internalAction } from "./_generated/server";
+import { internalQuery, internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 
 // ============================================================
@@ -509,5 +509,97 @@ export const sendContentPrompts = internalAction({
     }
 
     if (sent > 0) console.log(`Sent ${sent} content prompts`);
+  },
+});
+
+// ============================================================
+// 7. MEET NUDGES — runs every 6 hours
+//    After 5+ messages in a conversation, nudge both users to meet IRL
+// ============================================================
+
+export const getConversationsForMeetNudge = internalQuery({
+  handler: async (ctx) => {
+    const conversations = await ctx.db
+      .query("conversations")
+      .collect();
+
+    const eligible = [];
+    for (const convo of conversations) {
+      // Skip if already nudged or not active
+      if (convo.meetNudgeSentAt) continue;
+      if (convo.status === "request") continue;
+
+      // Count messages
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_conversation", (q) => q.eq("conversationId", convo._id))
+        .collect();
+
+      if (messages.length >= 5) {
+        eligible.push({
+          conversationId: convo._id,
+          participant1Id: convo.participant1Id,
+          participant2Id: convo.participant2Id,
+        });
+      }
+    }
+
+    return eligible;
+  },
+});
+
+export const markMeetNudgeSent = internalMutation({
+  args: { conversationId: v.id("conversations") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.conversationId, {
+      meetNudgeSentAt: Date.now(),
+    });
+  },
+});
+
+export const sendMeetNudges = internalAction({
+  handler: async (ctx) => {
+    const eligible = await ctx.runQuery(
+      internal.reengagement.getConversationsForMeetNudge
+    );
+
+    let sent = 0;
+    for (const convo of eligible) {
+      // Get both user names
+      const user1 = await ctx.runQuery(internal.users.getWithEmbedding, { id: convo.participant1Id });
+      const user2 = await ctx.runQuery(internal.users.getWithEmbedding, { id: convo.participant2Id });
+
+      if (!user1 || !user2) continue;
+
+      const firstName1 = user1.name.split(" ")[0];
+      const firstName2 = user2.name.split(" ")[0];
+
+      // Nudge user 1
+      await ctx.runAction(internal.notifications.notifySystem, {
+        recipientId: convo.participant1Id,
+        type: "meet_nudge",
+        title: `You and ${firstName2} are both on campus`,
+        body: "Grab coffee this week?",
+        data: { conversationId: convo.conversationId },
+      });
+
+      // Nudge user 2
+      await ctx.runAction(internal.notifications.notifySystem, {
+        recipientId: convo.participant2Id,
+        type: "meet_nudge",
+        title: `You and ${firstName1} are both on campus`,
+        body: "Grab coffee this week?",
+        data: { conversationId: convo.conversationId },
+      });
+
+      // Mark as sent
+      await ctx.runMutation(internal.reengagement.markMeetNudgeSent, {
+        conversationId: convo.conversationId,
+      });
+
+      sent++;
+    }
+
+    if (sent > 0) console.log(`Sent meet nudges for ${sent} conversations`);
   },
 });
