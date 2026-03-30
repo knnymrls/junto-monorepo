@@ -45,11 +45,11 @@ crons.weekly(
   internal.reengagement.sendContentPrompts
 );
 
-// Daily matches — 6am CT (12:00 UTC)
-crons.daily(
-  "daily matches",
-  { hourUTC: 12, minuteUTC: 0 },
-  internal.dailyMatches.generateForAllUsers
+// Weekly match batches — Monday 6am CT (12:00 UTC)
+crons.weekly(
+  "weekly match batches",
+  { dayOfWeek: "monday", hourUTC: 12, minuteUTC: 0 },
+  internal.weeklyMatches.generateForAllUsers
 );
 
 export default crons;

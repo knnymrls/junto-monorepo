@@ -370,18 +370,24 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_user", ["userId", "createdAt"]),
 
-  // === DAILY MATCHES (pre-computed AI matches) ===
-  dailyMatches: defineTable({
+  // === WEEKLY MATCH BATCHES (pre-computed AI matches, 3-5 per week) ===
+  weeklyMatchBatches: defineTable({
     userId: v.id("users"),
     matches: v.array(v.object({
       matchId: v.id("users"),
+      matchType: v.union(
+        v.literal("complementary"),   // need ↔ offer
+        v.literal("shared_world"),    // same field
+        v.literal("shared_context"),  // same situation
+        v.literal("serendipity")      // cross-discipline
+      ),
       matchReason: v.string(),
     })),
-    date: v.string(),          // "2026-02-16" — one row per user per day
+    weekOf: v.string(),          // "2026-03-23" — Monday of the batch week
     generatedAt: v.number(),
   })
-    .index("by_user_date", ["userId", "date"])
-    .index("by_date", ["date"]),
+    .index("by_user_week", ["userId", "weekOf"])
+    .index("by_week", ["weekOf"]),
 
   // === REPORTS ===
   reports: defineTable({

@@ -17,7 +17,7 @@ struct SuggestedMatchCarousel: View {
     var body: some View {
         if !matches.isEmpty {
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("Suggested Matches")
+                Text("This Week's Matches")
                     .font(.bodySemibold)
                     .foregroundColor(.appSecondary)
                     .padding(.horizontal, Spacing.md)
@@ -63,7 +63,8 @@ struct SuggestedMatchCarousel: View {
                 isOnboarded: true,
                 createdAt: Date().timeIntervalSince1970 * 1000,
                 updatedAt: Date().timeIntervalSince1970 * 1000,
-                matchReason: "Wilson can help with fundraising"
+                matchType: "shared_world",
+                matchReason: "Yall are both building in edtech"
             ),
             SuggestedMatchResponse(
                 _id: "match_3",
@@ -82,7 +83,8 @@ struct SuggestedMatchCarousel: View {
                 isOnboarded: true,
                 createdAt: Date().timeIntervalSince1970 * 1000,
                 updatedAt: Date().timeIntervalSince1970 * 1000,
-                matchReason: "Alex is looking for an engineer to build an iOS app"
+                matchType: "complementary",
+                matchReason: "They're looking for an engineer to build iOS"
             )
         ]
     )
