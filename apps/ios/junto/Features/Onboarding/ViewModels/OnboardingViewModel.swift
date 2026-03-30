@@ -410,15 +410,9 @@ class OnboardingViewModel: ObservableObject {
 
         // Skip steps that invite link already handles
         if inviteLink != nil {
-            // After invite confirmation (step 0), skip school email (1) and verify (2)
-            // → go straight to profile setup (step 3)
-            if nextStep == 1 {
-                nextStep = 3
-            }
-
-            // Skip program selection (step 6) if invite pre-filled a program
-            if nextStep == 6 && inviteLink?.program != nil {
-                nextStep = 7
+            // Skip program selection (step 4) if invite pre-filled a program
+            if nextStep == 4 && inviteLink?.program != nil {
+                nextStep = 5
             }
         }
 
