@@ -193,4 +193,51 @@ http.route({
   }),
 });
 
+// Resolve invite link by code
+http.route({
+  path: "/invite",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const code = url.searchParams.get("code");
+
+      if (!code) {
+        return new Response(
+          JSON.stringify({ error: "code parameter is required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const result = await ctx.runQuery(api.inviteLinks.getByCode, { code });
+
+      if (!result) {
+        return new Response(
+          JSON.stringify({ error: "Invalid or expired invite link" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("Error resolving invite:", error);
+      return new Response(
+        JSON.stringify({ error: "Failed to resolve invite link" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+http.route({
+  path: "/invite",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }),
+});
+
 export default http;

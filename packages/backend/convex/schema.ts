@@ -412,6 +412,33 @@ export default defineSchema({
     .index("by_to_user", ["toUserId"])
     .index("by_created", ["createdAt"]),
 
+  // === INVITE LINKS ===
+  inviteLinks: defineTable({
+    code: v.string(),                              // URL-safe code (e.g. "raikes-2026" or auto-generated)
+    universityId: v.id("universities"),
+    program: v.optional(v.string()),               // e.g. "Raikes School"
+    role: v.optional(v.string()),                  // "student" | "alumni" | "faculty"
+    createdBy: v.id("users"),                      // Who created the link
+    label: v.optional(v.string()),                 // Human-readable label ("Raikes School Fall 2026")
+    maxUses: v.optional(v.number()),               // Cap redemptions (null = unlimited)
+    expiresAt: v.optional(v.number()),             // Expiration timestamp
+    useCount: v.number(),                          // Tracks redemptions
+    isActive: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_university", ["universityId"])
+    .index("by_created_by", ["createdBy"]),
+
+  // === INVITE REDEMPTIONS ===
+  inviteRedemptions: defineTable({
+    inviteLinkId: v.id("inviteLinks"),
+    userId: v.id("users"),
+    redeemedAt: v.number(),
+  })
+    .index("by_invite_link", ["inviteLinkId"])
+    .index("by_user", ["userId"]),
+
   // === AI INSIGHTS (pre-computed feed cards) ===
   insights: defineTable({
     targetUserId: v.id("users"),     // Who this insight is for

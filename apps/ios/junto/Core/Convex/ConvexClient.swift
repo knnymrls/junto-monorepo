@@ -1229,6 +1229,61 @@ enum ConnectionStatus: String {
     case connected = "connected"
 }
 
+// MARK: - Invite Links
+
+struct InviteLinkResponse: Codable {
+    let _id: String
+    let code: String
+    let universityId: String
+    let universityName: String
+    let universityShortName: String?
+    let universityCity: String
+    let universityState: String
+    let universityLogoUrl: String?
+    let program: String?
+    let role: String?
+    let label: String?
+}
+
+struct InviteRedeemResponse: Codable {
+    let alreadyRedeemed: Bool
+}
+
+extension ConvexClientManager {
+
+    /// Resolve an invite code to its university + program details
+    func getInviteLinkByCode(code: String) async throws -> InviteLinkResponse? {
+        return try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = client.subscribe(
+                to: "inviteLinks:getByCode",
+                with: ["code": code],
+                yielding: InviteLinkResponse?.self
+            )
+            .first()
+            .sink(
+                receiveCompletion: { completion in
+                    if case .failure(let error) = completion {
+                        continuation.resume(throwing: error)
+                    }
+                    cancellable?.cancel()
+                },
+                receiveValue: { result in
+                    continuation.resume(returning: result)
+                }
+            )
+        }
+    }
+
+    /// Redeem an invite link for a user
+    func redeemInviteLink(code: String, userId: String) async throws -> InviteRedeemResponse {
+        return try await client.mutation(
+            "inviteLinks:redeem",
+            with: ["code": code, "userId": userId]
+        )
+    }
+}
+
 // MARK: - Response Types
 
 struct UserMajorResponse: Codable, Hashable {

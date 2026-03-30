@@ -20,7 +20,7 @@ export default function DiscoverPage() {
   const searchResults = useQuery(
     api.users.searchForCards,
     query.length >= 2 && maker
-      ? { query, currentMakerId: maker._id, limit: 20 }
+      ? { query, currentUserId: maker._id, limit: 20 }
       : "skip"
   );
 

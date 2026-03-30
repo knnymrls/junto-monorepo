@@ -67,6 +67,9 @@ enum AnalyticsEvent {
     case searchResultTapped(userId: String, rank: Int)
     case connectFromSearch(toUserId: String)
 
+    // MARK: - Invite Links
+    case inviteLinkOpened(code: String)
+
     // MARK: - Notifications
     case notificationsViewed
     case notificationTapped(type: String)
@@ -110,6 +113,7 @@ enum AnalyticsEvent {
         case .searchPerformed: return "search_performed"
         case .searchResultTapped: return "search_result_tapped"
         case .connectFromSearch: return "connect_from_search"
+        case .inviteLinkOpened: return "invite_link_opened"
         case .notificationsViewed: return "notifications_viewed"
         case .notificationTapped: return "notification_tapped"
         case .notificationsPushEnabled: return "notifications_push_enabled"
@@ -258,6 +262,9 @@ enum AnalyticsEvent {
 
         case .connectFromSearch(let toUserId):
             return ["to_user_id": toUserId]
+
+        case .inviteLinkOpened(let code):
+            return ["code": code]
 
         case .notificationsViewed:
             return [:]

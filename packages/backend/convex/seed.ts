@@ -13,6 +13,7 @@ export const clearAll = internalMutation({
       "connections", "conversations", "messages", "typingIndicators",
       "notifications", "searchSessions", "searchChats", "searchMessages",
       "weeklyMatchBatches", "portfolioItems", "deviceTokens",
+      "inviteLinks", "inviteRedemptions",
     ] as const;
 
     let total = 0;

@@ -16,7 +16,7 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             // Background — transitions to gradient for final two steps
-            if viewModel.step >= 8 {
+            if viewModel.step >= 10 {
                 RadialGradient(
                     colors: [
                         Color(red: 50/255, green: 255/255, blue: 153/255),
@@ -50,16 +50,23 @@ struct OnboardingView: View {
 
                 Group {
                     switch viewModel.step {
-                    case 0: SelectCampusView(viewModel: viewModel)
-                    case 1: ProfileSetupView(viewModel: viewModel)
-                    case 2: SelectMajorsView(viewModel: viewModel)
-                    case 3: GradYearView(viewModel: viewModel)
-                    case 4: SelectProgramsView(viewModel: viewModel)
-                    case 5: SelectSkillsView(viewModel: viewModel)
-                    case 6: SelectInterestsView(viewModel: viewModel)
-                    case 7: LookingForView(viewModel: viewModel)
-                    case 8: SuggestedConnectionsView(viewModel: viewModel)
-                    case 9: OnboardingWelcomeView(viewModel: viewModel)
+                    case 0:
+                        if viewModel.inviteLink != nil {
+                            InviteConfirmationView(viewModel: viewModel)
+                        } else {
+                            SelectCampusView(viewModel: viewModel)
+                        }
+                    case 1:  SchoolEmailView(viewModel: viewModel)
+                    case 2:  VerifySchoolEmailView(viewModel: viewModel)
+                    case 3:  ProfileSetupView(viewModel: viewModel)
+                    case 4:  SelectMajorsView(viewModel: viewModel)
+                    case 5:  GradYearView(viewModel: viewModel)
+                    case 6:  SelectProgramsView(viewModel: viewModel)
+                    case 7:  SelectSkillsView(viewModel: viewModel)
+                    case 8:  SelectInterestsView(viewModel: viewModel)
+                    case 9:  LookingForView(viewModel: viewModel)
+                    case 10: SuggestedConnectionsView(viewModel: viewModel)
+                    case 11: OnboardingWelcomeView(viewModel: viewModel)
                     default: Spacer()
                     }
                 }
@@ -77,6 +84,10 @@ struct OnboardingView: View {
             if viewModel.step == 0 {
                 AnalyticsService.shared.track(.onboardingStarted)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .inviteLinkReceived)) { notification in
+            guard let code = notification.userInfo?["code"] as? String else { return }
+            Task { await viewModel.applyInviteCode(code) }
         }
         .alert("Sign out?", isPresented: $showSignOutAlert) {
             Button("Cancel", role: .cancel) {}

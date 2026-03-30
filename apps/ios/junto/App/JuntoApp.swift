@@ -47,6 +47,51 @@ struct juntoApp: App {
                         ImageCache.shared.clearOldEntries()
                     }
             }
+            .onOpenURL { url in
+                handleIncomingURL(url)
+            }
         }
+    }
+
+    /// Parse invite codes from incoming URLs.
+    /// Supports:
+    ///   - Custom scheme: junto://join/CODE
+    ///   - Universal link: https://onjunto.com/join/CODE
+    private func handleIncomingURL(_ url: URL) {
+        let code: String?
+
+        if url.scheme == "junto" {
+            // junto://join/CODE
+            // host = "join", path components = ["", "CODE"]
+            if url.host == "join" {
+                let pathCode = url.pathComponents.dropFirst().first
+                code = pathCode
+            } else {
+                code = nil
+            }
+        } else {
+            // Universal link: https://onjunto.com/join/CODE
+            let components = url.pathComponents
+            if components.count >= 3, components[1] == "join" {
+                code = components[2]
+            } else {
+                code = nil
+            }
+        }
+
+        guard let code, !code.isEmpty else { return }
+
+        AnalyticsService.shared.track(.inviteLinkOpened(code: code))
+
+        // Persist the invite code so it survives the auth flow
+        // (user may not be signed in yet when the link is opened)
+        UserDefaults.standard.set(code, forKey: "pendingInviteCode")
+
+        // Also post notification for immediate pickup if onboarding is already visible
+        NotificationCenter.default.post(
+            name: .inviteLinkReceived,
+            object: nil,
+            userInfo: ["code": code]
+        )
     }
 }
