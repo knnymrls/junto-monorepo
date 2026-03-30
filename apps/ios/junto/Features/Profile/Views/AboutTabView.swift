@@ -9,9 +9,14 @@ import SwiftUI
 
 struct AboutTabView: View {
     let user: UserResponse
+    var vouches: [VouchResponse] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xl) {
+            if !vouches.isEmpty {
+                vouchesSection
+            }
+
             if let currentProject = user.currentProject, !currentProject.isEmpty {
                 infoSection(title: "Current Project", icon: "hammer.fill") {
                     Text(currentProject)
@@ -144,9 +149,38 @@ struct AboutTabView: View {
         }
     }
 
+    // MARK: - Vouches
+
+    private var vouchesSection: some View {
+        infoSection(title: "Vouches", icon: "checkmark.seal.fill") {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                ForEach(vouches) { vouch in
+                    HStack(alignment: .top, spacing: Spacing.sm) {
+                        AvatarView(
+                            avatarUrl: vouch.fromUser?.avatarUrl,
+                            name: vouch.fromUser?.name ?? "?",
+                            size: 32
+                        )
+
+                        VStack(alignment: .leading, spacing: Spacing.xxs) {
+                            Text(vouch.fromUser?.name ?? "Someone")
+                                .font(.bodySemibold)
+                                .foregroundColor(.appPrimary)
+
+                            Text(vouch.reason)
+                                .font(.body14)
+                                .foregroundColor(.appSecondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Empty State
 
     private var isEmpty: Bool {
+        vouches.isEmpty &&
         user.currentProject == nil &&
         user.lookingFor == nil &&
         user.canHelpWith == nil &&

@@ -16,35 +16,39 @@ struct JuntoTextArea: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             if let label {
-                HStack {
-                    Text(label)
-                        .font(.bodyLargeSemibold)
-                        .foregroundColor(.appPrimary)
-
-                    if let characterLimit {
-                        Spacer()
-                        Text("\(text.count)/\(characterLimit)")
-                            .font(.body14)
-                            .foregroundColor(.appSecondary)
-                    }
-                }
+                Text(label)
+                    .font(.bodyLargeSemibold)
+                    .foregroundColor(.appPrimary)
             }
 
             ZStack(alignment: .topLeading) {
-                TextEditor(text: $text)
-                    .font(.bodyLarge)
-                    .lineSpacing(3)
-                    .foregroundColor(.appPrimary)
-                    .scrollContentBackground(.hidden)
-                    .scrollDisabled(true)
-                    .autocorrectionDisabled()
-                    .frame(minHeight: 60)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .onChange(of: text) { _, newValue in
-                        if let limit = characterLimit, newValue.count > limit {
-                            text = String(newValue.prefix(limit))
+                VStack(spacing: 0) {
+                    TextEditor(text: $text)
+                        .font(.bodyLarge)
+                        .lineSpacing(3)
+                        .foregroundColor(.appPrimary)
+                        .scrollContentBackground(.hidden)
+                        .scrollDisabled(true)
+                        .autocorrectionDisabled()
+                        .frame(minHeight: 60)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onChange(of: text) { _, newValue in
+                            if let limit = characterLimit, newValue.count > limit {
+                                text = String(newValue.prefix(limit))
+                            }
                         }
+
+                    if let characterLimit {
+                        HStack {
+                            Spacer()
+                            Text("\(text.count)/\(characterLimit)")
+                                .font(.captionSmall)
+                                .foregroundColor(.appSecondary)
+                        }
+                        .padding(.trailing, Spacing.xs)
+                        .padding(.bottom, Spacing.xs)
                     }
+                }
 
                 if text.isEmpty {
                     Text(placeholder)

@@ -22,6 +22,9 @@ struct ProfileView: View {
     @State private var isLoadingStatus = true
     @State private var connectionCount: Int = 0
     @State private var isActioning = false
+    @State private var hasVouched = false
+    @State private var showVouchSheet = false
+    @State private var vouches: [VouchResponse] = []
     @Environment(\.dismiss) private var dismiss
 
     var isSelf: Bool {
@@ -36,9 +39,12 @@ struct ProfileView: View {
                         user: user,
                         connectionStatus: connectionStatus,
                         connectionCount: connectionCount,
+                        vouchCount: vouches.count,
+                        hasVouched: hasVouched,
                         isSelf: isSelf,
                         isLoadingStatus: isLoadingStatus,
                         isActioning: $isActioning,
+                        showVouchSheet: $showVouchSheet,
                         onConnect: sendRequest,
                         onAccept: acceptRequest
                     )
@@ -66,9 +72,21 @@ struct ProfileView: View {
             }
         }
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showVouchSheet) {
+            VouchSheet(
+                userName: user.name,
+                fromUserId: currentUser.userId ?? "",
+                toUserId: user._id,
+                onVouched: {
+                    hasVouched = true
+                    Task { await loadVouches() }
+                }
+            )
+        }
         .task {
             AnalyticsService.shared.track(.profileViewed(userId: user._id))
             await loadConnectionData()
+            await loadVouches()
         }
     }
 
@@ -104,7 +122,7 @@ struct ProfileView: View {
         case .posts:
             PostsTabView(authorId: user._id, authorName: user.name, isSelf: isSelf)
         case .about:
-            AboutTabView(user: user)
+            AboutTabView(user: user, vouches: vouches)
         }
     }
 
@@ -132,7 +150,27 @@ struct ProfileView: View {
         } catch {
             print("ProfileView: Connection status error: \(error)")
         }
+        // Load vouch status if connected and not self
+        if connectionStatus == .connected {
+            do {
+                hasVouched = try await ConvexClientManager.shared.hasVouched(
+                    fromUserId: userId,
+                    toUserId: user._id
+                )
+            } catch {
+                print("ProfileView: Has vouched check error: \(error)")
+            }
+        }
+
         isLoadingStatus = false
+    }
+
+    private func loadVouches() async {
+        do {
+            vouches = try await ConvexClientManager.shared.fetchVouches(userId: user._id)
+        } catch {
+            print("ProfileView: Failed to fetch vouches: \(error)")
+        }
     }
 
     private func sendRequest() {

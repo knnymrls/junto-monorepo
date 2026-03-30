@@ -69,6 +69,7 @@ export const create = internalMutation({
       connectionId: v.optional(v.id("connections")),
       eventId: v.optional(v.id("events")),
       conversationId: v.optional(v.id("conversations")),
+      vouchId: v.optional(v.id("vouches")),
     })),
   },
   handler: async (ctx, args) => {
@@ -261,6 +262,7 @@ export const notifyUser = internalAction({
       connectionId: v.optional(v.id("connections")),
       eventId: v.optional(v.id("events")),
       conversationId: v.optional(v.id("conversations")),
+      vouchId: v.optional(v.id("vouches")),
     })),
   },
   handler: async (ctx, args) => {
@@ -308,6 +310,7 @@ export const notifySystem = internalAction({
       connectionId: v.optional(v.id("connections")),
       eventId: v.optional(v.id("events")),
       conversationId: v.optional(v.id("conversations")),
+      vouchId: v.optional(v.id("vouches")),
     })),
   },
   handler: async (ctx, args) => {
