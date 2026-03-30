@@ -62,7 +62,7 @@ struct NotificationsView: View {
             }
         }
         .sheet(isPresented: $showComposer) {
-            PostComposerView()
+            PostComposerView(viewModel: FeedViewModel())
         }
         .task {
             if let userId = currentUser.userId {
