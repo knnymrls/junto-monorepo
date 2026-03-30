@@ -2,7 +2,7 @@
 //  SelectInterestsView.swift
 //  junto
 //
-//  Onboarding step 8: search and select interests
+//  Onboarding step 6: search and select interests
 //
 
 import SwiftUI
@@ -85,6 +85,6 @@ struct SelectInterestsView: View {
             viewModel.searchInterests(query)
         }
         .task { await viewModel.loadInterests() }
-        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 8, stepName: "select_interests")) }
+        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 6, stepName: "select_interests")) }
     }
 }

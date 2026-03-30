@@ -2,7 +2,7 @@
 //  LookingForView.swift
 //  junto
 //
-//  Onboarding step 9: Need help finding...
+//  Onboarding step 7: Need help finding...
 //
 
 import SwiftUI
@@ -47,6 +47,6 @@ struct LookingForView: View {
             .padding(.horizontal, Spacing.xxl)
             .padding(.bottom, Spacing.lg)
         }
-        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 9, stepName: "looking_for")) }
+        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 7, stepName: "looking_for")) }
     }
 }

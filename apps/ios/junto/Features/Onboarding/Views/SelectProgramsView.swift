@@ -2,7 +2,7 @@
 //  SelectProgramsView.swift
 //  junto
 //
-//  Onboarding step 6: select programs (Raikes School, Catalyst, etc.)
+//  Onboarding step 4: select programs (Raikes School, Catalyst, etc.)
 //
 
 import SwiftUI
@@ -56,6 +56,6 @@ struct SelectProgramsView: View {
             .padding(.bottom, Spacing.lg)
         }
         .task { await viewModel.loadPrograms() }
-        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 6, stepName: "select_programs")) }
+        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 4, stepName: "select_programs")) }
     }
 }

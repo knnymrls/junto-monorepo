@@ -2,7 +2,7 @@
 //  GradYearView.swift
 //  junto
 //
-//  Onboarding step 5: select expected graduation semester
+//  Onboarding step 3: select expected graduation semester
 //
 
 import SwiftUI
@@ -42,6 +42,6 @@ struct GradYearView: View {
             .padding(.horizontal, Spacing.xxl)
             .padding(.bottom, Spacing.lg)
         }
-        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 5, stepName: "grad_year")) }
+        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 3, stepName: "grad_year")) }
     }
 }

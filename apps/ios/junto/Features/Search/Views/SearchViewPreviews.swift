@@ -23,8 +23,6 @@ private let mockUsers: [UserResponse] = (0..<8).map { i in
         clerkId: "clerk_\(i)",
         email: "user\(i)@test.com",
         phone: nil,
-        eduEmail: nil,
-        eduVerified: nil,
         name: ["Alex Chen", "Jordan Rivera", "Sam Kim", "Morgan Lee", "Taylor Swift", "Casey Park", "Riley Johnson", "Drew Martinez"][i],
         headline: ["iOS Developer", "UX Designer", "Full-Stack Builder", "Marketing Lead", "Product Manager", nil, "AI Researcher", "Startup Founder"][i],
         avatarUrl: nil,

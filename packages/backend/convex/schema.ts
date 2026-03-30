@@ -9,10 +9,6 @@ export default defineSchema({
     email: v.optional(v.string()),          // Auth email (from Clerk sign-in)
     phone: v.optional(v.string()),
 
-    // Campus verification
-    eduEmail: v.optional(v.string()),       // Their .edu email (may be same as auth email)
-    eduVerified: v.optional(v.boolean()),   // Has verified .edu via OTP
-
     // Core identity
     name: v.string(),
     headline: v.optional(v.string()),       // "Introduce yourself as you would at a party"
@@ -58,7 +54,6 @@ export default defineSchema({
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"])
-    .index("by_edu_email", ["eduEmail"])
     .index("by_university", ["universityId"])
     .searchIndex("search_name", {
       searchField: "name",

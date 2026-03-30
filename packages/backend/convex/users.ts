@@ -123,8 +123,6 @@ export const upsert = mutation({
     name: v.string(),
     headline: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
-    eduEmail: v.optional(v.string()),
-    eduVerified: v.optional(v.boolean()),
     currentProject: v.optional(v.string()),
     lookingFor: v.optional(v.string()),
     canHelpWith: v.optional(v.string()),

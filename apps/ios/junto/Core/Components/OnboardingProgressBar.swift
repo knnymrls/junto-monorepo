@@ -57,9 +57,9 @@ struct OnboardingProgressBar: View {
 
 #Preview {
     VStack(spacing: 40) {
-        OnboardingProgressBar(currentStep: 0, totalSteps: 11)
-        OnboardingProgressBar(currentStep: 1, totalSteps: 11) {}
-        OnboardingProgressBar(currentStep: 5, totalSteps: 11) {}
-        OnboardingProgressBar(currentStep: 10, totalSteps: 11) {}
+        OnboardingProgressBar(currentStep: 0, totalSteps: 10)
+        OnboardingProgressBar(currentStep: 1, totalSteps: 10) {}
+        OnboardingProgressBar(currentStep: 5, totalSteps: 10) {}
+        OnboardingProgressBar(currentStep: 9, totalSteps: 10) {}
     }
 }

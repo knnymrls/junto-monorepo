@@ -2,7 +2,7 @@
 //  SuggestedConnectionsView.swift
 //  junto
 //
-//  Onboarding step 11: suggested connections at your university
+//  Onboarding step 8: suggested connections at your university
 //
 
 import SwiftUI
@@ -69,7 +69,7 @@ struct SuggestedConnectionsView: View {
             withAnimation { cardsAppeared = true }
         }
         .onAppear {
-            AnalyticsService.shared.track(.onboardingStepViewed(step: 10, stepName: "suggested_connections"))
+            AnalyticsService.shared.track(.onboardingStepViewed(step: 8, stepName: "suggested_connections"))
         }
     }
 }
