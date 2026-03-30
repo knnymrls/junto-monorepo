@@ -2,10 +2,11 @@
 //  CreateEventSheet.swift
 //  junto
 //
-//  Simple event creation for students
+//  Event creation for students
 //
 
 import SwiftUI
+import PhotosUI
 
 struct CreateEventSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -13,10 +14,16 @@ struct CreateEventSheet: View {
 
     @State private var title = ""
     @State private var description = ""
-    @State private var date = Date()
+    @State private var startDate = Date()
+    @State private var endDate = Date().addingTimeInterval(3600)
     @State private var location = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
+
+    // Image
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var coverImage: UIImage?
+    @State private var coverImageUrl: String?
 
     var body: some View {
         NavigationStack {
@@ -25,6 +32,40 @@ struct CreateEventSheet: View {
 
                 ScrollView {
                     VStack(spacing: Spacing.xl) {
+                        // Cover image
+                        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                            if let coverImage {
+                                Image(uiImage: coverImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(height: 160)
+                                    .frame(maxWidth: .infinity)
+                                    .clipped()
+                                    .cornerRadius(Radius.lg)
+                            } else {
+                                VStack(spacing: Spacing.sm) {
+                                    Image(systemName: "photo")
+                                        .font(.system(size: 28))
+                                        .foregroundColor(.appSecondary)
+                                    Text("Add cover image")
+                                        .font(.bodySemibold)
+                                        .foregroundColor(.appSecondary)
+                                }
+                                .frame(height: 160)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.appSurface)
+                                .cornerRadius(Radius.lg)
+                            }
+                        }
+                        .onChange(of: selectedPhotoItem) { _, newItem in
+                            Task {
+                                if let data = try? await newItem?.loadTransferable(type: Data.self),
+                                   let image = UIImage(data: data) {
+                                    coverImage = image
+                                }
+                            }
+                        }
+
                         // Title
                         VStack(alignment: .leading, spacing: Spacing.xs) {
                             Text("Event name")
@@ -38,15 +79,28 @@ struct CreateEventSheet: View {
                                 .cornerRadius(Radius.md)
                         }
 
-                        // Date & Time
+                        // Start date & time
                         VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Text("When")
+                            Text("Starts")
                                 .font(.bodySemibold)
                                 .foregroundColor(.appPrimary)
-                            DatePicker("", selection: $date, in: Date()..., displayedComponents: [.date, .hourAndMinute])
+                            DatePicker("", selection: $startDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
                                 .datePickerStyle(.compact)
                                 .labelsHidden()
                                 .tint(.appAccent)
+                                .colorScheme(.dark)
+                        }
+
+                        // End date & time
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            Text("Ends")
+                                .font(.bodySemibold)
+                                .foregroundColor(.appPrimary)
+                            DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                                .tint(.appAccent)
+                                .colorScheme(.dark)
                         }
 
                         // Location
@@ -91,6 +145,7 @@ struct CreateEventSheet: View {
             }
             .navigationTitle("Create Event")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") { dismiss() }
@@ -106,6 +161,13 @@ struct CreateEventSheet: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
+        .onChange(of: startDate) { _, newStart in
+            // Keep end date at least 1 hour after start
+            if endDate < newStart.addingTimeInterval(3600) {
+                endDate = newStart.addingTimeInterval(3600)
+            }
+        }
     }
 
     private func createEvent() async {
@@ -114,10 +176,12 @@ struct CreateEventSheet: View {
         errorMessage = nil
 
         do {
+            // TODO: Upload cover image to Convex storage if selected
             try await ConvexClientManager.shared.createEvent(
                 title: title,
                 description: description.isEmpty ? nil : description,
-                date: date.timeIntervalSince1970 * 1000,
+                date: startDate.timeIntervalSince1970 * 1000,
+                endDate: endDate.timeIntervalSince1970 * 1000,
                 location: location.isEmpty ? nil : location,
                 type: "in_person",
                 createdBy: userId,
