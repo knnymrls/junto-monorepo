@@ -28,7 +28,7 @@ struct CreateEventSheet: View {
                         // Title
                         VStack(alignment: .leading, spacing: Spacing.xs) {
                             Text("Event name")
-                                .font(.body14Semibold)
+                                .font(.bodySemibold)
                                 .foregroundColor(.appPrimary)
                             TextField("e.g. Coffee & pitch practice", text: $title)
                                 .font(.bodyLarge)
@@ -41,7 +41,7 @@ struct CreateEventSheet: View {
                         // Date & Time
                         VStack(alignment: .leading, spacing: Spacing.xs) {
                             Text("When")
-                                .font(.body14Semibold)
+                                .font(.bodySemibold)
                                 .foregroundColor(.appPrimary)
                             DatePicker("", selection: $date, in: Date()..., displayedComponents: [.date, .hourAndMinute])
                                 .datePickerStyle(.compact)
@@ -52,7 +52,7 @@ struct CreateEventSheet: View {
                         // Location
                         VStack(alignment: .leading, spacing: Spacing.xs) {
                             Text("Where")
-                                .font(.body14Semibold)
+                                .font(.bodySemibold)
                                 .foregroundColor(.appPrimary)
                             TextField("e.g. Union Plaza, UNL campus", text: $location)
                                 .font(.bodyLarge)
@@ -65,7 +65,7 @@ struct CreateEventSheet: View {
                         // Description (optional)
                         VStack(alignment: .leading, spacing: Spacing.xs) {
                             Text("Description (optional)")
-                                .font(.body14Semibold)
+                                .font(.bodySemibold)
                                 .foregroundColor(.appPrimary)
                             TextEditor(text: $description)
                                 .font(.bodyLarge)
@@ -100,7 +100,7 @@ struct CreateEventSheet: View {
                     Button("Create") {
                         Task { await createEvent() }
                     }
-                    .font(.body14Semibold)
+                    .font(.bodySemibold)
                     .foregroundColor(title.isEmpty ? .appSecondary : .appAccent)
                     .disabled(title.isEmpty || isLoading)
                 }
