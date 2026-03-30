@@ -38,7 +38,7 @@ export default function ProfilePage({
   const { maker: currentMaker } = useCurrentMaker();
   const makerId = id as Id<"makers">;
 
-  const maker = useQuery(api.makers.get, { id: makerId });
+  const maker = useQuery(api.users.get, { id: makerId });
   const portfolio = useQuery(api.portfolio.list, { makerId });
   const posts = useQuery(api.posts.getByAuthor, { authorId: makerId, limit: 5 });
   const connections = useQuery(api.connections.listForMaker, { makerId });

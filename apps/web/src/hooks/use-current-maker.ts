@@ -7,11 +7,11 @@ import { useEffect, useRef } from "react";
 
 export function useCurrentMaker() {
   const { user, isLoaded: isClerkLoaded } = useUser();
-  const upsertMaker = useMutation(api.makers.upsert);
+  const upsertMaker = useMutation(api.users.upsert);
   const hasTriedCreate = useRef(false);
 
   const maker = useQuery(
-    api.makers.getByClerkId,
+    api.users.getByClerkId,
     user ? { clerkId: user.id } : "skip"
   );
 
