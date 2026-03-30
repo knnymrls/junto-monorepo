@@ -23,7 +23,6 @@ struct CreateEventSheet: View {
     // Image
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var coverImage: UIImage?
-    @State private var coverImageUrl: String?
 
     var body: some View {
         NavigationStack {
@@ -53,7 +52,7 @@ struct CreateEventSheet: View {
                                 }
                                 .frame(height: 160)
                                 .frame(maxWidth: .infinity)
-                                .background(Color.appSurface)
+                                .background(Color.appInputFill)
                                 .cornerRadius(Radius.lg)
                             }
                         }
@@ -67,69 +66,48 @@ struct CreateEventSheet: View {
                         }
 
                         // Title
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Text("Event name")
-                                .font(.bodySemibold)
-                                .foregroundColor(.appPrimary)
-                            TextField("e.g. Coffee & pitch practice", text: $title)
-                                .font(.bodyLarge)
-                                .foregroundColor(.appPrimary)
-                                .padding(Spacing.md)
-                                .background(Color.appSurface)
-                                .cornerRadius(Radius.md)
-                        }
+                        JuntoTextField(
+                            placeholder: "e.g. Coffee & pitch practice",
+                            text: $title,
+                            label: "Event name"
+                        )
 
-                        // Start date & time
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                        // Start
+                        VStack(alignment: .leading, spacing: Spacing.sm) {
                             Text("Starts")
-                                .font(.bodySemibold)
+                                .font(.bodyLargeSemibold)
                                 .foregroundColor(.appPrimary)
                             DatePicker("", selection: $startDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
                                 .datePickerStyle(.compact)
                                 .labelsHidden()
                                 .tint(.appAccent)
-                                .colorScheme(.dark)
                         }
 
-                        // End date & time
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                        // End
+                        VStack(alignment: .leading, spacing: Spacing.sm) {
                             Text("Ends")
-                                .font(.bodySemibold)
+                                .font(.bodyLargeSemibold)
                                 .foregroundColor(.appPrimary)
                             DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
                                 .datePickerStyle(.compact)
                                 .labelsHidden()
                                 .tint(.appAccent)
-                                .colorScheme(.dark)
                         }
 
                         // Location
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Text("Where")
-                                .font(.bodySemibold)
-                                .foregroundColor(.appPrimary)
-                            TextField("e.g. Union Plaza, UNL campus", text: $location)
-                                .font(.bodyLarge)
-                                .foregroundColor(.appPrimary)
-                                .padding(Spacing.md)
-                                .background(Color.appSurface)
-                                .cornerRadius(Radius.md)
-                        }
+                        JuntoTextField(
+                            placeholder: "e.g. Union Plaza, UNL campus",
+                            text: $location,
+                            label: "Where"
+                        )
 
-                        // Description (optional)
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Text("Description (optional)")
-                                .font(.bodySemibold)
-                                .foregroundColor(.appPrimary)
-                            TextEditor(text: $description)
-                                .font(.bodyLarge)
-                                .foregroundColor(.appPrimary)
-                                .frame(minHeight: 80)
-                                .padding(Spacing.sm)
-                                .background(Color.appSurface)
-                                .cornerRadius(Radius.md)
-                                .scrollContentBackground(.hidden)
-                        }
+                        // Description
+                        JuntoTextArea(
+                            text: $description,
+                            label: "Description (optional)",
+                            placeholder: "What's this event about?",
+                            maxLength: 500
+                        )
 
                         if let error = errorMessage {
                             Text(error)
@@ -145,7 +123,6 @@ struct CreateEventSheet: View {
             }
             .navigationTitle("Create Event")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") { dismiss() }
@@ -161,9 +138,7 @@ struct CreateEventSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
         .onChange(of: startDate) { _, newStart in
-            // Keep end date at least 1 hour after start
             if endDate < newStart.addingTimeInterval(3600) {
                 endDate = newStart.addingTimeInterval(3600)
             }
@@ -176,7 +151,6 @@ struct CreateEventSheet: View {
         errorMessage = nil
 
         do {
-            // TODO: Upload cover image to Convex storage if selected
             try await ConvexClientManager.shared.createEvent(
                 title: title,
                 description: description.isEmpty ? nil : description,
