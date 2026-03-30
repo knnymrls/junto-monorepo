@@ -171,7 +171,7 @@ class OnboardingViewModel: ObservableObject {
     // MARK: - Step Navigation
 
     @Published var step = 0
-    let totalSteps = 12
+    let totalSteps = 10
     @Published var navigatingForward = true
 
     static func stepName(for step: Int) -> String {
@@ -890,8 +890,6 @@ class OnboardingViewModel: ObservableObject {
                 name: displayName,
                 headline: headline.isEmpty ? nil : headline,
                 avatarUrl: avatarUrl,
-                eduEmail: eduEmail.isEmpty ? nil : eduEmail,
-                eduVerified: !eduEmail.isEmpty,
                 universityId: selectedUniversity?._id,
                 majors: majorInputs,
                 graduationSemester: gradSemester.isEmpty ? nil : gradSemester,
