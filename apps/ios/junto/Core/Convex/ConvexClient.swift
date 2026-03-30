@@ -1241,8 +1241,6 @@ struct UserResponse: Codable, Identifiable, Hashable {
     let clerkId: String
     let email: String?
     let phone: String?
-    let eduEmail: String?
-    let eduVerified: Bool?
     let name: String
     let headline: String?
     let avatarUrl: String?
@@ -1303,8 +1301,6 @@ struct SuggestedMatchResponse: Codable, Identifiable, Hashable {
             clerkId: clerkId,
             email: email,
             phone: nil,
-            eduEmail: nil,
-            eduVerified: nil,
             name: name,
             headline: headline,
             avatarUrl: avatarUrl,
@@ -1470,8 +1466,6 @@ extension UserResponse {
         clerkId: "clerk_mock_1",
         email: "kenny@onjunto.com",
         phone: nil,
-        eduEmail: "kmorales@huskers.unl.edu",
-        eduVerified: true,
         name: "Kenny Morales",
         headline: "Building FindU - College decision platform",
         avatarUrl: nil,
@@ -1506,8 +1500,6 @@ extension UserResponse {
             clerkId: "clerk_mock_2",
             email: "sarah@example.com",
             phone: nil,
-            eduEmail: nil,
-            eduVerified: nil,
             name: "Sarah Chen",
             headline: "Full-stack developer | React & Node",
             avatarUrl: nil,
@@ -1533,8 +1525,6 @@ extension UserResponse {
             clerkId: "clerk_mock_3",
             email: "marcus@example.com",
             phone: nil,
-            eduEmail: nil,
-            eduVerified: nil,
             name: "Marcus Williams",
             headline: "UX Designer | Previously at Google",
             avatarUrl: nil,
@@ -1751,8 +1741,6 @@ struct UserInput {
     let name: String
     var headline: String?
     var avatarUrl: String?
-    var eduEmail: String?
-    var eduVerified: Bool?
     var universityId: String?
     var majors: [MajorInput]?
     var graduationSemester: String?
@@ -1783,8 +1771,6 @@ struct UserInput {
         if let phone = phone { args["phone"] = phone }
         if let headline = headline { args["headline"] = headline }
         if let avatarUrl = avatarUrl { args["avatarUrl"] = avatarUrl }
-        if let eduEmail = eduEmail { args["eduEmail"] = eduEmail }
-        if let eduVerified = eduVerified { args["eduVerified"] = eduVerified }
         if let universityId = universityId { args["universityId"] = universityId }
         if let graduationSemester = graduationSemester { args["graduationSemester"] = graduationSemester }
         if let currentProject = currentProject { args["currentProject"] = currentProject }

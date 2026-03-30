@@ -2,7 +2,7 @@
 //  SelectSkillsView.swift
 //  junto
 //
-//  Onboarding step 7: search and select skills
+//  Onboarding step 5: search and select skills
 //
 
 import SwiftUI
@@ -85,6 +85,6 @@ struct SelectSkillsView: View {
             viewModel.searchSkills(query)
         }
         .task { await viewModel.loadSkills() }
-        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 7, stepName: "select_skills")) }
+        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 5, stepName: "select_skills")) }
     }
 }

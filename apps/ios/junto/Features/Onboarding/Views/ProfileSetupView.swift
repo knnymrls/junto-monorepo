@@ -2,7 +2,7 @@
 //  ProfileSetupView.swift
 //  junto
 //
-//  Onboarding step 3: set up profile photo, name, and headline
+//  Onboarding step 1: set up profile photo, name, and headline
 //
 
 import SwiftUI
@@ -73,7 +73,7 @@ struct ProfileSetupView: View {
         }
         .onAppear {
             viewModel.errorMessage = nil
-            AnalyticsService.shared.track(.onboardingStepViewed(step: 3, stepName: "profile_setup"))
+            AnalyticsService.shared.track(.onboardingStepViewed(step: 1, stepName: "profile_setup"))
         }
     }
 }

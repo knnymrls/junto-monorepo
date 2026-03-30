@@ -2,7 +2,7 @@
 //  SelectMajorsView.swift
 //  junto
 //
-//  Onboarding step 4: search and select your majors (multi-select)
+//  Onboarding step 2: search and select your majors (multi-select)
 //
 
 import SwiftUI
@@ -98,6 +98,6 @@ struct SelectMajorsView: View {
             viewModel.searchMajors(query)
         }
         .task { await viewModel.loadMajors() }
-        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 4, stepName: "select_majors")) }
+        .onAppear { AnalyticsService.shared.track(.onboardingStepViewed(step: 2, stepName: "select_majors")) }
     }
 }

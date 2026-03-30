@@ -2,7 +2,7 @@
 //  OnboardingViewModel.swift
 //  junto
 //
-//  Manages onboarding flow state, persistence, and Clerk .edu verification
+//  Manages onboarding flow state and persistence
 //
 
 import Foundation
@@ -16,7 +16,6 @@ private struct PersistedState: Codable {
     var step: Int = 0
     var universityId: String = ""
     var universityName: String = ""
-    var eduEmail: String = ""
     var displayName: String = ""
     var headline: String = ""
     var majorIds: [String] = []
@@ -28,10 +27,24 @@ private struct PersistedState: Codable {
 
     private static let key = "onboardingState"
 
+    /// Version key to track schema changes (e.g. removing edu steps)
+    private static let versionKey = "onboardingStateVersion"
+    private static let currentVersion = 2 // v2: removed edu email steps 1 & 2
+
     static func load() -> PersistedState {
         // Try new single-key format first
         if let data = UserDefaults.standard.data(forKey: key),
-           let state = try? JSONDecoder().decode(PersistedState.self, from: data) {
+           var state = try? JSONDecoder().decode(PersistedState.self, from: data) {
+            // Migrate step numbers if saved before edu steps were removed
+            if UserDefaults.standard.integer(forKey: versionKey) < currentVersion {
+                if state.step >= 3 {
+                    state.step -= 2 // old steps 3-11 → new steps 1-9
+                } else if state.step >= 1 {
+                    state.step = 1 // was on edu email/verify → go to profile setup
+                }
+                UserDefaults.standard.set(currentVersion, forKey: versionKey)
+                state.save()
+            }
             return state
         }
         // Migrate from legacy @AppStorage keys (one-time)
@@ -41,17 +54,19 @@ private struct PersistedState: Codable {
     func save() {
         guard let data = try? JSONEncoder().encode(self) else { return }
         UserDefaults.standard.set(data, forKey: Self.key)
+        UserDefaults.standard.set(Self.currentVersion, forKey: Self.versionKey)
     }
 
     static func clear() {
         UserDefaults.standard.removeObject(forKey: key)
+        UserDefaults.standard.removeObject(forKey: versionKey)
         // Also clear legacy keys in case they exist
         let legacyKeys = [
             "onboardingStep", "onboardingUniversityId", "onboardingUniversityName",
             "onboardingEduEmail", "onboardingDisplayName", "onboardingHeadline",
             "onboardingMajorIds", "onboardingGradSemester", "onboardingPrograms",
             "onboardingSkillIds", "onboardingInterestIds",
-            "onboardingLookingFor", "onboardingCanHelp",  // canHelp kept for cleanup
+            "onboardingLookingFor", "onboardingCanHelp",
         ]
         for key in legacyKeys { UserDefaults.standard.removeObject(forKey: key) }
     }
@@ -67,11 +82,20 @@ private struct PersistedState: Codable {
         let skillStr = ud.string(forKey: "onboardingSkillIds") ?? ""
         let interestStr = ud.string(forKey: "onboardingInterestIds") ?? ""
 
+        // Remap step numbers: old steps 1-2 (edu) removed, 3+ shift down by 2
+        let remappedStep: Int
+        if step >= 3 {
+            remappedStep = step - 2
+        } else if step >= 1 {
+            remappedStep = 1 // edu steps → profile setup
+        } else {
+            remappedStep = step
+        }
+
         let state = PersistedState(
-            step: step,
+            step: remappedStep,
             universityId: ud.string(forKey: "onboardingUniversityId") ?? "",
             universityName: ud.string(forKey: "onboardingUniversityName") ?? "",
-            eduEmail: ud.string(forKey: "onboardingEduEmail") ?? "",
             displayName: ud.string(forKey: "onboardingDisplayName") ?? "",
             headline: ud.string(forKey: "onboardingHeadline") ?? "",
             majorIds: majorStr.isEmpty ? [] : majorStr.components(separatedBy: ","),
@@ -92,7 +116,7 @@ private struct PersistedState: Codable {
             "onboardingEduEmail", "onboardingDisplayName", "onboardingHeadline",
             "onboardingMajorIds", "onboardingGradSemester", "onboardingPrograms",
             "onboardingSkillIds", "onboardingInterestIds",
-            "onboardingLookingFor", "onboardingCanHelp",  // canHelp kept for cleanup
+            "onboardingLookingFor", "onboardingCanHelp",
         ]
         for key in legacyKeys { ud.removeObject(forKey: key) }
 
@@ -108,23 +132,21 @@ class OnboardingViewModel: ObservableObject {
     // MARK: - Step Navigation
 
     @Published var step = 0
-    let totalSteps = 12
+    let totalSteps = 10
     @Published var navigatingForward = true
 
     static func stepName(for step: Int) -> String {
         switch step {
         case 0: return "select_campus"
-        case 1: return "school_email"
-        case 2: return "verify_email"
-        case 3: return "profile_setup"
-        case 4: return "select_majors"
-        case 5: return "grad_year"
-        case 6: return "select_programs"
-        case 7: return "select_skills"
-        case 8: return "select_interests"
-        case 9: return "looking_for"
-        case 10: return "suggested_connections"
-        case 11: return "welcome"
+        case 1: return "profile_setup"
+        case 2: return "select_majors"
+        case 3: return "grad_year"
+        case 4: return "select_programs"
+        case 5: return "select_skills"
+        case 6: return "select_interests"
+        case 7: return "looking_for"
+        case 8: return "suggested_connections"
+        case 9: return "welcome"
         default: return "unknown"
         }
     }
@@ -141,20 +163,7 @@ class OnboardingViewModel: ObservableObject {
     @Published var selectedUniversity: UniversityResult?
     @Published var defaultCampuses: [UniversityResult] = []
 
-    // MARK: - Steps 1-2: School Email
-
-    @Published var eduEmail: String = ""
-    @Published var eduCode = ""
-    @Published var isVerifyingEdu = false
-    @Published var eduResendCooldown = 0
-    @Published var eduVerified = false
-    private var cooldownTimer: Timer?
-
-    var isValidEduEmail: Bool {
-        eduEmail.lowercased().hasSuffix(".edu") && eduEmail.contains("@")
-    }
-
-    // MARK: - Step 3: Profile Setup
+    // MARK: - Step 1: Profile Setup
 
     @Published var displayName: String = ""
     @Published var headline: String = ""
@@ -167,14 +176,14 @@ class OnboardingViewModel: ObservableObject {
             .appendingPathComponent("onboarding_profile.jpg")
     }
 
-    // MARK: - Step 4: Majors
+    // MARK: - Step 2: Majors
 
     @Published var majorSearch = ""
     @Published var majorResults: [MajorOption] = []
     @Published var selectedMajorIds: Set<String> = []
     @Published var allMajors: [MajorOption] = []
 
-    // MARK: - Step 5: Grad Year
+    // MARK: - Step 3: Grad Year
 
     @Published var gradSemester: String = ""
 
@@ -188,26 +197,26 @@ class OnboardingViewModel: ObservableObject {
         return options
     }
 
-    // MARK: - Step 6: Programs
+    // MARK: - Step 4: Programs
 
     @Published var availablePrograms: [String] = []
     @Published var selectedPrograms: Set<String> = []
 
-    // MARK: - Step 7: Skills
+    // MARK: - Step 5: Skills
 
     @Published var skillSearch = ""
     @Published var allSkills: [SkillResult] = []
     @Published var skillResults: [SkillResult] = []
     @Published var selectedSkillIds: Set<String> = []
 
-    // MARK: - Step 8: Interests
+    // MARK: - Step 6: Interests
 
     @Published var interestSearch = ""
     @Published var allInterests: [InterestResult] = []
     @Published var interestResults: [InterestResult] = []
     @Published var selectedInterestIds: Set<String> = []
 
-    // MARK: - Step 9: Need Help Finding
+    // MARK: - Step 7: Need Help Finding
 
     @Published var selectedLookingFor: Set<String> = []
 
@@ -228,7 +237,7 @@ class OnboardingViewModel: ObservableObject {
         persistState()
     }
 
-    // MARK: - Step 11: Suggested Connections
+    // MARK: - Step 8: Suggested Connections
 
     @Published var suggestedConnections: [SuggestedConnection] = []
 
@@ -238,7 +247,6 @@ class OnboardingViewModel: ObservableObject {
         let saved = PersistedState.load()
 
         step = saved.step
-        eduEmail = saved.eduEmail
         displayName = saved.displayName
         headline = saved.headline
         gradSemester = saved.gradSemester
@@ -290,20 +298,20 @@ class OnboardingViewModel: ObservableObject {
         switch step {
         case 0:
             extras["university_name"] = selectedUniversity?.name ?? ""
-        case 3:
+        case 1:
             extras["has_photo"] = profileImage != nil
             extras["headline_length"] = headline.trimmingCharacters(in: .whitespaces).count
-        case 4:
+        case 2:
             extras["items_selected"] = selectedMajorIds.count
-        case 6:
+        case 4:
             extras["items_selected"] = selectedPrograms.count
-        case 7:
+        case 5:
             extras["items_selected"] = selectedSkillIds.count
-        case 8:
+        case 6:
             extras["items_selected"] = selectedInterestIds.count
-        case 9:
+        case 7:
             extras["items_selected"] = selectedLookingFor.count
-        case 10:
+        case 8:
             extras["connections_sent"] = sentConnectionIds.count
         default:
             break
@@ -317,7 +325,7 @@ class OnboardingViewModel: ObservableObject {
         navigatingForward = true
 
         // Save profile before showing suggested connections so user exists in DB
-        if step == 9 {
+        if step == 7 {
             Task {
                 await saveProfile()
                 guard errorMessage == nil else { return }
@@ -384,136 +392,6 @@ class OnboardingViewModel: ObservableObject {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         selectedUniversity = university
         persistState()
-    }
-
-    // MARK: - Edu Email Verification (Clerk)
-
-    func sendEduCode() async {
-        guard let user = Clerk.shared.user else {
-            errorMessage = "Not signed in"
-            return
-        }
-
-        // If already verified (e.g. went back), skip straight to step 3
-        if let existing = user.emailAddresses.first(where: { $0.emailAddress == eduEmail }) {
-            if existing.verification?.status == .verified {
-                eduVerified = true
-                AnalyticsService.shared.track(.onboardingStepCompleted(step: step, stepName: Self.stepName(for: step)))
-                navigatingForward = true
-                withAnimation(.easeInOut(duration: 0.35)) { step = 3 }
-                persistState()
-                return
-            }
-            // Exists but not verified locally — try to resend code
-            isVerifyingEdu = true
-            errorMessage = nil
-            do {
-                try await existing.prepareVerification(strategy: .emailCode)
-                startCooldown()
-                advance()
-            } catch {
-                // If already verified on Clerk's side, just advance
-                if "\(error)".contains("already been verified") {
-                    eduVerified = true
-                    navigatingForward = true
-                    withAnimation(.easeInOut(duration: 0.35)) { step = 3 }
-                    persistState()
-                } else {
-                    errorMessage = error.localizedDescription
-                }
-            }
-            isVerifyingEdu = false
-            return
-        }
-
-        // New email — create and send code
-        isVerifyingEdu = true
-        errorMessage = nil
-
-        do {
-            let emailAddress = try await user.createEmailAddress(eduEmail)
-            try await emailAddress.prepareVerification(strategy: .emailCode)
-            startCooldown()
-            advance()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-
-        isVerifyingEdu = false
-    }
-
-    func verifyEduCode() async {
-        guard let user = Clerk.shared.user,
-              let emailAddress = user.emailAddresses.first(where: { $0.emailAddress == eduEmail })
-        else {
-            errorMessage = "No pending verification"
-            return
-        }
-
-        isVerifyingEdu = true
-        errorMessage = nil
-
-        do {
-            try await emailAddress.attemptVerification(strategy: .emailCode(code: eduCode))
-            eduVerified = true
-            isVerifyingEdu = false
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-            // Brief pause to show success before advancing
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            advance()
-            return
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-
-        isVerifyingEdu = false
-    }
-
-    func resendEduCode() async {
-        guard eduResendCooldown == 0,
-              let user = Clerk.shared.user,
-              let emailAddress = user.emailAddresses.first(where: { $0.emailAddress == eduEmail })
-        else { return }
-
-        isVerifyingEdu = true
-        errorMessage = nil
-        eduCode = ""
-
-        do {
-            try await emailAddress.prepareVerification(strategy: .emailCode)
-            startCooldown()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-
-        isVerifyingEdu = false
-    }
-
-    func checkEduAlreadyVerified() async {
-        guard !eduEmail.isEmpty,
-              let user = Clerk.shared.user,
-              let existing = user.emailAddresses.first(where: { $0.emailAddress == eduEmail }),
-              existing.verification?.status == .verified
-        else { return }
-
-        eduVerified = true
-        withAnimation { step = 3 }
-        persistState()
-    }
-
-    private func startCooldown() {
-        eduResendCooldown = 30
-        cooldownTimer?.invalidate()
-        cooldownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
-            Task { @MainActor in
-                guard let self else { timer.invalidate(); return }
-                self.eduResendCooldown -= 1
-                if self.eduResendCooldown <= 0 {
-                    self.eduResendCooldown = 0
-                    timer.invalidate()
-                }
-            }
-        }
     }
 
     // MARK: - Majors
@@ -655,7 +533,7 @@ class OnboardingViewModel: ObservableObject {
         persistState()
     }
 
-    // MARK: - Step 11: Suggested Connections
+    // MARK: - Suggested Connections
 
     func loadSuggestedConnections() async {
         guard let universityId = selectedUniversity?._id,
@@ -771,8 +649,6 @@ class OnboardingViewModel: ObservableObject {
                 name: displayName,
                 headline: headline.isEmpty ? nil : headline,
                 avatarUrl: avatarUrl,
-                eduEmail: eduEmail.isEmpty ? nil : eduEmail,
-                eduVerified: !eduEmail.isEmpty,
                 universityId: selectedUniversity?._id,
                 majors: majorInputs,
                 graduationSemester: gradSemester.isEmpty ? nil : gradSemester,
@@ -840,7 +716,6 @@ class OnboardingViewModel: ObservableObject {
             step: step,
             universityId: selectedUniversity?._id ?? "",
             universityName: selectedUniversity?.name ?? "",
-            eduEmail: eduEmail,
             displayName: displayName,
             headline: headline,
             majorIds: Array(selectedMajorIds),
@@ -857,7 +732,6 @@ class OnboardingViewModel: ObservableObject {
     func reset() {
         Self.clearAllStorage()
         step = 0
-        eduEmail = ""
         displayName = ""
         headline = ""
         gradSemester = ""

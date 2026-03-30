@@ -2,7 +2,7 @@
 //  OnboardingWelcomeView.swift
 //  junto
 //
-//  Onboarding step 12: Welcome to Junto — final screen
+//  Onboarding step 9: Welcome to Junto — final screen
 //
 
 import SwiftUI
@@ -102,7 +102,7 @@ struct OnboardingWelcomeView: View {
             }
         }
         .onAppear {
-            AnalyticsService.shared.track(.onboardingStepViewed(step: 11, stepName: "welcome"))
+            AnalyticsService.shared.track(.onboardingStepViewed(step: 9, stepName: "welcome"))
             bubblesAppeared = true
             textAppeared = true
             titleAppeared = true
