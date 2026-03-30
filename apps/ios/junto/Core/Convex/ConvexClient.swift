@@ -848,6 +848,7 @@ extension ConvexClientManager {
         endDate: Double? = nil,
         location: String?,
         type: String,
+        imageUrl: String? = nil,
         createdBy: String,
         universityId: String?
     ) async throws {
@@ -858,6 +859,7 @@ extension ConvexClientManager {
             "endDate": endDate,
             "location": location,
             "type": type,
+            "imageUrl": imageUrl,
             "createdBy": createdBy,
             "universityId": universityId,
         ] as [String: (any ConvexEncodable)?])

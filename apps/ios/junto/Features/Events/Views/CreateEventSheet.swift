@@ -103,10 +103,10 @@ struct CreateEventSheet: View {
 
                         // Description
                         JuntoTextArea(
+                            placeholder: "What's this event about?",
                             text: $description,
                             label: "Description (optional)",
-                            placeholder: "What's this event about?",
-                            maxLength: 500
+                            characterLimit: 500
                         )
 
                         if let error = errorMessage {
@@ -151,6 +151,12 @@ struct CreateEventSheet: View {
         errorMessage = nil
 
         do {
+            // Upload cover image if selected
+            var imageUrl: String?
+            if let coverImage {
+                imageUrl = try await ConvexClientManager.shared.uploadImage(coverImage)
+            }
+
             try await ConvexClientManager.shared.createEvent(
                 title: title,
                 description: description.isEmpty ? nil : description,
@@ -158,6 +164,7 @@ struct CreateEventSheet: View {
                 endDate: endDate.timeIntervalSince1970 * 1000,
                 location: location.isEmpty ? nil : location,
                 type: "in_person",
+                imageUrl: imageUrl,
                 createdBy: userId,
                 universityId: currentUser.user?.universityId
             )
