@@ -31,8 +31,7 @@ build/
 *.dSYM.zip
 *.dSYM
 
-# Convex
-packages/backend/convex/_generated/
+# Convex — _generated is committed (needed for Vercel builds)
 
 # Misc
 *.log
