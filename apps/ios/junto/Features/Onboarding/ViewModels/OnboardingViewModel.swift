@@ -367,20 +367,20 @@ class OnboardingViewModel: ObservableObject {
             if inviteLink != nil {
                 extras["invite_code"] = inviteCode ?? ""
             }
-        case 3:
+        case 1:
             extras["has_photo"] = profileImage != nil
             extras["headline_length"] = headline.trimmingCharacters(in: .whitespaces).count
-        case 4:
+        case 2:
             extras["items_selected"] = selectedMajorIds.count
-        case 6:
+        case 4:
             extras["items_selected"] = selectedPrograms.count
-        case 7:
+        case 5:
             extras["items_selected"] = selectedSkillIds.count
-        case 8:
+        case 6:
             extras["items_selected"] = selectedInterestIds.count
-        case 9:
+        case 7:
             extras["items_selected"] = selectedLookingFor.count
-        case 10:
+        case 8:
             extras["connections_sent"] = sentConnectionIds.count
         default:
             break
@@ -394,7 +394,7 @@ class OnboardingViewModel: ObservableObject {
         navigatingForward = true
 
         // Save profile before showing suggested connections so user exists in DB
-        if step == 9 {
+        if step == 7 {
             Task {
                 await saveProfile()
                 guard errorMessage == nil else { return }
