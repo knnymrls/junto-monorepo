@@ -408,13 +408,7 @@ class OnboardingViewModel: ObservableObject {
 
         var nextStep = step + 1
 
-        // Skip steps that invite link already handles
-        if inviteLink != nil {
-            // Skip program selection (step 4) if invite pre-filled a program
-            if nextStep == 4 && inviteLink?.program != nil {
-                nextStep = 5
-            }
-        }
+        // No steps are skipped — invite link pre-fills data but user can still edit
 
         withAnimation(.easeInOut(duration: 0.35)) { step = nextStep }
         persistState()
@@ -432,10 +426,7 @@ class OnboardingViewModel: ObservableObject {
             if prevStep == 2 || prevStep == 1 {
                 prevStep = 0
             }
-            // From skills (7), skip program selection (6) if invite pre-filled
-            if prevStep == 6 && inviteLink?.program != nil {
-                prevStep = 5
-            }
+            // No steps skipped going back — invite pre-fills but doesn't skip
         }
 
         withAnimation(.easeInOut(duration: 0.35)) { step = prevStep }
