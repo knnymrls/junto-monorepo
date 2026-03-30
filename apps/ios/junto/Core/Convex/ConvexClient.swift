@@ -846,7 +846,7 @@ extension ConvexClientManager {
         description: String?,
         date: Double,
         endDate: Double? = nil,
-        location: String?,
+        location: String? = nil,
         type: String,
         imageUrl: String? = nil,
         createdBy: String,
