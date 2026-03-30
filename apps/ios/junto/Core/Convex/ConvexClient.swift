@@ -63,11 +63,11 @@ extension ConvexClientManager {
 
     // MARK: Suggested Matches
 
-    /// Fetch today's pre-computed daily matches (query, not action — instant)
+    /// Fetch this week's pre-computed matches (query, not action — instant)
     func fetchSuggestedMatchesQuery(userId: String) async throws -> [SuggestedMatchResponse] {
         return try await withCheckedThrowingContinuation { continuation in
             var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "dailyMatches:getDailyMatches", with: ["userId": userId], yielding: [SuggestedMatchResponse].self)
+            cancellable = client.subscribe(to: "weeklyMatches:getWeeklyMatches", with: ["userId": userId], yielding: [SuggestedMatchResponse].self)
                 .first()
                 .sink(
                     receiveCompletion: { completion in
@@ -84,8 +84,8 @@ extension ConvexClientManager {
     }
 
     /// Trigger on-demand match generation for a user (first-open fallback)
-    func generateDailyMatchesAction(userId: String) async throws {
-        let _: String? = try await client.action("dailyMatches:generateForCurrentUser", with: ["userId": userId])
+    func generateWeeklyMatchesAction(userId: String) async throws {
+        let _: String? = try await client.action("weeklyMatches:generateForCurrentUser", with: ["userId": userId])
     }
 
     // MARK: Search
@@ -1081,7 +1081,7 @@ extension ConvexClientManager {
 
     // MARK: Suggested Matches
 
-    /// Fetch suggested matches once (reads pre-computed daily matches)
+    /// Fetch suggested matches once (reads pre-computed weekly matches)
     func fetchSuggestedMatches(userId: String) async throws -> [SuggestedMatchResponse] {
         return try await fetchSuggestedMatchesQuery(userId: userId)
     }
@@ -1293,6 +1293,7 @@ struct SuggestedMatchResponse: Codable, Identifiable, Hashable {
     let isOnboarded: Bool
     let createdAt: Double
     let updatedAt: Double
+    let matchType: String
     let matchReason: String
 
     var id: String { _id }
@@ -1458,7 +1459,8 @@ extension SuggestedMatchResponse {
         isOnboarded: true,
         createdAt: Date().timeIntervalSince1970 * 1000,
         updatedAt: Date().timeIntervalSince1970 * 1000,
-        matchReason: "Sarah is looking for a designer and you have design skills"
+        matchType: "complementary",
+        matchReason: "They're looking for a designer and you got skills"
     )
 }
 

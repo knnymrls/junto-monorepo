@@ -728,20 +728,32 @@ export const aiIntelligence = query({
     const now = Date.now();
     const thisWeekStart = now - WEEK_MS;
 
-    // --- Daily matches ---
-    const allMatches = await ctx.db.query("dailyMatches").collect();
-    const totalMatchDays = allMatches.length; // total user-days of matches
-    const uniqueDates = new Set(allMatches.map((m) => m.date));
-    const daysWithMatches = uniqueDates.size;
+    // --- Weekly match batches ---
+    const allMatches = await ctx.db.query("weeklyMatchBatches").collect();
+    const totalMatchWeeks = allMatches.length; // total user-weeks of matches
+    const uniqueWeeks = new Set(allMatches.map((m) => m.weekOf));
+    const weeksWithMatches = uniqueWeeks.size;
 
-    // Today's matches
-    const today = new Date().toISOString().slice(0, 10);
-    const todayMatches = allMatches.filter((m) => m.date === today);
-    const todayMatchCount = todayMatches.reduce(
+    // This week's matches
+    const nowDate = new Date();
+    const day = nowDate.getUTCDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(Date.UTC(nowDate.getUTCFullYear(), nowDate.getUTCMonth(), nowDate.getUTCDate() + diff));
+    const currentWeek = monday.toISOString().slice(0, 10);
+    const thisWeekMatches = allMatches.filter((m) => m.weekOf === currentWeek);
+    const thisWeekMatchCount = thisWeekMatches.reduce(
       (sum, m) => sum + m.matches.length,
       0
     );
-    const todayUsersMatched = todayMatches.length;
+    const thisWeekUsersMatched = thisWeekMatches.length;
+
+    // Match type distribution
+    const typeDistribution: Record<string, number> = {};
+    for (const batch of allMatches) {
+      for (const match of batch.matches) {
+        typeDistribution[match.matchType] = (typeDistribution[match.matchType] || 0) + 1;
+      }
+    }
 
     // Total unique match pairs ever (deduplicated)
     const matchPairSet = new Set<string>();
@@ -753,7 +765,7 @@ export const aiIntelligence = query({
     }
     const totalUniqueMatchPairs = matchPairSet.size;
 
-    // Recent match examples (last 5 from today or most recent date)
+    // Recent match examples
     const sortedMatches = [...allMatches].sort(
       (a, b) => b.generatedAt - a.generatedAt
     );
@@ -770,8 +782,9 @@ export const aiIntelligence = query({
                 userAvatar: user.avatarUrl ?? null,
                 matchName: matchedUser.name,
                 matchAvatar: matchedUser.avatarUrl ?? null,
+                matchType: match.matchType,
                 reason: match.matchReason,
-                date: dm.date,
+                weekOf: dm.weekOf,
               }
             : null;
         })
@@ -834,11 +847,12 @@ export const aiIntelligence = query({
 
     return {
       matching: {
-        totalMatchDays,
-        daysWithMatches,
-        todayMatchCount,
-        todayUsersMatched,
+        totalMatchWeeks,
+        weeksWithMatches,
+        thisWeekMatchCount,
+        thisWeekUsersMatched,
         totalUniqueMatchPairs,
+        typeDistribution,
         conversionRate,
         matchesConverted,
         recentMatches: recentMatches.filter(Boolean),

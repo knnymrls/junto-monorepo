@@ -93,15 +93,15 @@ class FeedViewModel: ObservableObject {
         await loadConnections(userId: userId)
     }
 
-    /// Load suggested matches (pre-computed daily, with on-demand fallback)
+    /// Load suggested matches (pre-computed weekly, with on-demand fallback)
     func loadSuggestedMatches(userId: String) async {
         do {
             let matches = try await convex.fetchSuggestedMatches(userId: userId)
 
             if matches.isEmpty {
-                // No matches for today yet — trigger on-demand generation
-                print("FeedViewModel: No daily matches yet, generating on-demand...")
-                try await convex.generateDailyMatchesAction(userId: userId)
+                // No matches for this week yet — trigger on-demand generation
+                print("FeedViewModel: No weekly matches yet, generating on-demand...")
+                try await convex.generateWeeklyMatchesAction(userId: userId)
                 // Re-fetch after generation
                 suggestedMatches = try await convex.fetchSuggestedMatches(userId: userId)
             } else {
