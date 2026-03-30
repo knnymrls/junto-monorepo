@@ -63,7 +63,7 @@ struct PrimaryButton: View {
             )
             .overlay(
                 variant == .outlined
-                    ? Capsule().stroke(Color.appPrimary, lineWidth: 1)
+                    ? Capsule().stroke(Color.appDivider, lineWidth: 1)
                     : nil
             )
         }
