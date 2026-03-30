@@ -7,6 +7,8 @@ export default defineSchema({
     // Auth
     clerkId: v.string(),
     email: v.optional(v.string()),          // Auth email (from Clerk sign-in)
+    eduEmail: v.optional(v.string()),       // .edu email for verification
+    eduVerified: v.optional(v.boolean()),   // whether .edu email is verified
     phone: v.optional(v.string()),
 
     // Core identity
@@ -356,6 +358,7 @@ export default defineSchema({
       connectionId: v.optional(v.id("connections")),
       eventId: v.optional(v.id("events")),
       conversationId: v.optional(v.id("conversations")),
+      vouchId: v.optional(v.id("vouches")),
     })),
     readAt: v.optional(v.number()),
     createdAt: v.number(),

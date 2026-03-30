@@ -2,7 +2,7 @@
 //  ProfileHeaderView.swift
 //  mkrs-world
 //
-//  Profile header — avatar, name, headline, connection count, action buttons
+//  Profile header — avatar, name, headline, major/program, skills, stats, action buttons
 //
 
 import SwiftUI
@@ -11,6 +11,7 @@ struct ProfileHeaderView: View {
     let user: UserResponse
     let connectionStatus: ConnectionStatus
     let connectionCount: Int
+    let vouchCount: Int
     let isSelf: Bool
     let isLoadingStatus: Bool
     @Binding var isActioning: Bool
@@ -39,16 +40,78 @@ struct ProfileHeaderView: View {
                     .padding(.horizontal, Spacing.xxxl)
             }
 
+            // Major / Program / Grad semester
+            if let detailLine = userDetailLine, !detailLine.isEmpty {
+                Text(detailLine)
+                    .font(.bodySmall)
+                    .foregroundColor(.appSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Spacing.xxl)
+            }
+
+            // Skill chips
+            if let skills = user.skills, !skills.isEmpty {
+                FlowLayout(spacing: Spacing.sm) {
+                    ForEach(Array(skills.prefix(5)), id: \.self) { skill in
+                        Text(skill)
+                            .font(.bodySmall)
+                            .foregroundColor(.appPrimary)
+                            .padding(.horizontal, Spacing.md)
+                            .padding(.vertical, Spacing.xs)
+                            .background(Color.appSurfaceSecondary)
+                            .clipShape(Capsule())
+                    }
+                }
+                .padding(.horizontal, Spacing.xxl)
+            }
+
+            // Stats row
+            statsRow
+
+            if !isLoadingStatus {
+                actionButtons
+                    .padding(.horizontal, Spacing.xxl)
+                    .padding(.top, Spacing.xxs)
+            }
+        }
+    }
+
+    // MARK: - User Detail Line
+
+    private var userDetailLine: String? {
+        var parts: [String] = []
+
+        if let majors = user.majors, !majors.isEmpty {
+            // Show first major ID as a display name (simplified)
+            let majorNames = majors.map { $0.majorId }
+            parts.append(contentsOf: majorNames)
+        }
+
+        if let programs = user.programs, !programs.isEmpty {
+            parts.append(contentsOf: programs)
+        }
+
+        if let grad = user.graduationSemester, !grad.isEmpty {
+            parts.append(grad)
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    // MARK: - Stats Row
+
+    private var statsRow: some View {
+        HStack(spacing: Spacing.lg) {
             if connectionCount > 0 {
                 Text("\(connectionCount) connection\(connectionCount == 1 ? "" : "s")")
                     .font(.bodySmall)
                     .foregroundColor(.appSecondary)
             }
 
-            if !isLoadingStatus {
-                actionButtons
-                    .padding(.horizontal, Spacing.xxl)
-                    .padding(.top, Spacing.xxs)
+            if vouchCount > 0 {
+                Text("\(vouchCount) vouch\(vouchCount == 1 ? "" : "es")")
+                    .font(.bodySmall)
+                    .foregroundColor(.appSecondary)
             }
         }
     }

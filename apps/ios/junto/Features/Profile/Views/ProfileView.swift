@@ -2,25 +2,29 @@
 //  ProfileView.swift
 //  mkrs-world
 //
-//  Tabbed profile view — Portfolio | Posts | About
+//  Tabbed profile view — About | Work | Vouches | Activity
 //
 
 import SwiftUI
 import Combine
 
 enum ProfileTab: String, CaseIterable {
-    case portfolio = "Portfolio"
-    case posts = "Posts"
     case about = "About"
+    case work = "Work"
+    case vouches = "Vouches"
+    case activity = "Activity"
 }
 
 struct ProfileView: View {
     let user: UserResponse
     @EnvironmentObject private var currentUser: CurrentUserManager
-    @State private var selectedTab: ProfileTab = .portfolio
+    @State private var selectedTab: ProfileTab = .about
     @State private var connectionStatus: ConnectionStatus = .none
     @State private var isLoadingStatus = true
     @State private var connectionCount: Int = 0
+    @State private var vouchCount: Int = 0
+    @State private var topVouches: [VouchResponse] = []
+    @State private var topPortfolioItems: [PortfolioItemResponse] = []
     @State private var isActioning = false
     @Environment(\.dismiss) private var dismiss
 
@@ -36,6 +40,7 @@ struct ProfileView: View {
                         user: user,
                         connectionStatus: connectionStatus,
                         connectionCount: connectionCount,
+                        vouchCount: vouchCount,
                         isSelf: isSelf,
                         isLoadingStatus: isLoadingStatus,
                         isActioning: $isActioning,
@@ -69,6 +74,8 @@ struct ProfileView: View {
         .task {
             AnalyticsService.shared.track(.profileViewed(userId: user._id))
             await loadConnectionData()
+            await loadVouchData()
+            await loadPortfolioPreview()
         }
     }
 
@@ -99,12 +106,25 @@ struct ProfileView: View {
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
-        case .portfolio:
-            PortfolioTabView(userId: user._id, isSelf: isSelf)
-        case .posts:
-            PostsTabView(authorId: user._id, authorName: user.name, isSelf: isSelf)
         case .about:
-            AboutTabView(user: user)
+            AboutTabView(
+                user: user,
+                topVouches: topVouches,
+                topPortfolioItems: topPortfolioItems,
+                onSeeAllVouches: { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .vouches } },
+                onSeeAllWork: { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .work } }
+            )
+        case .work:
+            PortfolioTabView(userId: user._id, isSelf: isSelf)
+        case .vouches:
+            VouchesTabView(userId: user._id)
+        case .activity:
+            ActivityTabView(
+                userId: user._id,
+                userName: user.name,
+                isSelf: isSelf,
+                connectionCount: connectionCount
+            )
         }
     }
 
@@ -133,6 +153,25 @@ struct ProfileView: View {
             print("ProfileView: Connection status error: \(error)")
         }
         isLoadingStatus = false
+    }
+
+    private func loadVouchData() async {
+        do {
+            let vouches = try await ConvexClientManager.shared.fetchVouches(userId: user._id)
+            vouchCount = vouches.count
+            topVouches = Array(vouches.prefix(2))
+        } catch {
+            print("ProfileView: Failed to fetch vouches: \(error)")
+        }
+    }
+
+    private func loadPortfolioPreview() async {
+        do {
+            let items = try await ConvexClientManager.shared.fetchPortfolioItems(userId: user._id)
+            topPortfolioItems = Array(items.prefix(2))
+        } catch {
+            print("ProfileView: Failed to fetch portfolio preview: \(error)")
+        }
     }
 
     private func sendRequest() {
