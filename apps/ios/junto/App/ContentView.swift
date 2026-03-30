@@ -11,6 +11,7 @@ import Clerk
 // Notification for when onboarding completes
 extension Notification.Name {
     static let onboardingComplete = Notification.Name("onboardingComplete")
+    static let inviteLinkReceived = Notification.Name("inviteLinkReceived")
 }
 
 struct ContentView: View {

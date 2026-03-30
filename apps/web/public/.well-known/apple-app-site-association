@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "5M5785GC4T.com.kenemrls.junto",
+        "paths": ["/join/*"]
+      }
+    ]
+  }
+}

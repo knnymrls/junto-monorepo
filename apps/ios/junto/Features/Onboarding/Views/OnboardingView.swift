@@ -50,7 +50,12 @@ struct OnboardingView: View {
 
                 Group {
                     switch viewModel.step {
-                    case 0:  SelectCampusView(viewModel: viewModel)
+                    case 0:
+                        if viewModel.inviteLink != nil {
+                            InviteConfirmationView(viewModel: viewModel)
+                        } else {
+                            SelectCampusView(viewModel: viewModel)
+                        }
                     case 1:  SchoolEmailView(viewModel: viewModel)
                     case 2:  VerifySchoolEmailView(viewModel: viewModel)
                     case 3:  ProfileSetupView(viewModel: viewModel)
@@ -79,6 +84,10 @@ struct OnboardingView: View {
             if viewModel.step == 0 {
                 AnalyticsService.shared.track(.onboardingStarted)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .inviteLinkReceived)) { notification in
+            guard let code = notification.userInfo?["code"] as? String else { return }
+            Task { await viewModel.applyInviteCode(code) }
         }
         .alert("Sign out?", isPresented: $showSignOutAlert) {
             Button("Cancel", role: .cancel) {}

@@ -105,6 +105,69 @@ private struct PersistedState: Codable {
 @MainActor
 class OnboardingViewModel: ObservableObject {
 
+    // MARK: - Invite Link
+
+    @Published var inviteCode: String?
+    @Published var inviteLink: InviteLinkResponse?
+    @Published var isLoadingInvite = false
+
+    /// Called when the app is opened via an invite link.
+    /// Resolves the code, pre-fills university + program, and jumps past campus/program selection.
+    func applyInviteCode(_ code: String) async {
+        inviteCode = code
+        isLoadingInvite = true
+
+        do {
+            let link = try await ConvexClientManager.shared.getInviteLinkByCode(code: code)
+            guard let link else {
+                errorMessage = "This invite link is no longer valid."
+                isLoadingInvite = false
+                return
+            }
+
+            inviteLink = link
+
+            // Pre-fill university from invite
+            selectedUniversity = UniversityResult(
+                _id: link.universityId,
+                name: link.universityName,
+                shortName: link.universityShortName,
+                city: link.universityCity,
+                state: link.universityState,
+                logoUrl: link.universityLogoUrl
+            )
+
+            // Pre-fill program if specified
+            if let program = link.program {
+                selectedPrograms = [program]
+            }
+
+            // Pre-fill role if specified
+            if let role = link.role {
+                inviteRole = role
+            }
+
+            persistState()
+        } catch {
+            print("Invite link resolution error: \(error)")
+            errorMessage = "Couldn't load invite details. Try again."
+        }
+
+        isLoadingInvite = false
+    }
+
+    /// Redeem the invite link after onboarding completes
+    func redeemInviteIfNeeded(userId: String) async {
+        guard let code = inviteCode else { return }
+        do {
+            let _ = try await ConvexClientManager.shared.redeemInviteLink(code: code, userId: userId)
+        } catch {
+            print("Invite redeem error (non-blocking): \(error)")
+        }
+    }
+
+    @Published var inviteRole: String?
+
     // MARK: - Step Navigation
 
     @Published var step = 0
@@ -277,9 +340,20 @@ class OnboardingViewModel: ObservableObject {
             let month = Calendar.current.component(.month, from: Date())
             gradSemester = month <= 5 ? "Spring \(year)" : "Fall \(year)"
         }
+
+        // Check for pending invite code from URL (persisted across auth flow)
+        if let pendingCode = UserDefaults.standard.string(forKey: "pendingInviteCode") {
+            Task { await applyInviteCode(pendingCode) }
+        }
     }
 
     // MARK: - Navigation
+
+    /// The step number for the invite confirmation screen (inserted when invite is active)
+    var inviteConfirmationStep: Int? { inviteLink != nil ? 0 : nil }
+
+    /// Whether current step is the invite confirmation screen
+    var isInviteConfirmationStep: Bool { inviteLink != nil && step == 0 }
 
     func advance() {
         errorMessage = nil
@@ -290,6 +364,9 @@ class OnboardingViewModel: ObservableObject {
         switch step {
         case 0:
             extras["university_name"] = selectedUniversity?.name ?? ""
+            if inviteLink != nil {
+                extras["invite_code"] = inviteCode ?? ""
+            }
         case 3:
             extras["has_photo"] = profileImage != nil
             extras["headline_length"] = headline.trimmingCharacters(in: .whitespaces).count
@@ -328,14 +405,46 @@ class OnboardingViewModel: ObservableObject {
             }
             return
         }
-        withAnimation(.easeInOut(duration: 0.35)) { step += 1 }
+
+        var nextStep = step + 1
+
+        // Skip steps that invite link already handles
+        if inviteLink != nil {
+            // After invite confirmation (step 0), skip school email (1) and verify (2)
+            // → go straight to profile setup (step 3)
+            if nextStep == 1 {
+                nextStep = 3
+            }
+
+            // Skip program selection (step 6) if invite pre-filled a program
+            if nextStep == 6 && inviteLink?.program != nil {
+                nextStep = 7
+            }
+        }
+
+        withAnimation(.easeInOut(duration: 0.35)) { step = nextStep }
         persistState()
     }
 
     func goBack() {
         errorMessage = nil
         navigatingForward = false
-        withAnimation(.easeInOut(duration: 0.35)) { step -= 1 }
+
+        var prevStep = step - 1
+
+        // Skip steps that invite link already handles (reverse direction)
+        if inviteLink != nil {
+            // From profile setup (3), go back to invite confirmation (0)
+            if prevStep == 2 || prevStep == 1 {
+                prevStep = 0
+            }
+            // From skills (7), skip program selection (6) if invite pre-filled
+            if prevStep == 6 && inviteLink?.program != nil {
+                prevStep = 5
+            }
+        }
+
+        withAnimation(.easeInOut(duration: 0.35)) { step = prevStep }
         persistState()
     }
 
@@ -713,8 +822,12 @@ class OnboardingViewModel: ObservableObject {
     }
 
     func completeOnboarding() async {
-        AnalyticsService.shared.track(.onboardingCompleted)
-        AnalyticsService.shared.setUserProperties([
+        // Redeem invite link if user came in via one
+        if let userId = savedConvexUserId {
+            await redeemInviteIfNeeded(userId: userId)
+        }
+
+        var properties: [String: Any] = [
             "university": selectedUniversity?.name ?? "",
             "grad_semester": gradSemester,
             "major_count": selectedMajorIds.count,
@@ -722,7 +835,13 @@ class OnboardingViewModel: ObservableObject {
             "interest_count": selectedInterestIds.count,
             "program_count": selectedPrograms.count,
             "has_photo": profileImage != nil,
-        ])
+        ]
+        if let code = inviteCode {
+            properties["invite_code"] = code
+        }
+
+        AnalyticsService.shared.track(.onboardingCompleted)
+        AnalyticsService.shared.setUserProperties(properties)
         Self.clearAllStorage()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         await MainActor.run {
@@ -780,7 +899,8 @@ class OnboardingViewModel: ObservableObject {
                 skills: selectedSkillIds.isEmpty ? nil : Array(selectedSkillIds),
                 interests: selectedInterestIds.isEmpty ? nil : Array(selectedInterestIds),
                 lookingFor: selectedLookingFor.isEmpty ? nil : Array(selectedLookingFor).joined(separator: ", "),
-                canHelpWith: nil
+                canHelpWith: nil,
+                role: inviteRole
             )
 
             let result = try await ConvexClientManager.shared.upsertUser(input)
@@ -871,12 +991,16 @@ class OnboardingViewModel: ObservableObject {
         suggestedConnections = []
         sentConnectionIds = []
         savedConvexUserId = nil
+        inviteCode = nil
+        inviteLink = nil
+        inviteRole = nil
     }
 
     /// Clears all persisted onboarding data — callable without a ViewModel instance
     static func clearAllStorage() {
         PersistedState.clear()
         deleteProfileImageFromDisk()
+        UserDefaults.standard.removeObject(forKey: "pendingInviteCode")
     }
 
     // MARK: - Profile Image Persistence

@@ -6,5 +6,16 @@
 	<array>
 		<string>BricolageGrotesque-VariableFont_opsz,wdth,wght.ttf</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.junto.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>junto</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -15,12 +15,12 @@ export default function DiscoverPage() {
   const { maker } = useCurrentMaker();
   const [query, setQuery] = useState("");
 
-  const allMakers = useQuery(api.makers.list, {});
+  const allMakers = useQuery(api.users.list, {});
 
   const searchResults = useQuery(
-    api.makers.searchForCards,
+    api.users.searchForCards,
     query.length >= 2 && maker
-      ? { query, currentMakerId: maker._id, limit: 20 }
+      ? { query, currentUserId: maker._id, limit: 20 }
       : "skip"
   );
 
