@@ -17,7 +17,7 @@ struct SuggestedMatchCarousel: View {
     var body: some View {
         if !matches.isEmpty {
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("This Week's Matches")
+                Text("People you should know")
                     .font(.bodySemibold)
                     .foregroundColor(.appSecondary)
                     .padding(.horizontal, Spacing.md)

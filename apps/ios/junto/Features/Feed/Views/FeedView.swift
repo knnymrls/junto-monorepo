@@ -274,7 +274,7 @@ struct FeedView: View {
             connectionStatusFor: { viewModel.connectionStatus(userId: $0) },
             onConnectTap: { match in
                 Task {
-                    await viewModel.sendConnectionRequest(toUserId: match._id)
+                    await viewModel.sendConnectionRequest(toUserId: match._id, source: .match)
                 }
             },
             onWithdrawTap: { match in

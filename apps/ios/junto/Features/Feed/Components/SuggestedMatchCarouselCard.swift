@@ -16,48 +16,49 @@ struct SuggestedMatchCarouselCard: View {
 
     var body: some View {
         Button(action: { onCardTap?() }) {
-            VStack(alignment: .leading, spacing: Spacing.md) {
-                // Top: Avatar + name/headline
-                HStack(spacing: Spacing.xxs) {
-                    AvatarView(
-                        avatarUrl: match.avatarUrl,
-                        name: match.name,
-                        size: 36
-                    )
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                // Avatar
+                AvatarView(
+                    avatarUrl: match.avatarUrl,
+                    name: match.name,
+                    size: 52
+                )
+                .padding(.bottom, Spacing.xxxs)
 
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(match.name)
-                            .font(.captionMedium)
-                            .foregroundColor(.appPrimary)
-                            .lineLimit(1)
+                // Name
+                Text(match.name)
+                    .font(.captionSemibold)
+                    .foregroundColor(.appPrimary)
+                    .lineLimit(1)
 
-                        if let headline = match.headline {
-                            Text(headline)
-                                .font(.caption12)
-                                .foregroundColor(.appSecondary)
-                                .lineLimit(1)
-                        }
-                    }
+                // Headline
+                if let headline = match.headline {
+                    Text(headline)
+                        .font(.caption12)
+                        .foregroundColor(.appTertiary)
+                        .lineLimit(1)
                 }
 
-                // Match reason — always reserves 3 lines of space
+                // Match reason — the key info, reserve 3 lines for uniform height
                 ZStack(alignment: .topLeading) {
                     Text("L\nL\nL")
-                        .font(.bodyLargeMedium)
+                        .font(.caption12)
                         .opacity(0)
                     Text(match.matchReason)
-                        .font(.bodyLargeMedium)
-                        .foregroundColor(.appPrimary)
+                        .font(.caption12)
+                        .foregroundColor(.appSecondary)
                         .multilineTextAlignment(.leading)
                         .lineLimit(3)
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
 
+                Spacer(minLength: 0)
+
                 // CTA button
                 ctaButton
             }
             .padding(Spacing.md)
-            .frame(width: 200)
+            .frame(width: 160)
             .background(Color.appSurfaceSecondary)
             .clipShape(RoundedRectangle(cornerRadius: Radius.xxxl))
         }
@@ -75,9 +76,9 @@ struct SuggestedMatchCarouselCard: View {
                     .font(.captionSemibold)
                     .foregroundColor(.appOnAccent)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
                     .background(Color.appPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: 22))
+                    .clipShape(Capsule())
             }
             .buttonStyle(.plain)
 
@@ -86,13 +87,10 @@ struct SuggestedMatchCarouselCard: View {
                 .font(.captionSemibold)
                 .foregroundColor(.appSecondary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
                 .background(Color.appSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 22))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22)
-                        .stroke(Color.appDivider, lineWidth: 1)
-                )
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.appDivider, lineWidth: 1))
 
         case .pending:
             Button(action: { onWithdrawTap?() }) {
@@ -100,13 +98,10 @@ struct SuggestedMatchCarouselCard: View {
                     .font(.captionSemibold)
                     .foregroundColor(.appSecondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
                     .background(Color.appSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: 22))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22)
-                            .stroke(Color.appDivider, lineWidth: 1)
-                    )
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.appDivider, lineWidth: 1))
             }
             .buttonStyle(.plain)
         }
