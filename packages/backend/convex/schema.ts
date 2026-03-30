@@ -78,6 +78,11 @@ export default defineSchema({
     requesterId: v.id("users"),   // Who initiated
     accepterId: v.id("users"),    // Who accepted
     status: v.string(),            // "pending", "connected"
+    source: v.optional(v.object({
+      type: v.string(),            // "match" | "event" | "post" | "profile" | "search" | "event_feedback"
+      label: v.string(),           // Human-readable: "from your daily match" | "from Pitch Night"
+      referenceId: v.optional(v.string()), // ID of related entity (event, post, etc.)
+    })),
     connectedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
