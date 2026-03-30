@@ -73,25 +73,31 @@ struct CreateEventSheet: View {
                         )
 
                         // Start
-                        VStack(alignment: .leading, spacing: Spacing.sm) {
-                            Text("Starts")
-                                .font(.bodyLargeSemibold)
-                                .foregroundColor(.appPrimary)
-                            DatePicker("", selection: $startDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
-                                .datePickerStyle(.compact)
-                                .labelsHidden()
-                                .tint(.appAccent)
+                        HStack {
+                            VStack(alignment: .leading, spacing: Spacing.sm) {
+                                Text("Starts")
+                                    .font(.bodyLargeSemibold)
+                                    .foregroundColor(.appPrimary)
+                                DatePicker("", selection: $startDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
+                                    .datePickerStyle(.compact)
+                                    .labelsHidden()
+                                    .tint(.appAccent)
+                            }
+                            Spacer()
                         }
 
                         // End
-                        VStack(alignment: .leading, spacing: Spacing.sm) {
-                            Text("Ends")
-                                .font(.bodyLargeSemibold)
-                                .foregroundColor(.appPrimary)
-                            DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
-                                .datePickerStyle(.compact)
-                                .labelsHidden()
-                                .tint(.appAccent)
+                        HStack {
+                            VStack(alignment: .leading, spacing: Spacing.sm) {
+                                Text("Ends")
+                                    .font(.bodyLargeSemibold)
+                                    .foregroundColor(.appPrimary)
+                                DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
+                                    .datePickerStyle(.compact)
+                                    .labelsHidden()
+                                    .tint(.appAccent)
+                            }
+                            Spacer()
                         }
 
                         // Location
