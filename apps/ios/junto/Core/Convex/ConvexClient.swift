@@ -852,17 +852,19 @@ extension ConvexClientManager {
         createdBy: String,
         universityId: String?
     ) async throws {
-        let _: String? = try await client.mutation("events:create", with: [
+        var args: [String: (any ConvexEncodable)?] = [
             "title": title,
-            "description": description,
             "date": date,
-            "endDate": endDate,
-            "location": location,
             "type": type,
-            "imageUrl": imageUrl,
             "createdBy": createdBy,
-            "universityId": universityId,
-        ] as [String: (any ConvexEncodable)?])
+        ]
+        if let description { args["description"] = description }
+        if let endDate { args["endDate"] = endDate }
+        if let location { args["location"] = location }
+        if let imageUrl { args["imageUrl"] = imageUrl }
+        if let universityId { args["universityId"] = universityId }
+
+        let _: String? = try await client.mutation("events:create", with: args)
     }
 
     // MARK: Device Tokens
