@@ -2,23 +2,23 @@
 //  AboutTabView.swift
 //  mkrs-world
 //
-//  About tab — bio, current project, looking for, can help with, skills, interests, social links
+//  About tab — bio, current project, looking for, can help with, interests, social links,
+//  top vouches preview, pinned work preview
 //
 
 import SwiftUI
 
 struct AboutTabView: View {
     let user: UserResponse
-    var vouches: [VouchResponse] = []
+    var topVouches: [VouchResponse] = []
+    var topPortfolioItems: [PortfolioItemResponse] = []
+    var onSeeAllVouches: (() -> Void)? = nil
+    var onSeeAllWork: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xl) {
-            if !vouches.isEmpty {
-                vouchesSection
-            }
-
             if let currentProject = user.currentProject, !currentProject.isEmpty {
-                infoSection(title: "Current Project", icon: "hammer.fill") {
+                infoSection(title: "Currently Working On", icon: "hammer.fill") {
                     Text(currentProject)
                         .font(.body14)
                         .foregroundColor(.appPrimary)
@@ -41,8 +41,18 @@ struct AboutTabView: View {
                 }
             }
 
+            if let programs = user.programs, !programs.isEmpty {
+                infoSection(title: "Programs", icon: "building.columns.fill") {
+                    FlowLayout(spacing: Spacing.sm) {
+                        ForEach(programs, id: \.self) { program in
+                            pillView(program)
+                        }
+                    }
+                }
+            }
+
             if let skills = user.skills, !skills.isEmpty {
-                infoSection(title: "Skills") {
+                infoSection(title: "Skills", icon: "wrench.and.screwdriver.fill") {
                     FlowLayout(spacing: Spacing.sm) {
                         ForEach(skills, id: \.self) { skill in
                             pillView(skill)
@@ -65,6 +75,16 @@ struct AboutTabView: View {
                 infoSection(title: "Links") {
                     socialLinksRow
                 }
+            }
+
+            // Top Vouches Preview
+            if !topVouches.isEmpty {
+                vouchesPreview
+            }
+
+            // Pinned Work Preview
+            if !topPortfolioItems.isEmpty {
+                workPreview
             }
 
             if isEmpty {
@@ -149,27 +169,92 @@ struct AboutTabView: View {
         }
     }
 
-    // MARK: - Vouches
+    // MARK: - Vouches Preview
 
-    private var vouchesSection: some View {
-        infoSection(title: "Vouches", icon: "checkmark.seal.fill") {
-            VStack(alignment: .leading, spacing: Spacing.md) {
-                ForEach(vouches) { vouch in
-                    HStack(alignment: .top, spacing: Spacing.sm) {
-                        AvatarView(
-                            avatarUrl: vouch.fromUser?.avatarUrl,
-                            name: vouch.fromUser?.name ?? "?",
-                            size: 32
-                        )
+    private var vouchesPreview: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack {
+                Text("VOUCHES")
+                    .font(.bodySmallSemibold)
+                    .foregroundColor(.appSecondary)
 
-                        VStack(alignment: .leading, spacing: Spacing.xxs) {
-                            Text(vouch.fromUser?.name ?? "Someone")
-                                .font(.bodySemibold)
-                                .foregroundColor(.appPrimary)
+                Spacer()
 
-                            Text(vouch.reason)
-                                .font(.body14)
+                if let onSeeAllVouches {
+                    Button(action: onSeeAllVouches) {
+                        Text("See all")
+                            .font(.bodySmall)
+                            .foregroundColor(.appAccent)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            ForEach(topVouches) { vouch in
+                HStack(spacing: Spacing.md) {
+                    AvatarView(
+                        avatarUrl: vouch.fromUser?.avatarUrl,
+                        name: vouch.fromUser?.name ?? "?",
+                        size: 32
+                    )
+
+                    VStack(alignment: .leading, spacing: Spacing.xxxs) {
+                        Text(vouch.fromUser?.name ?? "Someone")
+                            .font(.bodySemibold)
+                            .foregroundColor(.appPrimary)
+
+                        Text("\"\(vouch.reason)\"")
+                            .font(.body14)
+                            .foregroundColor(.appSecondary)
+                            .italic()
+                            .lineLimit(2)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Work Preview
+
+    private var workPreview: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack {
+                Text("WORK")
+                    .font(.bodySmallSemibold)
+                    .foregroundColor(.appSecondary)
+
+                Spacer()
+
+                if let onSeeAllWork {
+                    Button(action: onSeeAllWork) {
+                        Text("See all")
+                            .font(.bodySmall)
+                            .foregroundColor(.appAccent)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            ForEach(topPortfolioItems) { item in
+                HStack(spacing: Spacing.md) {
+                    Image(systemName: portfolioIcon(for: item.portfolioType))
+                        .font(.system(size: 16))
+                        .foregroundColor(.appSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(Color.appSurfaceSecondary)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+
+                    VStack(alignment: .leading, spacing: Spacing.xxxs) {
+                        Text(item.title ?? "Untitled")
+                            .font(.bodySemibold)
+                            .foregroundColor(.appPrimary)
+                            .lineLimit(1)
+
+                        if let desc = item.description, !desc.isEmpty {
+                            Text(desc)
+                                .font(.caption12)
                                 .foregroundColor(.appSecondary)
+                                .lineLimit(1)
                         }
                     }
                 }
@@ -177,16 +262,27 @@ struct AboutTabView: View {
         }
     }
 
+    private func portfolioIcon(for type: PortfolioItemResponse.PortfolioType) -> String {
+        switch type {
+        case .github: return "chevron.left.forwardslash.chevron.right"
+        case .gallery: return "photo"
+        case .link: return "link"
+        case .experience: return "briefcase"
+        }
+    }
+
     // MARK: - Empty State
 
     private var isEmpty: Bool {
-        vouches.isEmpty &&
         user.currentProject == nil &&
         user.lookingFor == nil &&
         user.canHelpWith == nil &&
+        (user.programs ?? []).isEmpty &&
         (user.skills ?? []).isEmpty &&
         (user.interests ?? []).isEmpty &&
-        !hasSocialLinks
+        !hasSocialLinks &&
+        topVouches.isEmpty &&
+        topPortfolioItems.isEmpty
     }
 
     private var emptyState: some View {

@@ -7,9 +7,9 @@ export default defineSchema({
     // Auth
     clerkId: v.string(),
     email: v.optional(v.string()),          // Auth email (from Clerk sign-in)
-    phone: v.optional(v.string()),
     eduEmail: v.optional(v.string()),       // Legacy — removed, kept for data compat
     eduVerified: v.optional(v.boolean()),   // Legacy — removed, kept for data compat
+    phone: v.optional(v.string()),
 
     // Core identity
     name: v.string(),

@@ -355,6 +355,39 @@ export const getEventsNeedingFeedback = query({
   },
 });
 
+// List events a user has attended (RSVPd "going")
+export const listAttendedByUser = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const rsvps = await ctx.db
+      .query("eventRsvps")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .filter((q) => q.eq(q.field("status"), "going"))
+      .collect();
+
+    const events = await Promise.all(
+      rsvps.map(async (rsvp) => {
+        const event = await ctx.db.get(rsvp.eventId);
+        if (!event) return null;
+        return {
+          _id: event._id,
+          title: event.title,
+          date: event.date,
+          location: event.location ?? null,
+          type: event.type,
+        };
+      })
+    );
+
+    // Filter nulls, sort by date descending
+    return events
+      .filter((e): e is NonNullable<typeof e> => e !== null)
+      .sort((a, b) => b.date - a.date);
+  },
+});
+
 // Create a new event (host is automatically "going")
 export const create = mutation({
   args: {

@@ -315,6 +315,20 @@ extension ConvexClientManager {
         return client.subscribe(to: "portfolio:list", with: ["userId": userId], yielding: [PortfolioItemResponse].self)
     }
 
+    // MARK: Vouches
+
+    /// Subscribe to vouches received by a user
+    func subscribeVouches(userId: String) -> AnyPublisher<[VouchResponse], ClientError> {
+        return client.subscribe(to: "vouches:listForUser", with: ["userId": userId], yielding: [VouchResponse].self)
+    }
+
+    // MARK: Events Attended
+
+    /// Subscribe to events a user has attended
+    func subscribeEventsAttended(userId: String) -> AnyPublisher<[AttendedEventResponse], ClientError> {
+        return client.subscribe(to: "events:listAttendedByUser", with: ["userId": userId], yielding: [AttendedEventResponse].self)
+    }
+
     // MARK: Notifications
 
     /// Subscribe to notifications for a user
@@ -1229,6 +1243,28 @@ extension ConvexClientManager {
         }
     }
 
+    // MARK: Events Attended
+
+    /// Fetch events attended by a user once
+    func fetchEventsAttended(userId: String) async throws -> [AttendedEventResponse] {
+        return try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = subscribeEventsAttended(userId: userId)
+                .first()
+                .sink(
+                    receiveCompletion: { completion in
+                        if case .failure(let error) = completion {
+                            continuation.resume(throwing: error)
+                        }
+                        cancellable?.cancel()
+                    },
+                    receiveValue: { events in
+                        continuation.resume(returning: events)
+                    }
+                )
+        }
+    }
+
     // MARK: Events
 
     /// Fetch a single event once
@@ -1294,6 +1330,10 @@ struct VouchResponse: Codable, Identifiable {
     let fromUser: VouchUserInfo?
 
     var id: String { _id }
+
+    var createdDate: Date {
+        Date(timeIntervalSince1970: createdAt / 1000)
+    }
 
     struct VouchUserInfo: Codable {
         let _id: String
@@ -1856,6 +1896,22 @@ struct EventFeedbackResponse: Codable {
     let improvements: [String]
     let wantToConnectWith: [String]
     let createdAt: Double
+}
+
+// MARK: - Attended Event Response
+
+struct AttendedEventResponse: Codable, Identifiable {
+    let _id: String
+    let title: String
+    let date: Double
+    let location: String?
+    let type: String
+
+    var id: String { _id }
+
+    var eventDate: Date {
+        Date(timeIntervalSince1970: date / 1000)
+    }
 }
 
 // MARK: - Input Types

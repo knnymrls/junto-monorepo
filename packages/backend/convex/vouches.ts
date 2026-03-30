@@ -87,7 +87,7 @@ export const create = mutation({
   },
 });
 
-// Get all vouches for a user (with voucher info)
+// Get all vouches for a user (with voucher info) — used by iOS profile
 export const listForUser = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
@@ -115,6 +115,36 @@ export const listForUser = query({
     );
 
     return vouchesWithUsers;
+  },
+});
+
+// Alias for listForUser — used by iOS subscribeVouches
+export const listByUser = query({
+  args: {
+    toUserId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const vouches = await ctx.db
+      .query("vouches")
+      .withIndex("by_to_user", (q) => q.eq("toUserId", args.toUserId))
+      .order("desc")
+      .collect();
+
+    const results = await Promise.all(
+      vouches.map(async (vouch) => {
+        const fromUser = await ctx.db.get(vouch.fromUserId);
+        return {
+          _id: vouch._id,
+          fromUserId: vouch.fromUserId,
+          fromUserName: fromUser?.name ?? "Unknown",
+          fromUserAvatarUrl: fromUser?.avatarUrl ?? null,
+          reason: vouch.reason,
+          createdAt: vouch.createdAt,
+        };
+      })
+    );
+
+    return results;
   },
 });
 

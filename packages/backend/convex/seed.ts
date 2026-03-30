@@ -1365,6 +1365,45 @@ export const seedKennyRequests = internalMutation({
 // ============================================================
 // MASTER SEED — runs everything in order
 // ============================================================
+// ============================================================
+// SEED VOUCHES — add sample vouches between seed users
+// ============================================================
+export const seedVouches = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    const seedUsers = users.filter((u) => u.clerkId.startsWith("test_"));
+    if (seedUsers.length < 2) return { inserted: 0 };
+
+    const vouchData = [
+      { fromIdx: 0, toIdx: 1, reason: "Built an incredible backend system for our hackathon project — super reliable and fast under pressure" },
+      { fromIdx: 2, toIdx: 1, reason: "Amazing collaborator. Always brings creative solutions to every problem we face" },
+      { fromIdx: 3, toIdx: 0, reason: "Phenomenal designer with a real eye for user experience. Every screen she touches gets better" },
+      { fromIdx: 1, toIdx: 4, reason: "One of the most thoughtful engineers I've worked with. His code reviews are legendary" },
+      { fromIdx: 4, toIdx: 0, reason: "Incredible work ethic and always willing to help teammates debug at 2am" },
+      { fromIdx: 5, toIdx: 2, reason: "Best pitch person I've ever seen. Took our startup weekend idea and made investors believe" },
+      { fromIdx: 0, toIdx: 3, reason: "Her data analysis skills are next level — found insights nobody else would have caught" },
+      { fromIdx: 6, toIdx: 1, reason: "Genuinely one of the kindest and most skilled people in our program" },
+    ];
+
+    let inserted = 0;
+    const now = Date.now();
+    for (const v of vouchData) {
+      if (v.fromIdx < seedUsers.length && v.toIdx < seedUsers.length) {
+        await ctx.db.insert("vouches", {
+          fromUserId: seedUsers[v.fromIdx]._id,
+          toUserId: seedUsers[v.toIdx]._id,
+          reason: v.reason,
+          createdAt: now - (inserted * 86400000), // stagger by 1 day each
+        });
+        inserted++;
+      }
+    }
+
+    return { inserted };
+  },
+});
+
 export const seedFullDemo = internalAction({
   args: {},
   handler: async (ctx) => {
