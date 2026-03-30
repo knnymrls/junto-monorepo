@@ -1346,7 +1346,7 @@ struct SuggestedMatchResponse: Codable, Identifiable, Hashable {
     let isOnboarded: Bool
     let createdAt: Double
     let updatedAt: Double
-    let matchType: String
+    let matchType: String?
     let matchReason: String
 
     var id: String { _id }

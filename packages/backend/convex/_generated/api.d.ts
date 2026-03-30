@@ -11,12 +11,12 @@
 import type * as comments from "../comments.js";
 import type * as connections from "../connections.js";
 import type * as crons from "../crons.js";
-import type * as dailyMatches from "../dailyMatches.js";
 import type * as dashboard from "../dashboard.js";
 import type * as deviceTokens from "../deviceTokens.js";
 import type * as embeddings from "../embeddings.js";
 import type * as events from "../events.js";
 import type * as http from "../http.js";
+import type * as inviteLinks from "../inviteLinks.js";
 import type * as majorCache from "../majorCache.js";
 import type * as matching from "../matching.js";
 import type * as mentions from "../mentions.js";
@@ -34,6 +34,7 @@ import type * as searchSessions from "../searchSessions.js";
 import type * as seed from "../seed.js";
 import type * as storage from "../storage.js";
 import type * as users from "../users.js";
+import type * as weeklyMatches from "../weeklyMatches.js";
 
 import type {
   ApiFromModules,
@@ -45,12 +46,12 @@ declare const fullApi: ApiFromModules<{
   comments: typeof comments;
   connections: typeof connections;
   crons: typeof crons;
-  dailyMatches: typeof dailyMatches;
   dashboard: typeof dashboard;
   deviceTokens: typeof deviceTokens;
   embeddings: typeof embeddings;
   events: typeof events;
   http: typeof http;
+  inviteLinks: typeof inviteLinks;
   majorCache: typeof majorCache;
   matching: typeof matching;
   mentions: typeof mentions;
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   seed: typeof seed;
   storage: typeof storage;
   users: typeof users;
+  weeklyMatches: typeof weeklyMatches;
 }>;
 
 /**
