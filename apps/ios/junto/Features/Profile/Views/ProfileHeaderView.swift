@@ -12,9 +12,11 @@ struct ProfileHeaderView: View {
     let connectionStatus: ConnectionStatus
     let connectionCount: Int
     let vouchCount: Int
+    let hasVouched: Bool
     let isSelf: Bool
     let isLoadingStatus: Bool
     @Binding var isActioning: Bool
+    @Binding var showVouchSheet: Bool
     var onConnect: () -> Void
     var onAccept: () -> Void
     @State private var showEditSheet = false
@@ -66,7 +68,21 @@ struct ProfileHeaderView: View {
             }
 
             // Stats row
-            statsRow
+            if connectionCount > 0 || vouchCount > 0 {
+                HStack(spacing: Spacing.xs) {
+                    if connectionCount > 0 {
+                        Text("\(connectionCount) connection\(connectionCount == 1 ? "" : "s")")
+                    }
+                    if connectionCount > 0 && vouchCount > 0 {
+                        Text("\u{00B7}")
+                    }
+                    if vouchCount > 0 {
+                        Text("\(vouchCount) vouch\(vouchCount == 1 ? "" : "es")")
+                    }
+                }
+                .font(.bodySmall)
+                .foregroundColor(.appSecondary)
+            }
 
             if !isLoadingStatus {
                 actionButtons
@@ -82,7 +98,6 @@ struct ProfileHeaderView: View {
         var parts: [String] = []
 
         if let majors = user.majors, !majors.isEmpty {
-            // Show first major ID as a display name (simplified)
             let majorNames = majors.map { $0.majorId }
             parts.append(contentsOf: majorNames)
         }
@@ -96,24 +111,6 @@ struct ProfileHeaderView: View {
         }
 
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    // MARK: - Stats Row
-
-    private var statsRow: some View {
-        HStack(spacing: Spacing.lg) {
-            if connectionCount > 0 {
-                Text("\(connectionCount) connection\(connectionCount == 1 ? "" : "s")")
-                    .font(.bodySmall)
-                    .foregroundColor(.appSecondary)
-            }
-
-            if vouchCount > 0 {
-                Text("\(vouchCount) vouch\(vouchCount == 1 ? "" : "es")")
-                    .font(.bodySmall)
-                    .foregroundColor(.appSecondary)
-            }
-        }
     }
 
     // MARK: - Action Buttons
@@ -159,15 +156,40 @@ struct ProfileHeaderView: View {
     private var connectionButton: some View {
         switch connectionStatus {
         case .connected:
-            Label("Connected", systemImage: "checkmark")
-                .font(.bodyLargeMedium)
-                .foregroundColor(.appSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, Spacing.xs + Spacing.xxs)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.md)
-                        .stroke(Color.appDivider, lineWidth: 1)
-                )
+            HStack(spacing: Spacing.md) {
+                Label("Connected", systemImage: "checkmark")
+                    .font(.bodyLargeMedium)
+                    .foregroundColor(.appSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Spacing.xs + Spacing.xxs)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .stroke(Color.appDivider, lineWidth: 1)
+                    )
+
+                if hasVouched {
+                    Label("Vouched", systemImage: "checkmark.seal.fill")
+                        .font(.bodyLargeMedium)
+                        .foregroundColor(.appSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Spacing.xs + Spacing.xxs)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Radius.md)
+                                .stroke(Color.appDivider, lineWidth: 1)
+                        )
+                } else {
+                    Button(action: { showVouchSheet = true }) {
+                        Text("Vouch")
+                            .font(.bodyLargeMedium)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, Spacing.xs + Spacing.xxs)
+                            .background(Color.appPrimary)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
 
         case .pendingSent:
             Text("Request Sent")

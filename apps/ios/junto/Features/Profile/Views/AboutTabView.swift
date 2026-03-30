@@ -193,13 +193,13 @@ struct AboutTabView: View {
             ForEach(topVouches) { vouch in
                 HStack(spacing: Spacing.md) {
                     AvatarView(
-                        avatarUrl: vouch.fromUserAvatarUrl,
-                        name: vouch.fromUserName,
+                        avatarUrl: vouch.fromUser?.avatarUrl,
+                        name: vouch.fromUser?.name ?? "?",
                         size: 32
                     )
 
                     VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                        Text(vouch.fromUserName)
+                        Text(vouch.fromUser?.name ?? "Someone")
                             .font(.bodySemibold)
                             .foregroundColor(.appPrimary)
 

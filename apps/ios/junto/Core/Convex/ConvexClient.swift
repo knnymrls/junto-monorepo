@@ -319,7 +319,7 @@ extension ConvexClientManager {
 
     /// Subscribe to vouches received by a user
     func subscribeVouches(userId: String) -> AnyPublisher<[VouchResponse], ClientError> {
-        return client.subscribe(to: "vouches:listByUser", with: ["toUserId": userId], yielding: [VouchResponse].self)
+        return client.subscribe(to: "vouches:listForUser", with: ["userId": userId], yielding: [VouchResponse].self)
     }
 
     // MARK: Events Attended
@@ -562,6 +562,60 @@ extension ConvexClientManager {
             "currentUserId": currentUserId,
             "otherUserId": otherUserId
         ])
+    }
+
+    // MARK: Vouches
+
+    /// Create a vouch for someone
+    func createVouch(fromUserId: String, toUserId: String, reason: String) async throws -> String {
+        return try await client.mutation("vouches:create", with: [
+            "fromUserId": fromUserId,
+            "toUserId": toUserId,
+            "reason": reason
+        ])
+    }
+
+    /// Fetch vouches for a user
+    func fetchVouches(userId: String) async throws -> [VouchResponse] {
+        return try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = client.subscribe(to: "vouches:listForUser", with: ["userId": userId], yielding: [VouchResponse].self)
+                .first()
+                .sink(
+                    receiveCompletion: { completion in
+                        if case .failure(let error) = completion {
+                            continuation.resume(throwing: error)
+                        }
+                        cancellable?.cancel()
+                    },
+                    receiveValue: { vouches in
+                        continuation.resume(returning: vouches)
+                    }
+                )
+        }
+    }
+
+    /// Check if current user has vouched for someone
+    func hasVouched(fromUserId: String, toUserId: String) async throws -> Bool {
+        return try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = client.subscribe(to: "vouches:hasVouched", with: [
+                "fromUserId": fromUserId,
+                "toUserId": toUserId
+            ], yielding: Bool.self)
+                .first()
+                .sink(
+                    receiveCompletion: { completion in
+                        if case .failure(let error) = completion {
+                            continuation.resume(throwing: error)
+                        }
+                        cancellable?.cancel()
+                    },
+                    receiveValue: { result in
+                        continuation.resume(returning: result)
+                    }
+                )
+        }
     }
 
     // MARK: Events
@@ -1189,28 +1243,6 @@ extension ConvexClientManager {
         }
     }
 
-    // MARK: Vouches
-
-    /// Fetch vouches for a user once
-    func fetchVouches(userId: String) async throws -> [VouchResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeVouches(userId: userId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { vouches in
-                        continuation.resume(returning: vouches)
-                    }
-                )
-        }
-    }
-
     // MARK: Events Attended
 
     /// Fetch events attended by a user once
@@ -1285,6 +1317,30 @@ enum ConnectionStatus: String {
     case pendingSent = "pending_sent"
     case pendingReceived = "pending_received"
     case connected = "connected"
+}
+
+// MARK: - Vouches
+
+struct VouchResponse: Codable, Identifiable {
+    let _id: String
+    let fromUserId: String
+    let toUserId: String
+    let reason: String
+    let createdAt: Double
+    let fromUser: VouchUserInfo?
+
+    var id: String { _id }
+
+    var createdDate: Date {
+        Date(timeIntervalSince1970: createdAt / 1000)
+    }
+
+    struct VouchUserInfo: Codable {
+        let _id: String
+        let name: String
+        let avatarUrl: String?
+        let headline: String?
+    }
 }
 
 // MARK: - Invite Links
@@ -1404,7 +1460,7 @@ struct SuggestedMatchResponse: Codable, Identifiable, Hashable {
     let isOnboarded: Bool
     let createdAt: Double
     let updatedAt: Double
-    let matchType: String
+    let matchType: String?
     let matchReason: String
 
     var id: String { _id }
@@ -1840,23 +1896,6 @@ struct EventFeedbackResponse: Codable {
     let improvements: [String]
     let wantToConnectWith: [String]
     let createdAt: Double
-}
-
-// MARK: - Vouch Response
-
-struct VouchResponse: Codable, Identifiable {
-    let _id: String
-    let fromUserId: String
-    let fromUserName: String
-    let fromUserAvatarUrl: String?
-    let reason: String
-    let createdAt: Double
-
-    var id: String { _id }
-
-    var createdDate: Date {
-        Date(timeIntervalSince1970: createdAt / 1000)
-    }
 }
 
 // MARK: - Attended Event Response

@@ -41,13 +41,13 @@ struct VouchesTabView: View {
     private func vouchRow(_ vouch: VouchResponse) -> some View {
         HStack(alignment: .top, spacing: Spacing.md) {
             AvatarView(
-                avatarUrl: vouch.fromUserAvatarUrl,
-                name: vouch.fromUserName,
+                avatarUrl: vouch.fromUser?.avatarUrl,
+                name: vouch.fromUser?.name ?? "?",
                 size: 36
             )
 
             VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text(vouch.fromUserName)
+                Text(vouch.fromUser?.name ?? "Someone")
                     .font(.bodySemibold)
                     .foregroundColor(.appPrimary)
 
