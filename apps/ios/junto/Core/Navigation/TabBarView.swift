@@ -131,26 +131,36 @@ struct TabBarView: View {
                 }
 
                 if isTabBarVisible {
-                    HStack(spacing: 24) {
-                        ForEach(Tab.allCases, id: \.self) { tab in
-                            TabButton(
-                                tab: tab,
-                                isSelected: selectedTab == tab,
-                                hasNotification: (tab == .notifications && unreadNotificationCount > 0) || (tab == .messages && unreadMessageCount > 0),
-                                action: {
-                                    if tab == .search {
-                                        showSearch = true
-                                    } else {
-                                        selectedTab = tab
+                    VStack(spacing: 0) {
+                        LinearGradient(
+                            colors: [Color.appBackground.opacity(0), Color.appBackground],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 24)
+                        .allowsHitTesting(false)
+
+                        HStack(spacing: 24) {
+                            ForEach(Tab.allCases, id: \.self) { tab in
+                                TabButton(
+                                    tab: tab,
+                                    isSelected: selectedTab == tab,
+                                    hasNotification: (tab == .notifications && unreadNotificationCount > 0) || (tab == .messages && unreadMessageCount > 0),
+                                    action: {
+                                        if tab == .search {
+                                            showSearch = true
+                                        } else {
+                                            selectedTab = tab
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, Spacing.xs)
+                        .padding(.bottom, Spacing.xxs)
+                        .background(Color.appSurface.ignoresSafeArea(edges: .bottom))
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, Spacing.xs)
-                    .padding(.bottom, Spacing.xxs)
-                    .background(Color.appSurface.ignoresSafeArea(edges: .bottom))
                     .transition(.move(edge: .bottom))
                 }
             }

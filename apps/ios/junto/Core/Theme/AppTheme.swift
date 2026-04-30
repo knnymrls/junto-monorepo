@@ -16,11 +16,11 @@ extension Color {
 
     // --- Text ---
 
-    /// Primary text — #333 light / white dark
+    /// Primary text — #2D2D2D light / white dark
     static let appPrimary = Color(UIColor { tc in
         tc.userInterfaceStyle == .dark
             ? .white
-            : UIColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1.0)  // #333333
+            : UIColor(red: 0.176, green: 0.176, blue: 0.176, alpha: 1.0)  // #2D2D2D
     })
 
     /// Secondary text — #999 light / lightGray dark

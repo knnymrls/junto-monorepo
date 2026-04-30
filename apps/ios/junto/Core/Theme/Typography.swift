@@ -6,11 +6,28 @@
 //
 
 import SwiftUI
+import UIKit
 
 extension Font {
-    // Bricolage Grotesque
-    static let juntoDisplay = Font.custom("BricolageGrotesque-96ptExtraBold_ExtraBold", size: 64)
-    static let juntoHeading = Font.custom("BricolageGrotesque-96ptExtraBold_SemiBold", size: 24)
+    // Bricolage Grotesque — pinned to opsz 96 so headlines keep the display character
+    // even at small render sizes. wght/wdth tunable per usage.
+    static func bricolage(size: CGFloat, weight: CGFloat = 800, width: CGFloat = 100, opticalSize: CGFloat = 96) -> Font {
+        // Variation axis tag → CGFloat value. Tags are 4-byte big-endian ASCII.
+        let variations: [Int: CGFloat] = [
+            0x6F70737A: opticalSize,  // 'opsz'
+            0x77647468: width,        // 'wdth'
+            0x77676874: weight,       // 'wght'
+        ]
+        let descriptor = UIFontDescriptor(name: "BricolageGrotesque-96ptExtraBold", size: size)
+            .addingAttributes([
+                UIFontDescriptor.AttributeName(rawValue: "NSCTFontVariationAttribute"): variations
+            ])
+        return Font(UIFont(descriptor: descriptor, size: size))
+    }
+
+    static let juntoDisplay = Font.bricolage(size: 64, weight: 800)
+    static let juntoHeading = Font.bricolage(size: 24, weight: 600)
+    static let juntoHeadingExtraBold = Font.bricolage(size: 24, weight: 800)
 
     // Display
     static let displayLarge = Font.system(size: 48, weight: .bold)

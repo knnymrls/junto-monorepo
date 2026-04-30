@@ -16,51 +16,48 @@ struct SuggestedMatchCarouselCard: View {
 
     var body: some View {
         Button(action: { onCardTap?() }) {
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                // Avatar
-                AvatarView(
-                    avatarUrl: match.avatarUrl,
-                    name: match.name,
-                    size: 52
-                )
-                .padding(.bottom, Spacing.xxxs)
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    // Header row: avatar + name/headline
+                    HStack(spacing: Spacing.xxs) {
+                        AvatarView(
+                            avatarUrl: match.avatarUrl,
+                            name: match.name,
+                            size: 36
+                        )
 
-                // Name
-                Text(match.name)
-                    .font(.captionSemibold)
-                    .foregroundColor(.appPrimary)
-                    .lineLimit(1)
+                        VStack(alignment: .leading, spacing: Spacing.xxs) {
+                            Text(match.name)
+                                .font(.captionMedium)
+                                .foregroundColor(.appPrimary)
+                                .lineLimit(1)
 
-                // Headline
-                if let headline = match.headline {
-                    Text(headline)
-                        .font(.caption12)
-                        .foregroundColor(.appTertiary)
-                        .lineLimit(1)
-                }
+                            if let headline = match.headline {
+                                Text(headline)
+                                    .font(.caption12)
+                                    .foregroundColor(.appSecondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
 
-                // Match reason — the key info, reserve 3 lines for uniform height
-                ZStack(alignment: .topLeading) {
-                    Text("L\nL\nL")
-                        .font(.caption12)
-                        .opacity(0)
+                    // Match reason — full text, no truncation
                     Text(match.matchReason)
-                        .font(.caption12)
-                        .foregroundColor(.appSecondary)
+                        .font(.bodyMedium)
+                        .foregroundColor(.appPrimary)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
 
-                Spacer(minLength: 0)
-
-                // CTA button
                 ctaButton
             }
             .padding(Spacing.md)
-            .frame(width: 160)
-            .background(Color.appSurfaceSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.xxxl))
+            .frame(width: 175)
+            .background(Color.appSurface)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
         }
         .buttonStyle(.plain)
     }
@@ -76,9 +73,9 @@ struct SuggestedMatchCarouselCard: View {
                     .font(.captionSemibold)
                     .foregroundColor(.appOnAccent)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.xs)
+                    .padding(.vertical, Spacing.sm)
                     .background(Color.appPrimary)
-                    .clipShape(Capsule())
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
             }
             .buttonStyle(.plain)
 
@@ -87,10 +84,13 @@ struct SuggestedMatchCarouselCard: View {
                 .font(.captionSemibold)
                 .foregroundColor(.appSecondary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, Spacing.xs)
+                .padding(.vertical, Spacing.sm)
                 .background(Color.appSurface)
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(Color.appDivider, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.xl)
+                        .stroke(Color.appDivider, lineWidth: 1)
+                )
 
         case .pending:
             Button(action: { onWithdrawTap?() }) {
@@ -98,10 +98,13 @@ struct SuggestedMatchCarouselCard: View {
                     .font(.captionSemibold)
                     .foregroundColor(.appSecondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.xs)
+                    .padding(.vertical, Spacing.sm)
                     .background(Color.appSurface)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color.appDivider, lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.xl)
+                            .stroke(Color.appDivider, lineWidth: 1)
+                    )
             }
             .buttonStyle(.plain)
         }

@@ -44,11 +44,11 @@ struct FeedView: View {
                         .renderingMode(.template)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 20, height: 20)
                         .foregroundColor(.appOnAccent)
-                        .padding(Spacing.md)
+                        .frame(width: 64, height: 52)
                         .background(Color.appPrimary)
-                        .clipShape(Circle())
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
                 }
                 .padding(.trailing, Spacing.lg)
                 .padding(.bottom, 72) // Above tab bar

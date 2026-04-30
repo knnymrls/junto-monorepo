@@ -15,9 +15,8 @@ struct TopNavBar: View {
 
     var body: some View {
         HStack(spacing: Spacing.md) {
-            // TODO: Add the font I've been using for brand
             Text(title)
-                .font(.heading1)
+                .font(.juntoHeadingExtraBold)
                 .foregroundColor(.appPrimary)
 
             Spacer()

@@ -16,14 +16,14 @@ struct SuggestedMatchCarousel: View {
 
     var body: some View {
         if !matches.isEmpty {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
+            VStack(alignment: .leading, spacing: Spacing.md) {
                 Text("People you should know")
                     .font(.bodySemibold)
                     .foregroundColor(.appSecondary)
                     .padding(.horizontal, Spacing.md)
 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: Spacing.sm) {
+                    HStack(alignment: .center, spacing: Spacing.sm) {
                         ForEach(matches) { match in
                             SuggestedMatchCarouselCard(
                                 match: match,
@@ -38,6 +38,7 @@ struct SuggestedMatchCarousel: View {
                 }
             }
             .padding(.vertical, Spacing.lg)
+            .background(Color.appSurfaceSecondary)
         }
     }
 }
