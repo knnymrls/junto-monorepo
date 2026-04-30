@@ -49,6 +49,20 @@ enum Tab: String, CaseIterable {
     var usesSystemIcon: Bool {
         false
     }
+
+    /// Whether this tab shows the global compose FAB.
+    var hasComposeFAB: Bool {
+        switch self {
+        case .feed, .events, .messages: return true
+        case .search, .notifications: return false
+        }
+    }
+}
+
+// Notification posted when a tab's compose FAB is tapped. The object is the
+// tab's rawValue so each tab can filter for its own notifications.
+extension Notification.Name {
+    static let composeFABTapped = Notification.Name("composeFABTapped")
 }
 
 // Environment key to hide tab bar
@@ -81,7 +95,6 @@ struct TabBarView: View {
     @State private var showSideMenu = false
     @State private var showMyProfile = false
     @State private var showSettings = false
-    @State private var showSearch = false
     private let menuWidth: CGFloat = 280
 
     private let convex = ConvexClientManager.shared
@@ -120,7 +133,7 @@ struct TabBarView: View {
                         case .events:
                             EventsView()
                         case .search:
-                            Color.clear
+                            SearchView()
                         case .messages:
                             MessagesView()
                         case .notifications:
@@ -129,6 +142,7 @@ struct TabBarView: View {
                     }
                     .environment(\.tabBarVisible, $isTabBarVisible)
                 }
+                .ignoresSafeArea(.keyboard, edges: .bottom)
 
                 if isTabBarVisible {
                     VStack(spacing: 0) {
@@ -147,11 +161,7 @@ struct TabBarView: View {
                                     isSelected: selectedTab == tab,
                                     hasNotification: (tab == .notifications && unreadNotificationCount > 0) || (tab == .messages && unreadMessageCount > 0),
                                     action: {
-                                        if tab == .search {
-                                            showSearch = true
-                                        } else {
-                                            selectedTab = tab
-                                        }
+                                        selectedTab = tab
                                     }
                                 )
                             }
@@ -162,6 +172,28 @@ struct TabBarView: View {
                         .background(Color.appSurface.ignoresSafeArea(edges: .bottom))
                     }
                     .transition(.move(edge: .bottom))
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if isTabBarVisible, selectedTab.hasComposeFAB {
+                    Button(action: {
+                        NotificationCenter.default.post(
+                            name: .composeFABTapped,
+                            object: selectedTab.rawValue
+                        )
+                    }) {
+                        Image("action.add")
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 20, height: 20)
+                            .foregroundColor(.appOnAccent)
+                            .frame(width: 64, height: 52)
+                            .background(Color.appPrimary)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
+                    }
+                    .padding(.trailing, Spacing.lg)
+                    .padding(.bottom, 72)
                 }
             }
             .overlay {
@@ -185,12 +217,6 @@ struct TabBarView: View {
             SettingsView()
                 .environmentObject(currentUser)
                 .environmentObject(ThemeManager.shared)
-        }
-        // Search sheet
-        .sheet(isPresented: $showSearch) {
-            SearchSheet()
-                .environmentObject(currentUser)
-                .presentationDragIndicator(.visible)
         }
         // Event feedback prompt
         .sheet(item: $feedbackEvent) { event in

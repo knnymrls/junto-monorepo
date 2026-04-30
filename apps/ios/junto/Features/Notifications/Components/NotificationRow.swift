@@ -16,12 +16,7 @@ struct NotificationRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.md) {
-            // Avatar
-            AvatarView(
-                avatarUrl: notification.sender?.avatarUrl,
-                name: notification.sender?.name ?? "?",
-                size: 40
-            )
+            avatar
 
             // Content
             VStack(alignment: .leading, spacing: Spacing.xxs) {
@@ -88,4 +83,118 @@ struct NotificationRow: View {
         .padding(.vertical, Spacing.md)
         .background(notification.isRead ? Color.appSurface : Color.appSurfaceSecondary.opacity(0.5))
     }
+
+    // MARK: - Avatar
+
+    @ViewBuilder
+    private var avatar: some View {
+        if notification.sender != nil {
+            AvatarView(
+                avatarUrl: notification.sender?.avatarUrl,
+                name: notification.sender?.name ?? "?",
+                size: 40
+            )
+        } else {
+            let palette = paletteForType(notification.type)
+            Circle()
+                .fill(palette.background)
+                .frame(width: 40, height: 40)
+                .overlay(
+                    Image(systemName: iconForType(notification.type))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(palette.foreground)
+                )
+        }
+    }
+
+    private func iconForType(_ type: String) -> String {
+        switch type {
+        case "comment", "mention": return "bubble.left.fill"
+        case "connection_request", "connection_accepted", "pending_connection_reminder": return "person.badge.plus"
+        case "event_rsvp", "event_reminder", "new_event": return "calendar"
+        case "new_message", "message_request": return "envelope.fill"
+        case "content_prompt": return "pencil"
+        case "meet_nudge": return "hand.wave.fill"
+        case "weekly_digest": return "sparkles"
+        case "inactivity_nudge": return "flame.fill"
+        case "milestone": return "trophy.fill"
+        default: return "bell.fill"
+        }
+    }
+
+    // MARK: - Type Palette
+    // Echoes the CategoryPill colors (sharing=orange, lookingFor=blue,
+    // asking=purple) and adds green for the "social" group.
+
+    fileprivate struct TypePalette {
+        let background: Color
+        let foreground: Color
+    }
+
+    fileprivate func paletteForType(_ type: String) -> TypePalette {
+        switch type {
+        case "comment", "mention", "new_message", "message_request":
+            return .blue
+        case "connection_request", "connection_accepted", "pending_connection_reminder",
+             "inactivity_nudge", "meet_nudge":
+            return .green
+        case "event_rsvp", "event_reminder", "new_event":
+            return .orange
+        case "content_prompt", "weekly_digest", "milestone":
+            return .purple
+        default:
+            return .neutral
+        }
+    }
+}
+
+private extension NotificationRow.TypePalette {
+    static let blue = NotificationRow.TypePalette(
+        background: Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0.05, green: 0.12, blue: 0.25, alpha: 1.0)
+            : UIColor(red: 0.89, green: 0.95, blue: 0.99, alpha: 1.0)  // #E3F2FD
+        }),
+        foreground: Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0.35, green: 0.65, blue: 1.00, alpha: 1.0)
+            : UIColor(red: 0.08, green: 0.40, blue: 0.75, alpha: 1.0)  // #1565C0
+        })
+    )
+
+    static let green = NotificationRow.TypePalette(
+        background: Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0.05, green: 0.20, blue: 0.10, alpha: 1.0)
+            : UIColor(red: 0.91, green: 0.97, blue: 0.92, alpha: 1.0)  // #E8F5E9
+        }),
+        foreground: Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0.40, green: 0.85, blue: 0.50, alpha: 1.0)
+            : UIColor(red: 0.18, green: 0.49, blue: 0.20, alpha: 1.0)  // #2E7D32
+        })
+    )
+
+    static let orange = NotificationRow.TypePalette(
+        background: Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0.25, green: 0.15, blue: 0.05, alpha: 1.0)
+            : UIColor(red: 1.00, green: 0.95, blue: 0.88, alpha: 1.0)  // #FFF3E0
+        }),
+        foreground: Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 1.00, green: 0.55, blue: 0.20, alpha: 1.0)
+            : UIColor(red: 0.90, green: 0.32, blue: 0.00, alpha: 1.0)  // #E65100
+        })
+    )
+
+    static let purple = NotificationRow.TypePalette(
+        background: Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0.18, green: 0.08, blue: 0.25, alpha: 1.0)
+            : UIColor(red: 0.95, green: 0.90, blue: 0.96, alpha: 1.0)  // #F3E5F5
+        }),
+        foreground: Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0.73, green: 0.40, blue: 0.90, alpha: 1.0)
+            : UIColor(red: 0.48, green: 0.12, blue: 0.64, alpha: 1.0)  // #7B1FA2
+        })
+    )
+
+    static let neutral = NotificationRow.TypePalette(
+        background: Color.appSurfaceSecondary,
+        foreground: Color.appSecondary
+    )
 }

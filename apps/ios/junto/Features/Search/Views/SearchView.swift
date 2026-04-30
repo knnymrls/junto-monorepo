@@ -24,29 +24,29 @@ struct SearchView: View {
 
 struct SearchSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.tabBarVisible) private var tabBarVisible
     @EnvironmentObject private var currentUser: CurrentUserManager
     @StateObject private var viewModel = SearchViewModel()
     @State private var selectedUserProfile: UserResponse?
-    @State private var searchTextHeight: CGFloat = 28
-    @State private var isInputFocused = false
-    // Dummy bindings for ReplyComposerBar (not using media in search)
-    @State private var dummyImage: UIImage? = nil
-    @State private var dummyGifUrl: URL? = nil
+    @State private var keyboardHeight: CGFloat = 0
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Scrollable content (full height)
             contentArea
 
-            // Floating AI insights card (above input)
-            if showInsightsCard {
-                aiInsightsCard
-                    .padding(.bottom, 80) // Above the input bar
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            VStack(spacing: Spacing.sm) {
+                if showInsightsCard {
+                    aiInsightsCard
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if showAISuggestion {
+                    aiSearchSuggestion
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                searchComposerBar
             }
-
-            // Bottom input bar — same ReplyComposerBar pattern, no background
-            searchComposerBar
+            .padding(.horizontal, Spacing.md)
+            .padding(.bottom, keyboardHeight > 0 ? keyboardHeight - bottomSafeArea + Spacing.sm : 72)
+            .animation(.easeInOut(duration: 0.2), value: showAISuggestion)
         }
         .animation(.easeInOut(duration: 0.3), value: viewModel.searchPhase)
         .animation(.easeInOut(duration: 0.3), value: viewModel.aiThinking != nil)
@@ -55,16 +55,29 @@ struct SearchSheet: View {
         .sheet(item: $selectedUserProfile) { user in
             ProfileView(user: user)
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+            if let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    keyboardHeight = frame.height
+                    tabBarVisible.wrappedValue = false
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.25)) {
+                keyboardHeight = 0
+                tabBarVisible.wrappedValue = true
+            }
+        }
+        .onDisappear {
+            tabBarVisible.wrappedValue = true
+        }
         .task {
             if let userId = currentUser.userId {
                 viewModel.currentUserId = userId
                 viewModel.startListening()
+                viewModel.loadDefaultUsers()
                 await viewModel.loadConnections(userId: userId)
-            }
-        }
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                isInputFocused = true
             }
         }
     }
@@ -74,64 +87,88 @@ struct SearchSheet: View {
     @ViewBuilder
     private var contentArea: some View {
         switch viewModel.searchPhase {
-        case .idle:
-            idleHint
-
-        case .typing, .submitted, .streaming, .enhanced:
+        case .idle, .typing:
+            discoverMasonry
+        case .submitted, .streaming, .enhanced:
             resultsView
         }
     }
 
-    // MARK: - Idle Hint
+    // MARK: - Discover Masonry (idle state)
 
-    private var idleHint: some View {
-        VStack(spacing: Spacing.sm) {
-            Spacer()
-
-            Image(systemName: "sparkle.magnifyingglass")
-                .font(.system(size: 28))
-                .foregroundColor(.appSecondary)
-
-            Text("Search by name, skills,\ngoals, or interests")
-                .font(.body14)
-                .foregroundColor(.appSecondary)
-                .multilineTextAlignment(.center)
-
-            Spacer()
+    private var discoverMasonry: some View {
+        let users = viewModel.liveResults
+        return ScrollView(showsIndicators: false) {
+            if users.isEmpty {
+                VStack(spacing: Spacing.sm) {
+                    Spacer().frame(height: 120)
+                    Image(systemName: "sparkle.magnifyingglass")
+                        .font(.system(size: 28))
+                        .foregroundColor(.appSecondary)
+                    Text(viewModel.searchText.isEmpty
+                         ? "Discover makers across campus"
+                         : "No quick matches — try AI search")
+                        .font(.body14)
+                        .foregroundColor(.appSecondary)
+                        .multilineTextAlignment(.center)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 400)
+            } else {
+                MasonryLayout(spacing: Spacing.md) {
+                    ForEach(users) { user in
+                        DiscoverUserCard(
+                            user: user,
+                            connectionStatus: viewModel.connectionStatus(forUserId: user._id),
+                            onTap: { selectedUserProfile = user },
+                            onConnect: {
+                                Task {
+                                    AnalyticsService.shared.track(.connectFromSearch(toUserId: user._id))
+                                    _ = await viewModel.sendConnectionRequest(toUserId: user._id)
+                                }
+                            }
+                        )
+                    }
+                }
+                .padding(Spacing.md)
+                Spacer().frame(height: 160)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.appSurfaceSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
+        .padding(.top, Spacing.sm)
     }
 
     // MARK: - Results View
 
     private var resultsView: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: Spacing.sm) {
-                // Masonry grid
-                if !viewModel.displayResults.isEmpty {
-                    masonryGrid
-                } else if viewModel.searchPhase == .submitted || viewModel.searchPhase == .streaming {
-                    masonrySkeleton
-                } else if viewModel.searchPhase != .typing {
-                    VStack(spacing: Spacing.md) {
-                        Spacer()
-                        EmptyStateView(
-                            icon: "magnifyingglass",
-                            title: "No users found",
-                            subtitle: "Try different keywords or a broader search"
-                        )
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, Spacing.xxl)
+            if !viewModel.displayResults.isEmpty {
+                masonryGrid
+                    .padding(Spacing.md)
+            } else if viewModel.searchPhase == .submitted || viewModel.searchPhase == .streaming {
+                masonrySkeleton
+                    .padding(Spacing.md)
+            } else if viewModel.searchPhase != .typing {
+                VStack(spacing: Spacing.md) {
+                    Spacer()
+                    EmptyStateView(
+                        icon: "magnifyingglass",
+                        title: "No users found",
+                        subtitle: "Try different keywords or a broader search"
+                    )
+                    Spacer()
                 }
-
-                // Bottom spacer so content isn't hidden behind input + insights
-                Spacer().frame(height: 200)
+                .frame(maxWidth: .infinity, minHeight: 400)
             }
-            .padding(.horizontal, Spacing.sm)
-            .padding(.top, Spacing.md)
+
+            Spacer().frame(height: 160)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.appSurfaceSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
+        .padding(.top, Spacing.sm)
         .animation(.easeInOut(duration: 0.3), value: viewModel.searchPhase)
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.displayResults.map(\.userId))
     }
@@ -139,118 +176,80 @@ struct SearchSheet: View {
     // MARK: - Floating AI Insights Card
 
     private var aiInsightsCard: some View {
-        HStack(alignment: .top, spacing: Spacing.xs) {
+        HStack(alignment: .top, spacing: Spacing.sm) {
             if viewModel.searchPhase == .submitted {
-                // Searching phase — pulsing icon + "Finding users..."
                 Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.appPrimary)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.appPrimary)
                     .symbolEffect(.pulse, options: .repeating)
 
                 HStack(spacing: Spacing.xs) {
-                    Text("Finding users")
-                        .font(.caption12)
-                        .foregroundColor(.appSecondary)
+                    Text("Finding people")
+                        .font(.body14)
+                        .foregroundStyle(Color.appSecondary)
                     TypingDots()
                 }
             } else if viewModel.searchPhase == .streaming {
-                // Streaming phase — thinking text grows in real-time
                 Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.appPrimary)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.appPrimary)
                     .symbolEffect(.pulse, options: .repeating)
 
                 if viewModel.streamingThinking.isEmpty {
                     HStack(spacing: Spacing.xs) {
-                        Text("Analyzing matches")
-                            .font(.caption12)
-                            .foregroundColor(.appSecondary)
+                        Text("Thinking it through")
+                            .font(.body14)
+                            .foregroundStyle(Color.appSecondary)
                         TypingDots()
                     }
                 } else {
                     Text(viewModel.streamingThinking)
-                        .font(.caption12)
-                        .foregroundColor(.appSecondary)
-                        .lineLimit(3)
+                        .font(.body14)
+                        .foregroundStyle(Color.appPrimary)
+                        .lineLimit(4)
                         .animation(.easeInOut(duration: 0.2), value: viewModel.streamingThinking)
                 }
             } else if let thinking = viewModel.aiThinking {
-                // Enhanced phase — final AI summary
                 Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.appPrimary)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.appPrimary)
 
                 Text(thinking)
-                    .font(.caption12)
-                    .foregroundColor(.appSecondary)
-                    .lineLimit(3)
+                    .font(.body14)
+                    .foregroundStyle(Color.appPrimary)
+                    .lineLimit(4)
             }
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
-        .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
-        .padding(.horizontal, Spacing.md)
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.md)
+        .juntoGlassBackground(cornerRadius: Radius.xxl)
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.xxl)
+                .stroke(Color.appBorder, lineWidth: 0.5)
+        )
     }
 
-    // MARK: - Search Composer Bar (ReplyComposerBar pattern)
+    // MARK: - Search Composer Bar
 
     private var searchComposerBar: some View {
-        HStack(alignment: .bottom, spacing: Spacing.sm) {
-            if !isInputActive {
-                AvatarView(
-                    avatarUrl: currentUser.user?.avatarUrl,
-                    name: currentUser.user?.name ?? "?",
-                    size: 28
-                )
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.5).combined(with: .opacity),
-                        removal: .scale(scale: 0.5).combined(with: .opacity)
-                    )
+        DiscoverSearchBar(
+            text: $viewModel.searchText,
+            onSubmit: {
+                // Submit/Enter only dismiss the keyboard — AI search is
+                // explicitly opted into via the "Search with AI" card.
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder),
+                    to: nil, from: nil, for: nil
                 )
             }
-
-            ZStack(alignment: .leading) {
-                if viewModel.searchText.isEmpty {
-                    Text("Search users...")
-                        .font(.body14)
-                        .foregroundColor(.appSecondary)
-                        .allowsHitTesting(false)
-                        .frame(height: 28, alignment: .center)
-                }
-
-                MentionTextView(
-                    text: $viewModel.searchText,
-                    height: $searchTextHeight,
-                    placeholder: "Search users...",
-                    minHeight: 28,
-                    autoFocus: true,
-                    returnKeyType: .search,
-                    onTextChange: { _ in },
-                    onSubmit: {
-                        viewModel.submitSearch()
-                    }
-                )
-                .frame(height: searchTextHeight)
-            }
-            .frame(minHeight: 28)
-        }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, 10)
-        .background(Color.appSurfaceSecondary)
-        .cornerRadius(27)
-        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isInputActive)
-        .padding(.horizontal, 10)
-        .padding(.top, Spacing.sm)
-        .padding(.bottom, Spacing.md)
+        )
     }
 
-    private var isInputActive: Bool {
-        isInputFocused || !viewModel.searchText.isEmpty
+    private var bottomSafeArea: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first?.windows.first?.safeAreaInsets.bottom ?? 34
     }
 
     private var showInsightsCard: Bool {
@@ -266,27 +265,76 @@ struct SearchSheet: View {
         }
     }
 
+    /// Show the "Search with AI" suggestion when the user types a query
+    /// that looks like natural language — multi-word, longer than a name.
+    /// Hidden during the actual AI search (insights card replaces it).
+    private var showAISuggestion: Bool {
+        guard viewModel.searchPhase == .typing else { return false }
+        let trimmed = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wordCount = trimmed.split(whereSeparator: { $0.isWhitespace }).count
+        return wordCount >= 3 || trimmed.count >= 18
+    }
+
+    // MARK: - AI Search Suggestion
+
+    private var aiSearchSuggestion: some View {
+        Button(action: { viewModel.submitSearch() }) {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color.appPrimary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Search with AI")
+                        .font(.bodyMedium)
+                        .foregroundStyle(Color.appPrimary)
+                    Text("Find people who match what you wrote")
+                        .font(.caption12)
+                        .foregroundStyle(Color.appSecondary)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: 28, height: 28)
+                    .background(Color.appPrimary, in: RoundedRectangle(cornerRadius: Radius.xl))
+            }
+            .padding(.leading, Spacing.lg)
+            .padding(.trailing, Spacing.md)
+            .padding(.vertical, Spacing.md)
+            .background(Color.appSurface, in: RoundedRectangle(cornerRadius: Radius.xxl))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.xxl)
+                    .stroke(Color.appBorder, lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Masonry Grid
 
     private var masonryGrid: some View {
-        MasonryLayout(spacing: Spacing.sm) {
-            ForEach(Array(viewModel.displayResults.enumerated()), id: \.element.id) { index, result in
+        MasonryLayout(spacing: Spacing.md) {
+            ForEach(viewModel.displayResults, id: \.id) { result in
                 if let user = viewModel.userProfiles[result.userId] {
-                    SearchMasonryCard(
-                        result: result,
+                    let explanation = result.explanation.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let hasExplanation = !explanation.isEmpty
+                    DiscoverUserCard(
                         user: user,
                         connectionStatus: viewModel.connectionStatus(for: result),
-                        onTap: {
-                            selectedUserProfile = user
-                        },
+                        explanation: hasExplanation ? explanation : nil,
+                        // While in AI results: missing reason = still streaming, show skeleton
+                        // (never fall back to the user's profile text in this view).
+                        isEnhancing: !hasExplanation,
+                        onTap: { selectedUserProfile = user },
                         onConnect: {
                             Task {
                                 AnalyticsService.shared.track(.connectFromSearch(toUserId: result.userId))
                                 _ = await viewModel.sendConnectionRequest(toUserId: result.userId)
                             }
-                        },
-                        appearDelay: Double(index) * 0.08,
-                        isEnhancing: viewModel.enhancingUserIds.contains(result.userId)
+                        }
                     )
                 }
             }
@@ -296,10 +344,10 @@ struct SearchSheet: View {
     // MARK: - Masonry Skeleton
 
     private var masonrySkeleton: some View {
-        let heights: [CGFloat] = [140, 170, 155, 185, 150, 165]
-        return MasonryLayout(spacing: Spacing.sm) {
+        let heights: [CGFloat] = [160, 190, 175, 200, 165, 180]
+        return MasonryLayout(spacing: Spacing.md) {
             ForEach(0..<6, id: \.self) { index in
-                SearchMasonryCardSkeleton(height: heights[index])
+                DiscoverUserCardSkeleton(height: heights[index])
             }
         }
     }

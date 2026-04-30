@@ -20,6 +20,8 @@ struct NotificationsView: View {
     @State private var chatParticipant: UserResponse?
     @State private var chatConversationId: String?
 
+    private var hairline: CGFloat { 1 / UIScreen.main.scale }
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
@@ -106,6 +108,12 @@ struct NotificationsView: View {
                                 Label("Delete", systemImage: "trash")
                             }
                         }
+
+                    if notification.id != viewModel.notifications.last?.id {
+                        Rectangle()
+                            .fill(Color.appDivider)
+                            .frame(height: hairline)
+                    }
                 }
 
                 Color.clear.frame(height: 80)

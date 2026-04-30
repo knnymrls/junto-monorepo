@@ -54,27 +54,16 @@ struct EventsView: View {
                         eventsList
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
             .navigationBarHidden(true)
-            .overlay(alignment: .bottomTrailing) {
-                Button {
-                    showCreateEvent = true
-                } label: {
-                    Image("action.add")
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 20, height: 20)
-                        .foregroundColor(.appOnAccent)
-                        .frame(width: 64, height: 52)
-                        .background(Color.appPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
-                }
-                .padding(.trailing, Spacing.lg)
-                .padding(.bottom, 72) // Above tab bar
-            }
             .sheet(isPresented: $showCreateEvent) {
                 CreateEventSheet()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .composeFABTapped)) { notif in
+                if notif.object as? String == Tab.events.rawValue {
+                    showCreateEvent = true
+                }
             }
         }
         .sheet(item: $selectedEvent) { event in
@@ -154,7 +143,7 @@ struct EventsView: View {
                 .font(.displayLarge)
                 .foregroundColor(.appSecondary)
 
-            Text("No upcoming events")
+            Text(selectedFilter == .upcoming ? "No upcoming events" : "No past events")
                 .font(.heading3)
                 .foregroundColor(.appPrimary)
 
@@ -162,6 +151,7 @@ struct EventsView: View {
                 .font(.body14)
                 .foregroundColor(.appSecondary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Loading State

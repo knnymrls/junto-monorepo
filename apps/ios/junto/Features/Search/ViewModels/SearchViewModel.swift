@@ -38,6 +38,77 @@ class SearchViewModel: ObservableObject {
     @Published var connectedUserIds: Set<String> = []
     @Published var pendingConnectionIds: Set<String> = []
 
+    // Default discover masonry — populated from users:list, shown when search is idle
+    @Published var defaultUsers: [UserResponse] = []
+
+    /// The list of users to render while the user is typing or browsing.
+    /// Combines an instant client-side substring filter over `defaultUsers`
+    /// with the server name/vector results for any matches outside the
+    /// loaded default set. AI-enhanced search has its own path.
+    var liveResults: [UserResponse] {
+        let query = searchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        // Hide self from the default set
+        let candidates = defaultUsers.filter { $0._id != currentUserId }
+
+        guard !query.isEmpty else { return candidates }
+
+        var seen = Set<String>()
+        var combined: [UserResponse] = []
+
+        for user in candidates where matchesQuery(user, query: query) {
+            if seen.insert(user._id).inserted {
+                combined.append(user)
+            }
+        }
+
+        for result in nameResults {
+            guard let user = userProfiles[result.userId],
+                  user._id != currentUserId else { continue }
+            if seen.insert(user._id).inserted {
+                combined.append(user)
+            }
+        }
+
+        for result in vectorResults {
+            guard let user = userProfiles[result.userId],
+                  user._id != currentUserId else { continue }
+            if seen.insert(user._id).inserted {
+                combined.append(user)
+            }
+        }
+
+        return combined
+    }
+
+    private func matchesQuery(_ user: UserResponse, query: String) -> Bool {
+        let textFields: [String?] = [
+            user.name,
+            user.headline,
+            user.lookingFor,
+            user.canHelpWith,
+            user.currentProject,
+        ]
+        if textFields.compactMap({ $0?.lowercased() }).contains(where: { $0.contains(query) }) {
+            return true
+        }
+        if let programs = user.programs,
+           programs.contains(where: { $0.lowercased().contains(query) }) {
+            return true
+        }
+        if let skills = user.skills,
+           skills.contains(where: { $0.lowercased().contains(query) }) {
+            return true
+        }
+        if let interests = user.interests,
+           interests.contains(where: { $0.lowercased().contains(query) }) {
+            return true
+        }
+        return false
+    }
+
     // Current user
     var currentUserId: String?
 
@@ -45,8 +116,8 @@ class SearchViewModel: ObservableObject {
     var displayResults: [SearchResultItem] {
         let raw: [SearchResultItem]
         switch searchPhase {
-        case .typing, .submitted:
-            // Merge: vector results take priority, then name results fill gaps
+        case .typing:
+            // While typing, show name + vector results live
             if vectorResults.isEmpty {
                 raw = nameResults
             } else {
@@ -58,19 +129,13 @@ class SearchViewModel: ObservableObject {
                 }
                 raw = merged
             }
+        case .submitted:
+            // Hide everything until the deeper search produces results
+            raw = []
         case .streaming:
-            // During streaming, merge streaming AI results with vector results
-            if !streamingResults.isEmpty {
-                var merged: [SearchResultItem] = []
-                let streamingIds = Set(streamingResults.map(\.userId))
-                merged.append(contentsOf: streamingResults)
-                for result in vectorResults where !streamingIds.contains(result.userId) {
-                    merged.append(result)
-                }
-                raw = merged
-            } else {
-                raw = vectorResults
-            }
+            // Only show streaming AI results — don't surface raw vector
+            // results before the AI has reasoned about them
+            raw = streamingResults
         case .enhanced:
             raw = enhancedResults ?? vectorResults
         case .idle:
@@ -99,6 +164,7 @@ class SearchViewModel: ObservableObject {
     private let convex = ConvexClientManager.shared
     private var nameSearchCancellable: AnyCancellable?
     private var vectorSearchCancellable: AnyCancellable?
+    private var defaultUsersCancellable: AnyCancellable?
     private var nameSearchTask: Task<Void, Never>?
     private var quickSearchTask: Task<Void, Never>?
     private var vectorSearchTask: Task<Void, Never>?
@@ -121,9 +187,9 @@ class SearchViewModel: ObservableObject {
                 }
             }
 
-        // Tier 2: Full vector search — 400ms debounce, enriches name results
+        // Tier 2: Full vector search — 250ms debounce, enriches name results
         vectorSearchCancellable = $searchText
-            .debounce(for: .milliseconds(400), scheduler: DispatchQueue.main)
+            .debounce(for: .milliseconds(250), scheduler: DispatchQueue.main)
             .removeDuplicates()
             .sink { [weak self] query in
                 guard let self else { return }
@@ -235,15 +301,16 @@ class SearchViewModel: ObservableObject {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, let userId = currentUserId else { return }
 
-        // Mark as submitted — keep existing typing results visible while we search deeper
         hasSubmitted = true
         searchPhase = .submitted
         enhancedResults = nil
         aiThinking = nil
         streamingThinking = ""
         streamingResults = []
+        // Clear typing-phase results so the skeleton shows during the deeper search
+        nameResults = []
+        vectorResults = []
 
-        // Cancel typing-phase listeners (but keep existing results visible)
         nameSearchTask?.cancel()
         quickSearchTask?.cancel()
         vectorSearchTask?.cancel()
@@ -419,6 +486,26 @@ class SearchViewModel: ObservableObject {
             return ConnectionStatus(rawValue: status) ?? fallbackConnectionStatus(userId: result.userId)
         }
         return fallbackConnectionStatus(userId: result.userId)
+    }
+
+    func connectionStatus(forUserId userId: String) -> ConnectionStatus {
+        fallbackConnectionStatus(userId: userId)
+    }
+
+    func loadDefaultUsers(universityId: String? = nil) {
+        defaultUsersCancellable = convex.subscribeUsers(universityId: universityId, limit: 50)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { [weak self] users in
+                    guard let self else { return }
+                    let myId = self.currentUserId
+                    self.defaultUsers = users.filter { $0._id != myId && $0.isOnboarded }
+                    for user in users {
+                        self.userProfiles[user._id] = user
+                    }
+                }
+            )
     }
 
     private func fallbackConnectionStatus(userId: String) -> ConnectionStatus {

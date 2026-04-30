@@ -32,7 +32,7 @@ struct TopNavBar: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, Spacing.md)
+        .padding(.horizontal, Spacing.lg)
         .padding(.top, Spacing.md)
         .padding(.bottom, Spacing.sm)
         .background(Color.appSurface)

@@ -53,15 +53,23 @@ function buildSearcherContext(searcher: any): string {
   return parts.join("\n");
 }
 
-const LLM_SYSTEM_PROMPT = `You are matching people in a user community. Rank candidates by relevance to the search query.
+const LLM_SYSTEM_PROMPT = `You help students on a campus app find people they should know. Rank candidates by how well they match the searcher's query.
 
-Rules for the "explanation" field — this is shown directly to the user on a small card:
+Rules for the "explanation" field — shown on a small card next to each person:
 - MAX 60 characters. One short phrase.
 - Write like a human label, NOT like AI analysis.
 - Never reference profile fields by name (don't say "headline:", "lists X as interests", "their bio says").
 - Never start with the person's name.
 - Good: "DJ, available for events" / "Growth marketer, ex-HubSpot" / "iOS developer building a health app"
 - Bad: "Lance is explicitly a DJ (headline: DJ)" / "David lists Events as an interest"
+
+Rules for the "thinking" field — shown to the searcher as a one-liner status:
+- Speak directly to the searcher in second person ("you", "your"). Never refer to "the user" or "the searcher".
+- Casual, conversational, like a friend who knows the campus. No corporate or algorithmic language.
+- Never use words like "query", "ranked", "evaluated", "scored", "candidates", "profiles", "matched".
+- 1–2 short sentences max. Describe the *people* you found and why they fit, not the search process.
+- Good: "Found a few iOS devs who'd vibe with what you're building." / "These folks already help with branding for student startups."
+- Bad: "Query matched the user's own profile included, then ranked others by professional fit." / "I evaluated candidates based on skills overlap."
 
 Consider complementary matching when the searcher's profile is provided — find people who fill gaps or share goals.`;
 
@@ -304,7 +312,7 @@ export const enhanceWithLLM = action({
           explanation: z.string().max(60).describe("Short human-readable label for why they match. Max 60 chars. No AI-speak, no field references."),
           relevanceScore: z.number().min(0).max(1).describe("How relevant this person is to the query, 0-1"),
         })).describe("Ranked list of matching candidates, best matches first. Only include candidates with relevanceScore >= 0.3"),
-        thinking: z.string().describe("Brief explanation of your reasoning about the query and how you evaluated candidates"),
+        thinking: z.string().describe("A short, casual note to the searcher (use 'you'/'your') describing the people you found and why they fit. 1–2 sentences. No algorithmic language."),
       }),
       system: LLM_SYSTEM_PROMPT,
       prompt: `Search query: "${args.query}"\n\n${searcherContext ? searcherContext + "\n\n" : ""}Candidate profiles:\n${profileSummaries.join("\n\n")}`,
@@ -429,7 +437,7 @@ export const streamEnhanceWithLLM = action({
         explanation: z.string().max(60).describe("Short human-readable label for why they match. Max 60 chars. No AI-speak, no field references."),
         relevanceScore: z.number().min(0).max(1).describe("How relevant this person is to the query, 0-1"),
       })).describe("Ranked list of matching candidates, best matches first. Only include candidates with relevanceScore >= 0.3"),
-      thinking: z.string().describe("Brief explanation of your reasoning about the query and how you evaluated candidates"),
+      thinking: z.string().describe("A short, casual note to the searcher (use 'you'/'your') describing the people you found and why they fit. 1–2 sentences. No algorithmic language."),
     });
 
     const userIdSet = new Set(validCandidates.map((c) => c.user!._id as string));
@@ -610,7 +618,7 @@ export const searchPeople = action({
           explanation: z.string().max(60).describe("Short human-readable label for why they match. Max 60 chars. No AI-speak, no field references."),
           relevanceScore: z.number().min(0).max(1).describe("How relevant this person is to the query, 0-1"),
         })).describe("Ranked list of matching candidates, best matches first. Only include candidates with relevanceScore >= 0.3"),
-        thinking: z.string().describe("Brief explanation of your reasoning about the query and how you evaluated candidates"),
+        thinking: z.string().describe("A short, casual note to the searcher (use 'you'/'your') describing the people you found and why they fit. 1–2 sentences. No algorithmic language."),
       }),
       system: LLM_SYSTEM_PROMPT,
       prompt: `Search query: "${args.query}"\n\n${searcherContext ? searcherContext + "\n\n" : ""}Candidate profiles:\n${profileSummaries.join("\n\n")}`,

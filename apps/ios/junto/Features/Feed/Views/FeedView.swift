@@ -26,35 +26,22 @@ struct FeedView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
-                VStack(spacing: 0) {
-                    // Content
-                    if viewModel.isLoading && viewModel.posts.isEmpty {
-                        loadingState
-                    } else if viewModel.posts.isEmpty {
-                        emptyState
-                    } else {
-                        feedList
-                    }
+            VStack(spacing: 0) {
+                if viewModel.isLoading && viewModel.posts.isEmpty {
+                    loadingState
+                } else if viewModel.posts.isEmpty {
+                    emptyState
+                } else {
+                    feedList
                 }
-
-                // Floating action button for new post
-                Button(action: { showComposer = true }) {
-                    Image("action.add")
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 20, height: 20)
-                        .foregroundColor(.appOnAccent)
-                        .frame(width: 64, height: 52)
-                        .background(Color.appPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
-                }
-                .padding(.trailing, Spacing.lg)
-                .padding(.bottom, 72) // Above tab bar
             }
             .background(Color.appBackground)
             .navigationBarHidden(true)
+            .onReceive(NotificationCenter.default.publisher(for: .composeFABTapped)) { notif in
+                if notif.object as? String == Tab.feed.rawValue {
+                    showComposer = true
+                }
+            }
         }
         .sheet(isPresented: $showComposer) {
             PostComposerView(viewModel: viewModel)

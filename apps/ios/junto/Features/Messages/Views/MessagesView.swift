@@ -11,6 +11,7 @@ import Combine
 
 struct MessagesView: View {
     @Environment(\.clerk) private var clerk
+    @Environment(\.tabBarVisible) private var tabBarVisible
     @EnvironmentObject private var currentUser: CurrentUserManager
     @StateObject private var viewModel = MessagesListViewModel()
     @State private var selectedConversation: ConversationResponse?
@@ -19,35 +20,39 @@ struct MessagesView: View {
     @State private var chatConversationId: String?
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            VStack(spacing: 0) {
-                searchBar
-                filterTabs
+        VStack(spacing: 0) {
+            searchBar
+            filterTabs
 
-                ZStack {
-                    Color.appBackground.ignoresSafeArea()
+            ZStack {
+                Color.appBackground.ignoresSafeArea()
 
-                    if viewModel.isLoading && viewModel.conversations.isEmpty {
-                        loadingState
-                    } else {
-                        mainList
-                    }
+                if viewModel.isLoading && viewModel.conversations.isEmpty {
+                    loadingState
+                } else {
+                    mainList
                 }
             }
-
-            Button(action: { showNewConversation = true }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(.white)
-                    .frame(width: 48, height: 48)
-                    .background(Color.appPrimary)
-                    .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-            }
-            .padding(.trailing, Spacing.lg)
-            .padding(.bottom, Spacing.xl)
         }
         .background(Color.appBackground)
+        .onReceive(NotificationCenter.default.publisher(for: .composeFABTapped)) { notif in
+            if notif.object as? String == Tab.messages.rawValue {
+                showNewConversation = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.25)) {
+                tabBarVisible.wrappedValue = false
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.25)) {
+                tabBarVisible.wrappedValue = true
+            }
+        }
+        .onDisappear {
+            tabBarVisible.wrappedValue = true
+        }
         .sheet(item: $selectedConversation) { conversation in
             if let otherParticipant = conversation.otherParticipant,
                let userId = currentUser.userId {
@@ -113,11 +118,10 @@ struct MessagesView: View {
                 }
             }
         }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
+        .padding(Spacing.md)
         .background(Color.appSurfaceSecondary)
-        .clipShape(Capsule())
-        .padding(.horizontal, Spacing.md)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
+        .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.sm)
         .background(Color.appSurface)
     }
@@ -127,6 +131,7 @@ struct MessagesView: View {
     private var filterTabs: some View {
         HStack(spacing: Spacing.sm) {
             ForEach(MessagesFilter.allCases, id: \.self) { tab in
+                let isSelected = viewModel.filter == tab
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.15)) {
                         viewModel.filter = tab
@@ -134,32 +139,31 @@ struct MessagesView: View {
                 }) {
                     HStack(spacing: Spacing.xxs) {
                         Text(tab.rawValue)
-                            .font(.bodyMedium)
+                            .font(isSelected ? .bodySemibold : .bodyMedium)
+                            .foregroundColor(isSelected ? .appOnAccent : .appSecondary)
 
                         if tab == .requests && viewModel.requestCount > 0 {
                             Text("\(viewModel.requestCount)")
                                 .font(.captionSmallSemibold)
-                                .foregroundColor(viewModel.filter == tab ? .appSurface : .white)
+                                .foregroundColor(isSelected ? .appPrimary : .appOnAccent)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 1)
-                                .background(viewModel.filter == tab ? .appPrimary : Color.appSecondary)
+                                .background(isSelected ? Color.appOnAccent : Color.appSecondary)
                                 .clipShape(Capsule())
                         }
                     }
-                    .foregroundColor(.appPrimary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, Spacing.xs)
-                    .background(viewModel.filter == tab ? Color.appSurfaceSecondary : Color.appSurface)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color.appDivider, lineWidth: 1))
+                    .padding(.horizontal, 13)
+                    .frame(height: 32)
+                    .background(isSelected ? Color.appPrimary : Color.appSurfaceSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
                 }
                 .buttonStyle(.plain)
             }
 
             Spacer()
         }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.xs)
+        .padding(.horizontal, Spacing.lg)
+        .padding(.bottom, Spacing.sm)
         .background(Color.appSurface)
     }
 
