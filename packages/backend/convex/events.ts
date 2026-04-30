@@ -2,6 +2,17 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 
+// Resolve a stored image reference to a URL. Storage IDs are resolved via
+// ctx.storage.getUrl; full HTTP URLs (legacy seed data) pass through.
+async function resolveImageUrl(
+  ctx: { storage: { getUrl: (id: any) => Promise<string | null> } },
+  url: string | null | undefined,
+): Promise<string | undefined> {
+  if (!url) return undefined;
+  if (url.startsWith("http")) return url;
+  return (await ctx.storage.getUrl(url as any)) ?? undefined;
+}
+
 // List upcoming events with preview data
 export const listUpcoming = query({
   args: {
@@ -58,6 +69,63 @@ export const listUpcoming = query({
 
         return {
           ...event,
+          imageUrl: await resolveImageUrl(ctx, event.imageUrl),
+          host: host ? { id: host._id, name: host.name, avatarUrl: host.avatarUrl } : null,
+          goingCount,
+          attendeePreviews: attendeePreviews.filter(Boolean),
+        };
+      })
+    );
+
+    return enrichedEvents;
+  },
+});
+
+// List past events with preview data (most recent first)
+export const listPast = query({
+  args: {
+    universityId: v.optional(v.id("universities")),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    const events = await ctx.db.query("events").withIndex("by_date").collect();
+
+    let pastEvents = events.filter((e) => e.date < now);
+
+    if (args.universityId) {
+      pastEvents = pastEvents.filter((e) => e.universityId === args.universityId);
+    }
+
+    pastEvents.sort((a, b) => b.date - a.date);
+
+    if (args.limit) {
+      pastEvents = pastEvents.slice(0, args.limit);
+    }
+
+    const enrichedEvents = await Promise.all(
+      pastEvents.map(async (event) => {
+        const host = await ctx.db.get(event.createdBy);
+
+        const rsvps = await ctx.db
+          .query("eventRsvps")
+          .withIndex("by_event", (q) => q.eq("eventId", event._id))
+          .collect();
+
+        const goingCount = rsvps.filter((r) => r.status === "going").length;
+
+        const previewRsvps = rsvps.filter((r) => r.status === "going").slice(0, 3);
+        const attendeePreviews = await Promise.all(
+          previewRsvps.map(async (rsvp) => {
+            const user = await ctx.db.get(rsvp.userId);
+            return user ? { id: user._id, name: user.name, avatarUrl: user.avatarUrl } : null;
+          })
+        );
+
+        return {
+          ...event,
+          imageUrl: await resolveImageUrl(ctx, event.imageUrl),
           host: host ? { id: host._id, name: host.name, avatarUrl: host.avatarUrl } : null,
           goingCount,
           attendeePreviews: attendeePreviews.filter(Boolean),
@@ -103,6 +171,7 @@ export const get = query({
 
     return {
       ...event,
+      imageUrl: await resolveImageUrl(ctx, event.imageUrl),
       host: host ? { id: host._id, name: host.name, avatarUrl: host.avatarUrl, headline: host.headline } : null,
       goingCount: goingRsvps.length,
       interestedCount: interestedRsvps.length,

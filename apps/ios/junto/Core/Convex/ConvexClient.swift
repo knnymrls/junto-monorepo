@@ -256,6 +256,23 @@ extension ConvexClientManager {
         }
     }
 
+    /// Subscribe to past events (most recent first)
+    func subscribePastEvents(universityId: String? = nil, limit: Int? = nil) -> AnyPublisher<[EventResponse], ClientError> {
+        var args: [String: (any ConvexEncodable)?] = [:]
+        if let universityId = universityId {
+            args["universityId"] = universityId
+        }
+        if let limit = limit {
+            args["limit"] = Double(limit)
+        }
+
+        if args.isEmpty {
+            return client.subscribe(to: "events:listPast", yielding: [EventResponse].self)
+        } else {
+            return client.subscribe(to: "events:listPast", with: args, yielding: [EventResponse].self)
+        }
+    }
+
     /// Subscribe to a single event with RSVP counts
     func subscribeEvent(id: String) -> AnyPublisher<EventWithRsvpResponse?, ClientError> {
         return client.subscribe(to: "events:get", with: ["id": id], yielding: EventWithRsvpResponse?.self)

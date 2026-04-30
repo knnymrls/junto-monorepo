@@ -12,80 +12,86 @@ struct EventCardView: View {
     var isGoing: Bool = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: Spacing.md) {
+        HStack(alignment: .top, spacing: 14) {
             // Thumbnail
             eventImage
                 .frame(width: 80, height: 107)
-                .cornerRadius(Radius.md)
+                .cornerRadius(Radius.xxl)
 
             // Info
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                // Host
-                if let host = event.host {
-                    HStack(spacing: Spacing.xxs) {
-                        AvatarView(
-                            avatarUrl: host.avatarUrl,
-                            name: host.name,
-                            size: 14
-                        )
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                // Title + host
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Text(event.title)
+                        .font(.bodyLargeSemibold)
+                        .foregroundColor(.appPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
 
-                        Text(host.name)
-                            .font(.caption12)
-                            .foregroundColor(.appSecondary)
-                            .lineLimit(1)
+                    if let host = event.host {
+                        HStack(spacing: Spacing.xxs) {
+                            AvatarView(
+                                avatarUrl: host.avatarUrl,
+                                name: host.name,
+                                size: 14
+                            )
+
+                            Text(host.name)
+                                .font(.caption12)
+                                .foregroundColor(.appSecondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
 
-                // Title
-                Text(event.title)
-                    .font(.bodyLargeSemibold)
-                    .foregroundColor(.appPrimary)
-                    .lineLimit(2)
-
-                // Date
-                HStack(spacing: Spacing.xxs) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 12))
-                    Text(formattedDateTime)
-                        .font(.body14)
-                }
-                .foregroundColor(.appSecondary)
-
-                // Location
-                if let location = event.location {
+                // Date + location
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
                     HStack(spacing: Spacing.xxs) {
-                        Image(systemName: "mappin")
+                        Image(systemName: "calendar")
                             .font(.system(size: 12))
-                        Text(location)
-                            .font(.body14)
-                            .lineLimit(1)
-                    }
-                    .foregroundColor(.appSecondary)
-                } else if event.eventType == .online {
-                    HStack(spacing: Spacing.xxs) {
-                        Image(systemName: "video")
-                            .font(.system(size: 12))
-                        Text("Online")
+                            .frame(width: 16, height: 16)
+                        Text(formattedDateTime)
                             .font(.body14)
                     }
                     .foregroundColor(.appSecondary)
-                }
 
-                // Going tag
-                if isGoing {
-                    Text("Going")
-                        .font(.captionSmallSemibold)
-                        .foregroundColor(.appSuccess)
-                        .padding(.horizontal, Spacing.xs)
-                        .padding(.vertical, Spacing.xxxs)
-                        .background(Color.appSuccess.opacity(0.12))
-                        .clipShape(Capsule())
+                    if let location = event.location {
+                        HStack(spacing: Spacing.xxs) {
+                            Image(systemName: "mappin")
+                                .font(.system(size: 12))
+                                .frame(width: 16, height: 16)
+                            Text(location)
+                                .font(.body14)
+                                .lineLimit(1)
+                        }
+                        .foregroundColor(.appSecondary)
+                    } else if event.eventType == .online {
+                        HStack(spacing: Spacing.xxs) {
+                            Image(systemName: "video")
+                                .font(.system(size: 12))
+                                .frame(width: 16, height: 16)
+                            Text("Online")
+                                .font(.body14)
+                        }
+                        .foregroundColor(.appSecondary)
+                    }
+
+                    if isGoing {
+                        Text("Going")
+                            .font(.captionSmallSemibold)
+                            .foregroundColor(.appSuccess)
+                            .padding(.horizontal, Spacing.xs)
+                            .padding(.vertical, Spacing.xxxs)
+                            .background(Color.appSuccess.opacity(0.12))
+                            .clipShape(Capsule())
+                            .padding(.top, Spacing.xxs)
+                    }
                 }
             }
 
             Spacer()
         }
-        .padding(.vertical, Spacing.lg)
+        .padding(Spacing.lg)
     }
 
     @ViewBuilder
@@ -135,6 +141,5 @@ struct EventCardView: View {
         Divider()
         EventCardView(event: EventResponse.mockList[1])
     }
-    .padding(.horizontal, Spacing.md)
     .background(Color.appBackground)
 }

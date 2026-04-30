@@ -9,6 +9,18 @@ import SwiftUI
 import Combine
 import Clerk
 
+enum EventsFilter: CaseIterable {
+    case upcoming
+    case past
+
+    var title: String {
+        switch self {
+        case .upcoming: return "Upcoming"
+        case .past: return "Past"
+        }
+    }
+}
+
 struct EventsView: View {
     @Environment(\.clerk) private var clerk
     @EnvironmentObject private var currentUser: CurrentUserManager
@@ -16,6 +28,7 @@ struct EventsView: View {
     @State private var isLoading = true
     @State private var selectedEvent: EventWithRsvpResponse?
     @State private var showCreateEvent = false
+    @State private var selectedFilter: EventsFilter = .upcoming
     @State private var cancellables = Set<AnyCancellable>()
 
     private let convex = ConvexClientManager.shared
@@ -30,12 +43,16 @@ struct EventsView: View {
             ZStack {
                 Color.appBackground.ignoresSafeArea()
 
-                if isLoading {
-                    loadingState
-                } else if events.isEmpty {
-                    emptyState
-                } else {
-                    eventsList
+                VStack(spacing: 0) {
+                    filterTabs
+
+                    if isLoading {
+                        loadingState
+                    } else if events.isEmpty {
+                        emptyState
+                    } else {
+                        eventsList
+                    }
                 }
             }
             .navigationBarHidden(true)
@@ -43,16 +60,18 @@ struct EventsView: View {
                 Button {
                     showCreateEvent = true
                 } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 52, height: 52)
-                        .background(Color.appAccent)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+                    Image("action.add")
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 20, height: 20)
+                        .foregroundColor(.appOnAccent)
+                        .frame(width: 64, height: 52)
+                        .background(Color.appPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
                 }
-                .padding(.trailing, Spacing.xxl)
-                .padding(.bottom, Spacing.xxl)
+                .padding(.trailing, Spacing.lg)
+                .padding(.bottom, 72) // Above tab bar
             }
             .sheet(isPresented: $showCreateEvent) {
                 CreateEventSheet()
@@ -65,9 +84,35 @@ struct EventsView: View {
         .task {
             loadEvents()
         }
+        .onChange(of: selectedFilter) { _, _ in
+            loadEvents()
+        }
         .onAppear {
             AnalyticsService.shared.trackEventsSession()
         }
+    }
+
+    // MARK: - Filter Tabs
+
+    private var filterTabs: some View {
+        HStack(spacing: Spacing.sm) {
+            ForEach(EventsFilter.allCases, id: \.self) { filter in
+                let isSelected = filter == selectedFilter
+                Button(action: { selectedFilter = filter }) {
+                    Text(filter.title)
+                        .font(isSelected ? .bodySemibold : .bodyMedium)
+                        .foregroundColor(isSelected ? .appOnAccent : .appSecondary)
+                        .padding(.horizontal, 13)
+                        .frame(height: 32)
+                        .background(isSelected ? Color.appPrimary : Color.appSurfaceSecondary)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.sm)
     }
 
     // MARK: - Events List
@@ -94,7 +139,6 @@ struct EventsView: View {
                 // Bottom padding for tab bar
                 Color.clear.frame(height: 80)
             }
-            .padding(.horizontal, Spacing.md)
             .padding(.top, Spacing.sm)
         }
         .refreshable {
@@ -166,7 +210,13 @@ struct EventsView: View {
     // MARK: - Data Loading
 
     private func loadEvents() {
-        convex.subscribeUpcomingEvents()
+        cancellables.removeAll()
+
+        let publisher = selectedFilter == .upcoming
+            ? convex.subscribeUpcomingEvents()
+            : convex.subscribePastEvents()
+
+        publisher
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { completion in
