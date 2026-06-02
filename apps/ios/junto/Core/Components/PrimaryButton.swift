@@ -67,19 +67,9 @@ struct PrimaryButton: View {
                     : nil
             )
         }
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(.pressableScale(0.97))
         .disabled(!isEnabled || isLoading)
         .opacity(isEnabled ? 1.0 : 0.6)
-    }
-}
-
-// MARK: - Press Scale Effect
-
-private struct ScaleButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 

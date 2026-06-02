@@ -187,6 +187,7 @@ struct TabBarView: View {
             .overlay(alignment: .bottomTrailing) {
                 if isTabBarVisible, selectedTab.hasComposeFAB {
                     Button(action: {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         NotificationCenter.default.post(
                             name: .composeFABTapped,
                             object: selectedTab.rawValue
@@ -202,6 +203,7 @@ struct TabBarView: View {
                             .background(Color.appPrimary)
                             .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
                     }
+                    .buttonStyle(.pressableScale)
                     .padding(.trailing, Spacing.lg)
                     .padding(.bottom, 72)
                 }
@@ -341,6 +343,7 @@ struct TabButton: View {
                     .padding(.vertical, 6)
             }
         }
+        .buttonStyle(.pressableScale(0.9))
     }
 }
 

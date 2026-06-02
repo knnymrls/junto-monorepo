@@ -38,7 +38,7 @@ struct FeedTopNav: View {
                         .foregroundColor(.appPrimary)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressableScale(0.9))
             }
         }
         .padding(.horizontal, Spacing.lg)
@@ -51,7 +51,7 @@ struct FeedTopNav: View {
         let image = AvatarView(avatarUrl: avatarUrl, name: name, size: 40)
         if let onAvatarTap {
             Button(action: onAvatarTap) { image }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressableScale(0.9))
         } else {
             image
         }

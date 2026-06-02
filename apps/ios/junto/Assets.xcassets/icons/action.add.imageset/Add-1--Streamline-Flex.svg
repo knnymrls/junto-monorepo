@@ -1,11 +1,6 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g clip-path="url(#clip0_458_45)">
-<path d="M12 1.72998V22.27" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M22.27 12H1.73" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 19.6167 19.6167" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 5842">
+<path id="Vector 1179" d="M9.80833 1.25V18.3667" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector 1180" d="M18.3667 9.80833H1.25" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<defs>
-<clipPath id="clip0_458_45">
-<rect width="24" height="24" fill="white"/>
-</clipPath>
-</defs>
 </svg>

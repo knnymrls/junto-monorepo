@@ -65,7 +65,7 @@ struct ConnectionButton: View {
                     .background(Color.appPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.md))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressableScale(0.96))
             .disabled(isLoading)
 
         case .none:
@@ -78,7 +78,7 @@ struct ConnectionButton: View {
                     .background(Color.appPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.md))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressableScale(0.96))
             .disabled(isLoading)
         }
     }
@@ -116,6 +116,7 @@ struct ConnectionButton: View {
                     .background(Color.appPrimary)
                     .clipShape(Capsule())
             }
+            .buttonStyle(.pressableScale(0.96))
             .disabled(isLoading)
         }
     }

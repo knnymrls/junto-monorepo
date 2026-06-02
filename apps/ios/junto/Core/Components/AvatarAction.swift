@@ -34,7 +34,7 @@ struct AvatarAction: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressableScale(0.9))
     }
 
     private var badgeIconName: String {
