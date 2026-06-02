@@ -17,78 +17,50 @@ struct AvatarAction: View {
     var onConnectTap: (() -> Void)? = nil
     var onDisconnectTap: (() -> Void)? = nil
 
+    // One component, one tap target: the whole avatar (with its status badge)
+    // is a single button that opens the profile.
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Button(action: { onAvatarTap?() }) {
+        Button(action: { onAvatarTap?() }) {
+            ZStack(alignment: .bottomTrailing) {
                 AvatarView(
                     avatarUrl: avatarUrl,
                     name: name,
                     size: size
                 )
-            }
-            .buttonStyle(.plain)
 
-            if !isOwnPost {
-                badge
+                if !isOwnPost {
+                    badgeIcon(badgeIconName)
+                        .offset(x: 4, y: 4)
+                }
             }
         }
+        .buttonStyle(.plain)
     }
 
-    @ViewBuilder
-    private var badge: some View {
+    private var badgeIconName: String {
         switch connectionStatus {
-        case .connected:
-            Menu {
-                Button(action: { onAvatarTap?() }) {
-                    Label("View Profile", systemImage: "person")
-                }
-                Button(role: .destructive, action: { onDisconnectTap?() }) {
-                    Label("Remove Connection", systemImage: "person.badge.minus")
-                }
-            } label: {
-                badgeIcon("status.connection.fill")
-            }
-            .offset(x: Spacing.xxs, y: Spacing.xxs)
-
-        case .pending:
-            Menu {
-                Button(action: { onAvatarTap?() }) {
-                    Label("View Profile", systemImage: "person")
-                }
-                Button(role: .destructive, action: { onDisconnectTap?() }) {
-                    Label("Cancel Request", systemImage: "xmark")
-                }
-            } label: {
-                badgeIcon("status.waiting.fill")
-            }
-            .offset(x: Spacing.xxs, y: Spacing.xxs)
-
-        case .none:
-            Menu {
-                Button(action: { onAvatarTap?() }) {
-                    Label("View Profile", systemImage: "person")
-                }
-                Button(action: { onConnectTap?() }) {
-                    Label("Connect", systemImage: "plus")
-                }
-            } label: {
-                badgeIcon("status.add.fill")
-                    .frame(width: 30, height: 30)
-                    .contentShape(Circle())
-            }
-            .offset(x: 10, y: 10)
+        case .connected: return "feed.connected"
+        case .pending:   return "feed.clock"
+        case .none:      return "feed.connect"
         }
     }
 
-    private func badgeIcon(_ imageName: String) -> some View {
+    // Connect badge — Figma: 22px ring (surface) → 18px dark disc → 10px Flex line icon.
+    private func badgeIcon(_ lineIcon: String) -> some View {
         ZStack {
             Circle()
                 .fill(Color.appSurface)
                 .frame(width: 22, height: 22)
-            Image(imageName)
-                .resizable()
+            Circle()
+                .fill(Color.appPrimary)
                 .frame(width: 18, height: 18)
-                .foregroundColor(.appPrimary)
+            Image(lineIcon)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 10, height: 10)
+                .foregroundColor(.appSurface)
         }
+        .contentShape(Circle())
     }
 }

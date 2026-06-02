@@ -466,6 +466,8 @@ export const create = mutation({
     endDate: v.optional(v.number()),
     location: v.optional(v.string()),
     type: v.string(),
+    hostName: v.optional(v.string()),
+    category: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     createdBy: v.id("users"),
     universityId: v.optional(v.id("universities")),

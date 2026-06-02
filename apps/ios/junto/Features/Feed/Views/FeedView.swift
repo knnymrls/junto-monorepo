@@ -27,12 +27,10 @@ struct FeedView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if viewModel.isLoading && viewModel.posts.isEmpty {
+                if viewModel.isLoading && viewModel.feedItems.isEmpty {
                     loadingState
-                } else if viewModel.posts.isEmpty {
-                    emptyState
                 } else {
-                    feedList
+                    feedScroll
                 }
             }
             .background(Color.appBackground)
@@ -93,6 +91,14 @@ struct FeedView: View {
             }
         }
         .task {
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["JUNTO_PREVIEW_FEED"] == "1" {
+                viewModel.currentUser = currentUser.user
+                viewModel.feedItems = FeedItemResponse.previewItems
+                viewModel.hasMorePosts = false
+                return
+            }
+            #endif
             if let user = currentUser.user {
                 viewModel.currentUser = user
                 await viewModel.bootstrap(userId: user._id)
@@ -108,96 +114,25 @@ struct FeedView: View {
         }
     }
 
-    // MARK: - Composer Row
+    // MARK: - Feed Scroll Container
 
-    private var composerRow: some View {
-        ComposerRow(
-            avatarUrl: currentUser.user?.avatarUrl,
-            name: currentUser.user?.name ?? "?",
-            onTap: { showComposer = true }
-        )
-    }
-
-    // MARK: - Feed List
-
-    private var feedList: some View {
+    private var feedScroll: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 0) {
-                // Composer row at top
-                composerRow
-
-                Rectangle()
-                    .fill(Color.appDivider)
-                    .frame(height: hairline)
-
-                // Suggested matches carousel
-                suggestedMatchesCarousel
-
-                Rectangle()
-                    .fill(Color.appDivider)
-                    .frame(height: hairline)
-
-                // Posts
-                ForEach(Array(viewModel.posts.enumerated()), id: \.element.id) { index, post in
-                    Button(action: { selectedPost = post }) {
-                        FeedPostCard(
-                            post: post,
-                            connectionStatus: viewModel.connectionStatus(userId: post.authorId),
-                            isOwnPost: viewModel.isAuthor(of: post),
-                            onConnectTap: {
-                                Task {
-                                    await viewModel.sendConnectionRequest(toUserId: post.authorId, source: .feed)
-                                    AnalyticsService.shared.track(.connectFromPost(postId: post._id, category: post.categoryType.rawValue))
-                                }
-                            },
-                            onDisconnectTap: {
-                                Task { await viewModel.handleDisconnect(userId: post.authorId) }
-                            },
-                            onReplyTap: {
-                                selectedPost = post
-                            },
-                            onEditTap: {
-                                editingPost = post
-                            },
-                            onDeleteTap: {
-                                Task {
-                                    _ = await viewModel.deletePost(post._id)
-                                    await viewModel.refresh()
-                                }
-                            },
-                            onReportTap: {
-                                reportingPost = post
-                            },
-                            onAuthorTap: {
-                                if let author = post.author {
-                                    selectedUserProfile = author
-                                }
-                            },
-                            onMentionTap: { name in
-                                Task {
-                                    if let user = try? await ConvexClientManager.shared.fetchUserByName(name: name) {
-                                        selectedUserProfile = user
-                                    }
-                                }
-                            }
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .onAppear {
-                        // Load more when near bottom (2 posts before end)
-                        if index >= viewModel.posts.count - 2 {
-                            Task {
-                                await viewModel.loadMorePosts()
+                ForEach(Array(viewModel.feedItems.enumerated()), id: \.element.id) { index, item in
+                    feedItemRow(item)
+                        .onAppear {
+                            // Load more when near the bottom (2 items before end)
+                            if index >= viewModel.feedItems.count - 2 {
+                                Task { await viewModel.loadMorePosts() }
                             }
                         }
-                    }
 
                     Rectangle()
                         .fill(Color.appDivider)
                         .frame(height: hairline)
                 }
 
-                // Loading more indicator
                 if viewModel.isLoadingMore {
                     HStack {
                         Spacer()
@@ -206,73 +141,78 @@ struct FeedView: View {
                             .padding(.vertical, Spacing.lg)
                         Spacer()
                     }
+                } else if viewModel.feedItems.isEmpty || !viewModel.hasMorePosts {
+                    // End of feed — also serves as the empty state when there are no items
+                    FeedEndState()
                 }
 
-                // Bottom padding for tab bar
-                Color.clear.frame(height: 80)
+                // Bottom padding so the last row / end state clears the floating tab bar
+                Color.clear.frame(height: 110)
             }
         }
         .refreshable {
             await viewModel.refresh()
         }
-    }
-
-    // MARK: - Empty State
-
-    private var emptyState: some View {
-        VStack(spacing: 0) {
-            composerRow
-
-            Rectangle()
-                .fill(Color.appDivider)
-                .frame(height: hairline)
-
-            suggestedMatchesCarousel
-
-            Rectangle()
-                .fill(Color.appDivider)
-                .frame(height: hairline)
-
-            Spacer()
-
-            VStack(spacing: Spacing.lg) {
-                Image(systemName: "square.stack.3d.up.slash")
-                    .font(.system(size: 48))
-                    .foregroundColor(.appSecondary)
-
-                Text("No posts yet")
-                    .font(.heading3Regular)
-                    .foregroundColor(.appPrimary)
-
-                Text("Be the first to share something")
-                    .font(.body14)
-                    .foregroundColor(.appSecondary)
-            }
-
-            Spacer()
+        .overlay(alignment: .top) {
+            // Top fade — mirrors the bottom fade above the tab bar; content
+            // dissolves into the background as it scrolls up under the nav.
+            LinearGradient(
+                colors: [Color.appBackground, Color.appBackground.opacity(0)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 24)
+            .allowsHitTesting(false)
         }
     }
 
-    // MARK: - Suggested Matches Carousel
+    // MARK: - Feed Item Row
+    // Post → Ask card, Match → Match card (FeedCard). Event still uses the
+    // placeholder until the Opportunity card is designed.
 
-    private var suggestedMatchesCarousel: some View {
-        SuggestedMatchCarousel(
-            matches: viewModel.suggestedMatches,
-            connectionStatusFor: { viewModel.connectionStatus(userId: $0) },
-            onConnectTap: { match in
-                Task {
-                    await viewModel.sendConnectionRequest(toUserId: match._id, source: .match)
+    @ViewBuilder
+    private func feedItemRow(_ item: FeedItemResponse) -> some View {
+        switch item.content {
+        case .post(let post):
+            FeedCard(
+                item: item,
+                connectionStatus: viewModel.connectionStatus(userId: post.authorId),
+                isOwnItem: post.authorId == currentUser.userId,
+                onConnectTap: {
+                    Task { await viewModel.sendConnectionRequest(toUserId: post.authorId, source: .feed) }
+                },
+                onDisconnectTap: {
+                    Task { await viewModel.handleDisconnect(userId: post.authorId) }
+                },
+                onCardTap: { selectedPost = post },
+                onAuthorTap: { selectedUserProfile = post.author },
+                onMentionTap: { name in
+                    Task {
+                        if let user = await viewModel.fetchUserByName(name) {
+                            selectedUserProfile = user
+                        }
+                    }
                 }
-            },
-            onWithdrawTap: { match in
-                Task {
-                    await viewModel.withdrawConnectionRequest(toUserId: match._id)
-                }
-            },
-            onCardTap: { match in
-                selectedUserProfile = match.toUserResponse()
-            }
-        )
+            )
+        case .match(let match):
+            FeedCard(
+                item: item,
+                connectionStatus: viewModel.connectionStatus(userId: match._id),
+                isOwnItem: false,
+                onConnectTap: {
+                    Task { await viewModel.sendConnectionRequest(toUserId: match._id, source: .match) }
+                },
+                onDisconnectTap: {
+                    Task { await viewModel.handleDisconnect(userId: match._id) }
+                },
+                onCardTap: { selectedUserProfile = match.toUserResponse() },
+                onAuthorTap: { selectedUserProfile = match.toUserResponse() }
+            )
+        case .event(let event):
+            FeedEventCard(event: event, tags: item.displayTags)
+        case .none:
+            EmptyView()
+        }
     }
 
     // MARK: - Loading State

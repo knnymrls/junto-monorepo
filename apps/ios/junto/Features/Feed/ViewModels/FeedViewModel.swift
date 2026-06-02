@@ -11,12 +11,24 @@ import SwiftUI
 class FeedViewModel: ObservableObject {
     // MARK: - Published State
 
-    @Published var posts: [PostResponse] = []
+    /// Source of truth: the unified feed (posts + injected events + matches as typed items).
+    @Published var feedItems: [FeedItemResponse] = []
     @Published var suggestedMatches: [SuggestedMatchResponse] = []
     @Published var isLoading = false
     @Published var isLoadingMore = false
     @Published var error: String?
     @Published var hasMorePosts = true
+
+    /// Derived view of just the post payloads. Bridges the current (pre-redesign)
+    /// FeedView until it's rebuilt to consume `feedItems` directly.
+    var posts: [PostResponse] {
+        feedItems.compactMap { $0.post }
+    }
+
+    /// Number of post items currently loaded — the pagination offset (matches backend semantics).
+    private var loadedPostCount: Int {
+        feedItems.reduce(0) { $0 + ($1.kindType == .post ? 1 : 0) }
+    }
 
     // Current user's user profile (set by FeedView from CurrentUserManager)
     @Published var currentUser: UserResponse?
@@ -39,7 +51,7 @@ class FeedViewModel: ObservableObject {
 
     // MARK: - Public Methods
 
-    /// Load initial feed
+    /// Load initial feed (unified: posts + injected events + matches)
     func loadInitialFeed(userId: String) async {
         guard !isLoading else { return }
 
@@ -47,10 +59,11 @@ class FeedViewModel: ObservableObject {
         hasMorePosts = true
 
         do {
-            let fetchedPosts = try await convex.fetchFeed(userId: userId, limit: initialBatchSize)
-            posts = fetchedPosts
-            hasMorePosts = fetchedPosts.count >= initialBatchSize
-            print("FeedViewModel: Loaded \(fetchedPosts.count) initial posts")
+            let items = try await convex.fetchUnifiedFeed(userId: userId, limit: initialBatchSize)
+            feedItems = items
+            let postCount = items.filter { $0.kindType == .post }.count
+            hasMorePosts = postCount >= initialBatchSize
+            print("FeedViewModel: Loaded \(items.count) initial feed items (\(postCount) posts)")
         } catch {
             self.error = error.localizedDescription
             print("FeedViewModel: Error loading feed: \(error)")
@@ -59,28 +72,29 @@ class FeedViewModel: ObservableObject {
         isLoading = false
     }
 
-    /// Load more posts (pagination)
+    /// Load more feed items (pagination). Pages after the first are posts-only.
     func loadMorePosts() async {
         guard !isLoadingMore, !isLoading, hasMorePosts, let userId = currentUser?._id else { return }
 
         isLoadingMore = true
 
         do {
-            // Fetch more posts with offset
-            let offset = posts.count
-            let fetchedPosts = try await convex.fetchFeed(userId: userId, limit: loadMoreBatchSize, offset: offset)
+            // Offset counts posts already loaded (matches backend semantics).
+            let offset = loadedPostCount
+            let fetched = try await convex.fetchUnifiedFeed(userId: userId, limit: loadMoreBatchSize, offset: offset)
 
-            if fetchedPosts.isEmpty {
+            if fetched.isEmpty {
                 hasMorePosts = false
             } else {
-                let existingIds = Set(posts.map { $0._id })
-                let newPosts = fetchedPosts.filter { !existingIds.contains($0._id) }
-                posts.append(contentsOf: newPosts)
-                hasMorePosts = fetchedPosts.count >= loadMoreBatchSize
+                let existingKeys = Set(feedItems.map { $0.key })
+                let newItems = fetched.filter { !existingKeys.contains($0.key) }
+                feedItems.append(contentsOf: newItems)
+                let newPostCount = fetched.filter { $0.kindType == .post }.count
+                hasMorePosts = newPostCount >= loadMoreBatchSize
             }
-            print("FeedViewModel: Loaded \(fetchedPosts.count) more posts, total: \(posts.count)")
+            print("FeedViewModel: Loaded \(fetched.count) more feed items, total: \(feedItems.count)")
         } catch {
-            print("FeedViewModel: Error loading more posts: \(error)")
+            print("FeedViewModel: Error loading more feed items: \(error)")
         }
 
         isLoadingMore = false
@@ -181,6 +195,16 @@ class FeedViewModel: ObservableObject {
     /// Check if current user is author of post
     func isAuthor(of post: PostResponse) -> Bool {
         return post.authorId == currentUser?._id
+    }
+
+    /// Resolve an @mention name to a user profile (for tapping mentions in feed cards)
+    func fetchUserByName(_ name: String) async -> UserResponse? {
+        do {
+            return try await convex.fetchUserByName(name: name)
+        } catch {
+            print("FeedViewModel: Error resolving mention '\(name)': \(error)")
+            return nil
+        }
     }
 
     /// Load user's connections

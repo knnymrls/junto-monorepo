@@ -101,6 +101,8 @@ export default defineSchema({
     location: v.optional(v.string()),         // Public location (e.g. "Lincoln, NE")
     fullAddress: v.optional(v.string()),      // Full address revealed after RSVP
     type: v.string(),              // "in_person", "online", "hybrid"
+    hostName: v.optional(v.string()),         // Display host (e.g. "Center of Entrepreneurship") — feed card name
+    category: v.optional(v.string()),         // Event category (e.g. "Pitch", "Workshop", "Networking") — feed meta chip
     imageUrl: v.optional(v.string()),
     createdBy: v.id("users"),
     universityId: v.optional(v.id("universities")),
@@ -138,6 +140,7 @@ export default defineSchema({
     authorId: v.id("users"),
     content: v.string(),
     category: v.union(v.literal("asking"), v.literal("sharing"), v.literal("looking_for")),
+    topics: v.optional(v.array(v.string())),    // AI-assigned skill categories (feed tag pills)
     imageUrl: v.optional(v.string()),           // Legacy single image
     imageUrls: v.optional(v.array(v.string())), // Multiple images
     linkUrl: v.optional(v.string()),

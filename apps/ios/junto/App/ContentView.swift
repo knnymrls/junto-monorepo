@@ -23,30 +23,45 @@ struct ContentView: View {
 
     var body: some View {
         Group {
+            #if DEBUG
+            // Dev preview bypass: launch with env JUNTO_PREVIEW_FEED=1 to skip auth
+            // and land straight on the feed (for previewing feed components on the
+            // simulator without signing in). Never compiled into release builds.
+            if ProcessInfo.processInfo.environment["JUNTO_PREVIEW_FEED"] == "1" {
+                TabBarView()
+            } else if clerk.user == nil {
+                WelcomeView()
+            } else if currentUser.isLoading {
+                LoadingView()
+            } else if forceOnboarding {
+                OnboardingView()
+            } else if currentUser.user == nil || !currentUser.user!.isOnboarded {
+                OnboardingView()
+            } else {
+                TabBarView()
+            }
+            #else
             if clerk.user == nil {
                 // Not authenticated
                 WelcomeView()
             } else if currentUser.isLoading {
                 // Checking if user has profile
                 LoadingView()
+            } else if currentUser.user == nil || !currentUser.user!.isOnboarded {
+                OnboardingView()
             } else {
-                #if DEBUG
-                if forceOnboarding {
-                    OnboardingView()
-                } else if currentUser.user == nil || !currentUser.user!.isOnboarded {
-                    OnboardingView()
-                } else {
-                    TabBarView()
-                }
-                #else
-                if currentUser.user == nil || !currentUser.user!.isOnboarded {
-                    OnboardingView()
-                } else {
-                    TabBarView()
-                }
-                #endif
+                TabBarView()
+            }
+            #endif
+        }
+        #if DEBUG
+        .onAppear {
+            // Preview rig: seed a mock user so the feed nav avatar renders.
+            if ProcessInfo.processInfo.environment["JUNTO_PREVIEW_FEED"] == "1", currentUser.user == nil {
+                currentUser.user = .previewMock
             }
         }
+        #endif
         .onChange(of: clerk.user?.id) { _, newUserId in
             if let userId = newUserId {
                 Task { await currentUser.resolve(clerkId: userId) }

@@ -119,12 +119,22 @@ struct TabBarView: View {
             // Main content (slides left to reveal menu)
             ZStack(alignment: .bottom) {
                 VStack(spacing: 0) {
-                    TopNavBar(
-                        title: selectedTab.title,
-                        avatarUrl: currentUser.user?.avatarUrl,
-                        avatarName: currentUser.user?.name ?? "?",
-                        onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
-                    )
+                    if selectedTab == .feed {
+                        // Feed uses the brand nav (user avatar + Junto wordmark + menu)
+                        FeedTopNav(
+                            avatarUrl: currentUser.user?.avatarUrl,
+                            name: currentUser.user?.name ?? "?",
+                            onAvatarTap: { showMyProfile = true },
+                            onMenuTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
+                        )
+                    } else {
+                        TopNavBar(
+                            title: selectedTab.title,
+                            avatarUrl: currentUser.user?.avatarUrl,
+                            avatarName: currentUser.user?.name ?? "?",
+                            onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
+                        )
+                    }
 
                     Group {
                         switch selectedTab {

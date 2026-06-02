@@ -298,6 +298,11 @@ export const create = mutation({
       postId,
     });
 
+    // Schedule AI topic tagging (skill categories for feed tag pills)
+    await ctx.scheduler.runAfter(0, internal.topics.generatePostTopics, {
+      postId,
+    });
+
     // Notify mentioned users
     if (args.mentions && args.mentions.length > 0) {
       const author = await ctx.db.get(args.authorId);
@@ -351,9 +356,12 @@ export const update = mutation({
 
     await ctx.db.patch(postId, patch);
 
-    // Re-generate embedding if content changed
+    // Re-generate embedding + topics if content changed
     if (updates.content !== undefined) {
       await ctx.scheduler.runAfter(0, internal.embeddings.generatePostEmbedding, {
+        postId,
+      });
+      await ctx.scheduler.runAfter(0, internal.topics.generatePostTopics, {
         postId,
       });
     }
@@ -407,5 +415,29 @@ export const updateEmbedding = internalMutation({
       embedding: args.embedding,
       updatedAt: Date.now(),
     });
+  },
+});
+
+// Update post topics (AI-assigned skill categories — feed tag pills)
+export const updateTopics = internalMutation({
+  args: {
+    postId: v.id("posts"),
+    topics: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.postId, {
+      topics: args.topics,
+    });
+  },
+});
+
+// List posts missing topics (for one-time backfill)
+export const listPostsWithoutTopics = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const posts = await ctx.db.query("posts").collect();
+    return posts
+      .filter((p) => !p.topics || p.topics.length === 0)
+      .map((p) => p._id);
   },
 });

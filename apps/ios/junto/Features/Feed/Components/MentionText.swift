@@ -10,10 +10,14 @@ import SwiftUI
 struct MentionText: View {
     let content: String
     var onMentionTap: ((String) -> Void)?
+    /// Base font for body text. Mentions match this size at medium weight.
+    var font: Font = .body14
+    /// Font for @mention runs. Defaults to medium weight at the body size.
+    var mentionFont: Font = .bodyMedium
 
     var body: some View {
         Text(attributedContent)
-            .font(.body14)
+            .font(font)
             .lineSpacing(Spacing.xxxs)
             .fixedSize(horizontal: false, vertical: true)
             .environment(\.openURL, OpenURLAction { url in
@@ -52,7 +56,7 @@ struct MentionText: View {
 
             var mentionAttr = AttributedString(mentionText)
             mentionAttr.foregroundColor = .blue
-            mentionAttr.font = .bodyMedium
+            mentionAttr.font = mentionFont
             if let encodedName = name.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
                let url = URL(string: "mention://\(encodedName)") {
                 mentionAttr.link = url

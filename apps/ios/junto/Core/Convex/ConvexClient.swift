@@ -195,6 +195,19 @@ extension ConvexClientManager {
         return client.subscribe(to: "posts:getFeed", with: args, yielding: [PostResponse].self)
     }
 
+    /// Subscribe to the unified feed (posts + injected events + matches as typed items).
+    /// `offset` counts POSTS already loaded; pages after the first are posts-only.
+    func subscribeUnifiedFeed(userId: String, limit: Int? = nil, offset: Int? = nil) -> AnyPublisher<[FeedItemResponse], ClientError> {
+        var args: [String: (any ConvexEncodable)?] = ["userId": userId]
+        if let limit = limit {
+            args["limit"] = Double(limit)
+        }
+        if let offset = offset {
+            args["offset"] = Double(offset)
+        }
+        return client.subscribe(to: "feed:getFeed", with: args, yielding: [FeedItemResponse].self)
+    }
+
     /// Subscribe to posts list
     func subscribePosts(authorId: String? = nil, limit: Int? = nil) -> AnyPublisher<[PostResponse], ClientError> {
         var args: [String: (any ConvexEncodable)?] = [:]
@@ -1055,6 +1068,26 @@ extension ConvexClientManager {
         }
     }
 
+    /// Fetch the unified feed once (posts + injected events + matches as typed items)
+    func fetchUnifiedFeed(userId: String, limit: Int? = nil, offset: Int? = nil) async throws -> [FeedItemResponse] {
+        return try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = subscribeUnifiedFeed(userId: userId, limit: limit, offset: offset)
+                .first()
+                .sink(
+                    receiveCompletion: { completion in
+                        if case .failure(let error) = completion {
+                            continuation.resume(throwing: error)
+                        }
+                        cancellable?.cancel()
+                    },
+                    receiveValue: { items in
+                        continuation.resume(returning: items)
+                    }
+                )
+        }
+    }
+
     /// Fetch a single post once
     func fetchPost(postId: String) async throws -> PostResponse? {
         return try await withCheckedThrowingContinuation { continuation in
@@ -1709,6 +1742,35 @@ extension UserResponse {
         updatedAt: Date().timeIntervalSince1970 * 1000
     )
 
+    #if DEBUG
+    /// Preview-only user with a real avatar, for the JUNTO_PREVIEW_FEED rig.
+    static let previewMock = UserResponse(
+        _id: "mock_1",
+        clerkId: "clerk_mock_1",
+        email: "kenny@onjunto.com",
+        phone: nil,
+        name: "Kenny Morales",
+        headline: "Building FindU",
+        avatarUrl: "https://i.pravatar.cc/300?img=13",
+        universityId: nil,
+        majors: nil,
+        graduationSemester: "Spring 2027",
+        programs: nil,
+        skills: ["Swift", "iOS", "Product"],
+        interests: ["EdTech", "AI"],
+        lookingFor: "Technical co-founder",
+        canHelpWith: "Startup strategy",
+        currentProject: "FindU",
+        socialLinks: nil,
+        role: "student",
+        platformRole: "superadmin",
+        status: "active",
+        isOnboarded: true,
+        createdAt: Date().timeIntervalSince1970 * 1000,
+        updatedAt: Date().timeIntervalSince1970 * 1000
+    )
+    #endif
+
     static let mockList: [UserResponse] = [
         mock,
         UserResponse(
@@ -1772,6 +1834,8 @@ struct EventResponse: Codable, Identifiable, Hashable {
     let endDate: Double?
     let location: String?
     let type: String
+    let hostName: String?          // Display host (e.g. "Center of Entrepreneurship") — feed card name
+    let category: String?          // Event category (e.g. "Pitch") — feed meta chip
     let imageUrl: String?
     let createdBy: String
     let createdAt: Double
@@ -1781,6 +1845,9 @@ struct EventResponse: Codable, Identifiable, Hashable {
     let attendeePreviews: [AttendeePreview]?
 
     var id: String { _id }
+
+    /// Best display name for the event's host (explicit hostName, else the creator's name).
+    var displayHostName: String? { hostName ?? host?.name }
 
     var dateValue: Date { Date(timeIntervalSince1970: date / 1000) }
     var endDateValue: Date? { endDate.map { Date(timeIntervalSince1970: $0 / 1000) } }
@@ -1836,6 +1903,8 @@ extension EventResponse {
             endDate: Date().addingTimeInterval(86400 * 3 + 7200).timeIntervalSince1970 * 1000,
             location: "Lincoln, NE",
             type: "in_person",
+            hostName: "Junto",
+            category: "Networking",
             imageUrl: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=600&fit=crop",
             createdBy: "mock_1",
             createdAt: Date().timeIntervalSince1970 * 1000,
@@ -1855,6 +1924,8 @@ extension EventResponse {
             endDate: nil,
             location: nil,
             type: "online",
+            hostName: nil,
+            category: "Standup",
             imageUrl: nil,
             createdBy: "mock_1",
             createdAt: Date().timeIntervalSince1970 * 1000,
@@ -2042,6 +2113,7 @@ struct PostResponse: Codable, Identifiable, Hashable {
     let authorId: String
     let content: String
     let category: String
+    let topics: [String]?          // AI-assigned skill categories (feed tag pills)
     let imageUrl: String?
     let imageUrls: [String]?
     let linkUrl: String?
@@ -2109,6 +2181,47 @@ struct PostResponse: Codable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Unified Feed Item
+
+/// One row in the unified feed. `feed:getFeed` returns an ordered list of these,
+/// each specialized as a post, event, or match. `tags` carries skill categories
+/// for post + match cards (the pill row); events use date/time/category instead.
+struct FeedItemResponse: Codable, Identifiable, Hashable {
+    let kind: String
+    let key: String
+    let tags: [String]?
+    let post: PostResponse?
+    let event: EventResponse?
+    let match: SuggestedMatchResponse?
+
+    var id: String { key }
+
+    enum Kind: String, Codable {
+        case post, event, match
+    }
+
+    var kindType: Kind? { Kind(rawValue: kind) }
+
+    /// Ergonomic switch target for views — `switch item.content { case .post(let p): ... }`.
+    enum Content {
+        case post(PostResponse)
+        case event(EventResponse)
+        case match(SuggestedMatchResponse)
+    }
+
+    var content: Content? {
+        switch kindType {
+        case .post:  return post.map(Content.post)
+        case .event: return event.map(Content.event)
+        case .match: return match.map(Content.match)
+        case .none:  return nil
+        }
+    }
+
+    /// Skill-category tag pills (post topics / match person's skill categories).
+    var displayTags: [String] { tags ?? [] }
+}
+
 // MARK: - Mock Data for Posts
 
 extension PostResponse {
@@ -2117,6 +2230,7 @@ extension PostResponse {
         authorId: "mock_1",
         content: "Looking for feedback on my pitch deck for FindU. Anyone have experience with EdTech fundraising?",
         category: "asking",
+        topics: ["Business", "Design"],
         imageUrl: nil,
         imageUrls: nil,
         linkUrl: nil,
@@ -2138,6 +2252,7 @@ extension PostResponse {
             authorId: "mock_2",
             content: "Just shipped v2 of our recipe AI! Now with meal planning and grocery lists. Would love beta testers.",
             category: "sharing",
+            topics: ["Software Development"],
             imageUrl: nil,
             imageUrls: nil,
             linkUrl: "https://recipeai.app",
@@ -2155,6 +2270,7 @@ extension PostResponse {
             authorId: "mock_3",
             content: "Looking for a technical co-founder for a design tools startup. Need someone strong in React and real-time collaboration.",
             category: "looking_for",
+            topics: ["Software Development", "Design"],
             imageUrl: nil,
             imageUrls: nil,
             linkUrl: nil,
