@@ -13,6 +13,10 @@ struct FeedTopNav: View {
     var name: String = "?"
     var onAvatarTap: (() -> Void)? = nil
     var onMenuTap: (() -> Void)? = nil
+    /// When set, the user avatar acts as the source of a zoom transition into
+    /// the current user's profile.
+    var profileZoomID: AnyHashable? = nil
+    var profileZoomNamespace: Namespace.ID? = nil
 
     var body: some View {
         HStack(spacing: Spacing.sm) {
@@ -48,7 +52,13 @@ struct FeedTopNav: View {
 
     @ViewBuilder
     private var avatar: some View {
-        let image = AvatarView(avatarUrl: avatarUrl, name: name, size: 40)
+        let image = AvatarView(
+            avatarUrl: avatarUrl,
+            name: name,
+            size: 40,
+            zoomID: profileZoomID,
+            zoomNamespace: profileZoomNamespace
+        )
         if let onAvatarTap {
             Button(action: onAvatarTap) { image }
                 .buttonStyle(.pressableScale(0.9))

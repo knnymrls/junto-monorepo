@@ -31,6 +31,9 @@ struct EventsView: View {
     @State private var selectedFilter: EventsFilter = .upcoming
     @State private var cancellables = Set<AnyCancellable>()
 
+    // Zoom transition namespace: event card → event detail
+    @Namespace private var eventZoom
+
     private let convex = ConvexClientManager.shared
 
     // Hairline thickness for consistent 1px dividers
@@ -61,14 +64,14 @@ struct EventsView: View {
                 CreateEventSheet()
             }
             .onReceive(NotificationCenter.default.publisher(for: .composeFABTapped)) { notif in
-                if notif.object as? String == Tab.events.rawValue {
+                if notif.object as? String == Tab.discover.rawValue {
                     showCreateEvent = true
                 }
             }
         }
-        .sheet(item: $selectedEvent) { event in
+        .fullScreenCover(item: $selectedEvent) { event in
             EventDetailView(event: event)
-                .presentationDragIndicator(.visible)
+                .zoomDestination(id: event._id, in: eventZoom)
         }
         .task {
             loadEvents()
@@ -117,6 +120,7 @@ struct EventsView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .zoomSource(id: event._id, in: eventZoom)
 
                     if event.id != events.last?.id {
                         Rectangle()

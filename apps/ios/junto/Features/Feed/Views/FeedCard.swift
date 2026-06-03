@@ -23,6 +23,10 @@ struct FeedCard: View {
     var onCardTap: (() -> Void)? = nil
     var onAuthorTap: (() -> Void)? = nil
     var onMentionTap: ((String) -> Void)? = nil
+    /// When set, the author avatar acts as the source of a zoom transition
+    /// into that user's profile (paired with `.zoomDestination` on ProfileView).
+    var profileZoomID: AnyHashable? = nil
+    var profileZoomNamespace: Namespace.ID? = nil
 
     var body: some View {
         if let data = display {
@@ -35,7 +39,9 @@ struct FeedCard: View {
                     isOwnPost: isOwnItem,
                     onAvatarTap: { onAuthorTap?() },
                     onConnectTap: { onConnectTap?() },
-                    onDisconnectTap: { onDisconnectTap?() }
+                    onDisconnectTap: { onDisconnectTap?() },
+                    zoomID: profileZoomID,
+                    zoomNamespace: profileZoomNamespace
                 )
                 .frame(width: 44, height: 48)
 

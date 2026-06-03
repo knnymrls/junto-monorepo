@@ -1,84 +1,57 @@
 //
 //  EventDetailView.swift
-//  mkrs-world
+//  junto
 //
-//  Event detail sheet with hero, details, and RSVP
+//  Luma-style event detail. The event poster is blurred into a full-screen
+//  ambient backdrop; a sharp poster card, title, host/date/time meta, and a
+//  share action sit on top. Reuses PostDetailTopNav (.overlay) so it reads as
+//  the same nav family as the post detail. Figma node 70:1084.
+//
+//  Scope note: this is the redesigned hero only. The lower sections (About,
+//  Hosted by, Attendees, Feedback) and RSVP/calendar logic from the previous
+//  design were intentionally dropped for now — the action button is a Share
+//  placeholder until the creator-set custom CTA lands. History in git.
 //
 
 import SwiftUI
-import Combine
-import UIKit
-import EventKit
 
 struct EventDetailView: View {
     let event: EventWithRsvpResponse
-    var onRsvp: ((String) -> Void)?
-    var onAttendeeTap: ((String) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var currentUser: CurrentUserManager
-    @State private var userRsvpStatus: String?
-    @State private var isRsvping = false
-    @State private var attendees: [EventAttendee] = []
-    @State private var cancellables = Set<AnyCancellable>()
-    @State private var showCalendarPrompt = false
-    @State private var showCalendarConfirmation = false
-    @State private var showAttendeesList = false
-    @State private var showFeedbackSheet = false
-    @State private var selectedUserProfile: UserResponse?
-    @State private var connectedIds: Set<String> = []
-    @State private var pendingConnectionIds: Set<String> = []
+    @State private var showShareSheet = false
+    @State private var calendarFile: CalendarFile?
 
-    private let convex = ConvexClientManager.shared
-
-    private var eventHasEnded: Bool {
-        let endTime = event.endDateValue ?? event.dateValue.addingTimeInterval(2 * 3600)
-        return endTime < Date()
+    /// Identifiable wrapper so the generated .ics can drive a `.sheet(item:)`.
+    private struct CalendarFile: Identifiable {
+        let id = UUID()
+        let url: URL
     }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    EventHeroSection(event: event)
-
-                    contentSection
-                        .padding(.bottom, 80)
-                }
-            }
-
-            // Floating RSVP button
-            rsvpButton
-                .padding(.trailing, Spacing.lg)
-                .padding(.bottom, Spacing.xxl)
-        }
-        .background(Color.appBackground)
-        .alert("Add to Calendar?", isPresented: $showCalendarPrompt) {
-            Button("Add to Calendar") {
-                Task { await addToCalendar() }
-            }
-            Button("No Thanks", role: .cancel) {}
-        } message: {
-            Text("Want to add \"\(event.title)\" to your calendar?")
-        }
-        .alert("Added to Calendar", isPresented: $showCalendarConfirmation) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("\"\(event.title)\" has been added to your calendar.")
-        }
-        .sheet(isPresented: $showAttendeesList) {
-            AttendeesListView(
-                event: event,
-                userRsvpStatus: userRsvpStatus
+        VStack(spacing: 0) {
+            PostDetailTopNav(
+                title: "Event",
+                style: .overlay,
+                onBack: { dismiss() },
+                onShare: { showShareSheet = true }
             )
-            .presentationDragIndicator(.visible)
+
+            ScrollView(showsIndicators: false) {
+                heroContent
+                    .padding(Spacing.lg)
+            }
         }
-        .sheet(isPresented: $showFeedbackSheet) {
-            EventFeedbackSheet(event: event)
-                .presentationDragIndicator(.visible)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Ambient backdrop lives in .background() so the blurred fill image can
+        // never drive the content's layout size (a sibling .fill image would).
+        .background(ambientBackground.ignoresSafeArea())
+        .preferredColorScheme(.dark)
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: [shareText])
         }
-        .sheet(item: $selectedUserProfile) { user in
-            ProfileView(user: user)
+        .sheet(item: $calendarFile) { file in
+            ShareSheet(items: [file.url])
         }
         .task {
             AnalyticsService.shared.track(.eventViewed(
@@ -86,448 +59,206 @@ struct EventDetailView: View {
                 eventType: event.eventType.rawValue,
                 hostId: event.createdBy
             ))
-            await loadUserRsvp()
-            await loadAttendees()
-            await loadConnectionState()
         }
     }
 
-    // MARK: - Content Section
+    // MARK: - Ambient Background (Luma-style)
 
-    private var contentSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
-            Text("Event Details")
-                .font(.bodyLargeBold)
-                .foregroundColor(.appPrimary)
+    private var ambientBackground: some View {
+        ZStack {
+            Color.black
 
-            VStack(spacing: 0) {
-                EventDetailRow(
-                    icon: "person.2",
-                    title: "\(event.goingCount) participants",
-                    subtitle: attendeeNames
-                )
+            if let imageUrl = event.imageUrl, let url = URL(string: imageUrl) {
+                CachedAsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Color.clear
+                }
+                .blur(radius: 50)
+                .opacity(0.3)
+            }
+        }
+    }
 
-                EventDetailRow(
-                    icon: "calendar",
-                    title: formattedDateRange,
-                    subtitle: formattedDayAndTimezone
-                )
+    // MARK: - Hero Content
 
-                if let location = event.location {
-                    let isGoing = userRsvpStatus == "going"
-                    let displayAddress = isGoing ? (event.fullAddress ?? location) : location
-                    EventDetailRow(
-                        icon: "mappin",
-                        title: displayAddress,
-                        subtitle: isGoing ? "Tap for directions" : "Location will be sent after confirmation"
-                    ) {
-                        if isGoing, let address = event.fullAddress ?? event.location {
-                            openInMaps(address: address)
-                        }
+    private var heroContent: some View {
+        VStack(spacing: Spacing.lg) {
+            posterCard
+
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                Text(event.title)
+                    .font(.heading1)
+                    .foregroundColor(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                metaRows
+
+                actionButtons
+            }
+        }
+    }
+
+    // Fixed-size rounded box drives the layout; the image is an overlay clipped
+    // to it. A sibling `.aspectRatio(.fill)` image would expand the frame and
+    // break the hero's padding (title clipping at the edge). Same pattern as
+    // FeedEventCard's banner.
+    private var posterCard: some View {
+        RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+            .fill(Color.white.opacity(0.08))
+            .frame(height: 208)
+            .frame(maxWidth: .infinity)
+            .overlay {
+                if let imageUrl = event.imageUrl, let url = URL(string: imageUrl) {
+                    CachedAsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Color.clear
                     }
-                } else if event.eventType == .online {
-                    EventDetailRow(
-                        icon: "video",
-                        title: "Online",
-                        subtitle: "Link will be shared before the event"
-                    )
                 }
             }
-            .background(Color.appSurface)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+    }
 
-            // About section
-            if let description = event.description, !description.isEmpty {
-                Divider()
-                    .padding(.vertical, Spacing.sm)
+    // MARK: - Meta Rows
 
-                Text("About")
-                    .font(.bodyLargeBold)
-                    .foregroundColor(.appPrimary)
-
-                Text(description)
-                    .font(.body14)
-                    .foregroundColor(.appPrimary)
-                    .lineSpacing(Spacing.xxs)
-            }
-
-            // Host section
+    private var metaRows: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
             if let host = event.host {
-                Divider()
-                    .padding(.vertical, Spacing.sm)
-
-                Text("Hosted by")
-                    .font(.bodyLargeBold)
-                    .foregroundColor(.appPrimary)
-
-                HStack(spacing: Spacing.md) {
-                    Button(action: { openProfile(id: host.id) }) {
-                        HStack(spacing: Spacing.md) {
-                            AvatarView(
-                                avatarUrl: host.avatarUrl,
-                                name: host.name,
-                                size: 44
-                            )
-
-                            VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                                Text(host.name)
-                                    .font(.bodyLargeMedium)
-                                    .foregroundColor(.appPrimary)
-
-                                if let headline = host.headline {
-                                    Text(headline)
-                                        .font(.body14)
-                                        .foregroundColor(.appSecondary)
-                                        .lineLimit(1)
-                                }
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    if host.id != currentUser.userId {
-                        connectionButton(for: host.id)
-                    }
+                HStack(spacing: Spacing.sm) {
+                    AvatarView(avatarUrl: host.avatarUrl, name: host.name, size: 16)
+                    Text(host.name)
+                        .font(.bodyLarge)
+                        .foregroundColor(.white)
                 }
-                .padding(.vertical, Spacing.sm)
             }
 
-            // Attendees section
-            if !attendees.isEmpty {
-                attendeesSection
-            }
-
-            // Leave Feedback button (only for past events where user was going)
-            if eventHasEnded && userRsvpStatus == "going" {
-                Divider()
-                    .padding(.vertical, Spacing.sm)
-
-                Button(action: { showFeedbackSheet = true }) {
-                    HStack(spacing: Spacing.sm) {
-                        Image(systemName: "star.bubble")
-                            .font(.system(size: 16))
-                        Text("Leave Feedback")
-                            .font(.bodyLargeMedium)
-                    }
-                    .foregroundColor(.appPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.md)
-                    .background(Color.appSurfaceSecondary)
-                    .cornerRadius(Radius.lg)
-                }
-                .buttonStyle(.plain)
-            }
+            metaRow(icon: "feed.calendar", text: dateText)
+            metaRow(icon: "feed.clock", text: timeText)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Spacing.lg)
-        .padding(.top, Spacing.xxxl)
-        .background(
-            Color.appSurface
-                .clipShape(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 24,
-                        bottomLeadingRadius: 0,
-                        bottomTrailingRadius: 0,
-                        topTrailingRadius: 24
-                    )
-                )
-        )
-        .offset(y: -24)
     }
 
-    // MARK: - Attendees Section
+    private func metaRow(icon: String, text: String) -> some View {
+        HStack(spacing: Spacing.sm) {
+            Image(icon)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
+                .foregroundColor(.appSecondaryOnDark)
 
-    private var attendeesSection: some View {
-        Group {
-            Divider()
-                .padding(.vertical, Spacing.sm)
+            Text(text)
+                .font(.bodyLarge)
+                .foregroundColor(.appSecondaryOnDark)
+        }
+    }
 
-            Text("Attendees")
-                .font(.bodyLargeBold)
-                .foregroundColor(.appPrimary)
+    // MARK: - Action Buttons — Register (primary) + Add to Calendar (secondary)
+    // Figma 70:1391: two equal-width buttons, icon stacked above a 12pt label.
 
-            let displayAttendees = attendees.filter { $0.id != currentUser.userId }.prefix(5)
-
-            ForEach(Array(displayAttendees), id: \.id) { attendee in
-                AttendeeRow(
-                    attendee: attendee,
-                    connectionState: connectionState(for: attendee.id),
-                    onProfileTap: { openProfile(id: attendee.id) },
-                    onConnectTap: { connectWith(attendee.id) }
-                )
-                .padding(.vertical, Spacing.xxs)
+    private var actionButtons: some View {
+        HStack(spacing: Spacing.sm) {
+            actionButton(icon: "event.ticket", label: "Register", primary: true) {
+                // TODO: event registration flow
             }
-
-            if attendees.count > 1 {
-                Button(action: { showAttendeesList = true }) {
-                    Text("View all attendees")
-                        .font(.bodyMedium)
-                        .foregroundColor(.appSecondary)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, Spacing.xxs)
+            actionButton(icon: "feed.calendar", label: "Add to Calendar", primary: false) {
+                addToCalendar()
             }
         }
+        .padding(.top, Spacing.xxs)
+    }
+
+    private func actionButton(icon: String, label: String, primary: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: Spacing.xxs) {
+                Image(icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+                Text(label)
+                    .font(.captionSemibold)
+            }
+            .foregroundColor(primary ? Color(red: 0.176, green: 0.176, blue: 0.176) : .white.opacity(0.8))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Spacing.md)
+            .background(primary ? Color.white : Color.white.opacity(0.2))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+        }
+        .buttonStyle(.pressableScale(0.97))
+    }
+
+    // MARK: - Add to Calendar
+    // Generates a standard .ics and hands it to the share sheet, which surfaces
+    // the system "Add to Calendar" action — no calendar permission needed.
+
+    private func addToCalendar() {
+        let stamp = DateFormatter()
+        stamp.locale = Locale(identifier: "en_US_POSIX")
+        stamp.dateFormat = "yyyyMMdd'T'HHmmss"
+        let start = stamp.string(from: event.dateValue)
+        let end = stamp.string(from: event.endDateValue ?? event.dateValue.addingTimeInterval(3600))
+
+        var lines = [
+            "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Junto//Event//EN",
+            "BEGIN:VEVENT", "UID:\(event._id)@junto",
+            "DTSTART:\(start)", "DTEND:\(end)", "SUMMARY:\(event.title)"
+        ]
+        if let location = event.location { lines.append("LOCATION:\(location)") }
+        if let description = event.description { lines.append("DESCRIPTION:\(description)") }
+        lines += ["END:VEVENT", "END:VCALENDAR"]
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(event._id).ics")
+        try? lines.joined(separator: "\r\n").data(using: .utf8)?.write(to: url)
+        calendarFile = CalendarFile(url: url)
     }
 
     // MARK: - Helpers
 
-    private var attendeeNames: String {
-        guard let previews = event.attendeePreviews, !previews.isEmpty else {
-            return "\(event.goingCount) going"
+    private var shareText: String {
+        var parts = [event.title, "\(dateText) · \(timeText)"]
+        if let location = event.location {
+            parts.append(location)
         }
+        return parts.joined(separator: "\n")
+    }
 
-        let names = previews.prefix(2).map { $0.name.components(separatedBy: " ").first ?? $0.name }
-        let remaining = event.goingCount - names.count
+    private var dateText: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        return formatter.string(from: event.dateValue) + ordinalSuffix(for: event.dateValue)
+    }
 
-        if remaining > 0 {
-            return "\(names.joined(separator: ", ")) and \(remaining) more"
-        } else {
-            return names.joined(separator: " and ")
+    private func ordinalSuffix(for date: Date) -> String {
+        let day = Calendar.current.component(.day, from: date)
+        switch day {
+        case 11, 12, 13:
+            return "th"
+        default:
+            switch day % 10 {
+            case 1: return "st"
+            case 2: return "nd"
+            case 3: return "rd"
+            default: return "th"
+            }
         }
     }
 
-    private var formattedDateRange: String {
+    private var timeText: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, h:mm"
-        var result = formatter.string(from: event.dateValue)
+        formatter.dateFormat = "h:mma"
+        let start = formatter.string(from: event.dateValue)
 
         if let endDate = event.endDateValue {
-            let endFormatter = DateFormatter()
-            endFormatter.dateFormat = "-h:mma"
-            result += endFormatter.string(from: endDate)
-        } else {
-            let ampm = DateFormatter()
-            ampm.dateFormat = "a"
-            result += ampm.string(from: event.dateValue)
+            return "\(start) - \(formatter.string(from: endDate))"
         }
-
-        return result
-    }
-
-    private var formattedDayAndTimezone: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE"
-        let day = formatter.string(from: event.dateValue)
-
-        let tz = TimeZone.current.abbreviation() ?? "CT"
-        return "\(day) - \(tz)"
-    }
-
-    private func connectionState(for userId: String) -> AttendeeRow.AttendeeConnectionState {
-        if connectedIds.contains(userId) { return .connected }
-        if pendingConnectionIds.contains(userId) { return .pending }
-        return .none
-    }
-
-    // MARK: - RSVP Button (floating pill)
-
-    private var rsvpButton: some View {
-        Button(action: {
-            if userRsvpStatus == "going" {
-                rsvp(status: "not_going")
-            } else {
-                rsvp(status: "going")
-            }
-        }) {
-            HStack(spacing: Spacing.sm) {
-                if userRsvpStatus == "going" {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .bold))
-                    Text("Going")
-                        .font(.bodyLargeSemibold)
-                } else {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .bold))
-                    Text("Join")
-                        .font(.bodyLargeSemibold)
-                }
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, Spacing.xl)
-            .padding(.vertical, Spacing.lg)
-            .background(userRsvpStatus == "going" ? Color.appSuccess : Color.appPrimary)
-            .clipShape(Capsule())
-            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-        }
-        .disabled(isRsvping)
-    }
-
-    // MARK: - Connection Button (inline, used for host)
-
-    @ViewBuilder
-    private func connectionButton(for userId: String) -> some View {
-        switch connectionState(for: userId) {
-        case .connected:
-            Text("Connected")
-                .font(.bodySmallMedium)
-                .foregroundColor(.appSecondary)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.xs)
-                .background(Color.appSurfaceSecondary)
-                .clipShape(Capsule())
-        case .pending:
-            Text("Pending")
-                .font(.bodySmallMedium)
-                .foregroundColor(.appSecondary)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.xs)
-                .background(Color.appSurfaceSecondary)
-                .clipShape(Capsule())
-        case .none:
-            Button(action: { connectWith(userId) }) {
-                Text("Connect")
-                    .font(.bodySmallSemibold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.xs)
-                    .background(Color.appPrimary)
-                    .clipShape(Capsule())
-            }
-        }
-    }
-
-    // MARK: - Data Loading
-
-    private func loadUserRsvp() async {
-        guard let userId = currentUser.userId else { return }
-
-        convex.subscribeUserRsvp(eventId: event._id, userId: userId)
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { _ in },
-                receiveValue: { rsvp in
-                    userRsvpStatus = rsvp?.status
-                }
-            )
-            .store(in: &cancellables)
-    }
-
-    private func loadAttendees() async {
-        convex.subscribeEventAttendees(eventId: event._id)
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { _ in },
-                receiveValue: { attendees in
-                    self.attendees = attendees
-                }
-            )
-            .store(in: &cancellables)
-    }
-
-    private func openProfile(id: String) {
-        Task {
-            do {
-                if let user = try await convex.fetchUser(id: id) {
-                    await MainActor.run {
-                        selectedUserProfile = user
-                    }
-                }
-            } catch {
-                print("Failed to load profile: \(error)")
-            }
-        }
-    }
-
-    private func connectWith(_ userId: String) {
-        guard let myId = currentUser.userId else { return }
-        pendingConnectionIds.insert(userId)
-
-        AnalyticsService.shared.track(.connectFromEvent(eventId: event._id, toUserId: userId))
-        AnalyticsService.shared.track(.connectionSent(toUserId: userId, source: .eventAttendees))
-
-        Task {
-            do {
-                _ = try await convex.sendConnectionRequest(requesterId: myId, accepterId: userId)
-            } catch {
-                print("Connection request failed: \(error)")
-                await MainActor.run {
-                    pendingConnectionIds.remove(userId)
-                }
-            }
-        }
-    }
-
-    private func loadConnectionState() async {
-        guard let userId = currentUser.userId else { return }
-        do {
-            let connections = try await convex.fetchConnections(userId: userId)
-            connectedIds = Set(connections.map { $0._id })
-
-            let pending = try await convex.fetchPendingSentIds(userId: userId)
-            pendingConnectionIds = Set(pending)
-        } catch {
-            print("Failed to load connection state: \(error)")
-        }
-    }
-
-    private func rsvp(status: String) {
-        guard let userId = currentUser.userId else { return }
-        isRsvping = true
-
-        Task {
-            do {
-                _ = try await convex.rsvpToEvent(eventId: event._id, userId: userId, status: status)
-                AnalyticsService.shared.track(.eventRsvp(eventId: event._id, status: status))
-                await MainActor.run {
-                    userRsvpStatus = status
-                    isRsvping = false
-                    onRsvp?(status)
-
-                    if status == "going" {
-                        showCalendarPrompt = true
-                    }
-                }
-            } catch {
-                print("RSVP failed: \(error)")
-                await MainActor.run {
-                    isRsvping = false
-                }
-            }
-        }
-    }
-
-    private func addToCalendar() async {
-        let store = EKEventStore()
-
-        do {
-            let granted = try await store.requestFullAccessToEvents()
-            guard granted else { return }
-
-            let calendarEvent = EKEvent(eventStore: store)
-            calendarEvent.title = event.title
-            calendarEvent.startDate = event.dateValue
-            calendarEvent.endDate = event.endDateValue ?? event.dateValue.addingTimeInterval(3600)
-            calendarEvent.location = event.fullAddress ?? event.location
-            if let description = event.description {
-                calendarEvent.notes = description
-            }
-            calendarEvent.calendar = store.defaultCalendarForNewEvents
-
-            try store.save(calendarEvent, span: .thisEvent)
-
-            AnalyticsService.shared.track(.eventCalendarAdded(eventId: event._id))
-
-            // Track in Convex
-            if let userId = currentUser.userId {
-                try? await convex.markCalendarAdded(eventId: event._id, userId: userId)
-            }
-
-            await MainActor.run {
-                showCalendarConfirmation = true
-            }
-        } catch {
-            print("Calendar error: \(error)")
-        }
-    }
-
-    private func openInMaps(address: String) {
-        AnalyticsService.shared.track(.eventDirectionsOpened(eventId: event._id))
-        let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        if let url = URL(string: "maps://?address=\(encoded)") {
-            UIApplication.shared.open(url)
-        }
+        return start
     }
 }
 
@@ -537,12 +268,12 @@ struct EventDetailView: View {
     EventDetailView(
         event: EventWithRsvpResponse(
             _id: "event_1",
-            title: "JUNTO SPEED NETWORKING",
-            description: "Meedont other users in quick 5-minute conversations. Rotate through and connect with founders, designers, and developers building cool stuff in Lincoln.\n\nExact location will be shared after you RSVP.",
+            title: "Open Pitch Night #3",
+            description: "Low stakes, casual environment. Share an idea or practice a pitch. Offer and receive help from faculty and peers.",
             date: Date().addingTimeInterval(86400 * 3).timeIntervalSince1970 * 1000,
-            endDate: Date().addingTimeInterval(86400 * 3 + 7200).timeIntervalSince1970 * 1000,
-            location: "Lincoln, NE",
-            fullAddress: "1234 Innovation Dr, Lincoln, NE 68508",
+            endDate: Date().addingTimeInterval(86400 * 3 + 10800).timeIntervalSince1970 * 1000,
+            location: "Center for Entrepreneurship (HLH 315)",
+            fullAddress: "Center for Entrepreneurship, Lincoln, NE 68508",
             type: "in_person",
             imageUrl: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=600&fit=crop",
             createdBy: "mock_1",
@@ -551,16 +282,14 @@ struct EventDetailView: View {
             interestedCount: 3,
             host: EventWithRsvpResponse.EventHost(
                 id: "mock_1",
-                name: "Kenny Morales",
+                name: "Center of Entrepreneurship",
                 avatarUrl: nil,
-                headline: "Building FindU"
+                headline: "UNL"
             ),
             attendeePreviews: [
                 EventWithRsvpResponse.AttendeePreview(id: "mock_2", name: "Sarah Chen", avatarUrl: nil),
-                EventWithRsvpResponse.AttendeePreview(id: "mock_3", name: "Marcus Williams", avatarUrl: nil),
-                EventWithRsvpResponse.AttendeePreview(id: "mock_4", name: "Wilson Overfield", avatarUrl: nil)
+                EventWithRsvpResponse.AttendeePreview(id: "mock_3", name: "Marcus Williams", avatarUrl: nil)
             ]
         )
     )
-    .environmentObject(CurrentUserManager.shared)
 }

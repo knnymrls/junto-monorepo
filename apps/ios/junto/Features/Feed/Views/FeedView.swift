@@ -19,6 +19,13 @@ struct FeedView: View {
     @State private var chatParticipant: UserResponse?
     @State private var chatConversationId: String?
     @State private var reportingPost: PostResponse?
+    @State private var selectedEvent: EventWithRsvpResponse?
+    // Zoom transition namespace: post card → post detail
+    @Namespace private var postZoom
+    // Zoom transition namespace: author avatar → profile
+    @Namespace private var profileZoom
+    // Zoom transition namespace: event card → event detail
+    @Namespace private var eventZoom
     // Hairline thickness for consistent 1px dividers
     private var hairline: CGFloat {
         1 / UIScreen.main.scale
@@ -52,7 +59,7 @@ struct FeedView: View {
         .sheet(item: $editingPost) { post in
             PostComposerView(viewModel: viewModel, editingPost: post)
         }
-        .sheet(item: $selectedPost) { post in
+        .fullScreenCover(item: $selectedPost) { post in
             ImageViewerRoot {
                 FeedPostSheet(
                     post: post,
@@ -72,9 +79,15 @@ struct FeedView: View {
                     }
                 )
             }
+            .zoomDestination(id: post._id, in: postZoom)
         }
-        .sheet(item: $selectedUserProfile) { user in
+        .fullScreenCover(item: $selectedUserProfile) { user in
             ProfileView(user: user)
+                .zoomDestination(id: user._id, in: profileZoom)
+        }
+        .fullScreenCover(item: $selectedEvent) { event in
+            EventDetailView(event: event)
+                .zoomDestination(id: event._id, in: eventZoom)
         }
         .sheet(item: $chatParticipant) { participant in
             if let userId = currentUser.userId {
@@ -96,6 +109,17 @@ struct FeedView: View {
                 viewModel.currentUser = currentUser.user
                 viewModel.feedItems = FeedItemResponse.previewItems
                 viewModel.hasMorePosts = false
+                if ProcessInfo.processInfo.environment["JUNTO_PREVIEW_COMPOSER"] == "1" {
+                    showComposer = true
+                }
+                if ProcessInfo.processInfo.environment["JUNTO_PREVIEW_POST"] == "1",
+                   let first = viewModel.feedItems.first(where: { $0.post != nil })?.post {
+                    selectedPost = first
+                }
+                if ProcessInfo.processInfo.environment["JUNTO_PREVIEW_EVENT"] == "1",
+                   let ev = viewModel.feedItems.first(where: { $0.event != nil })?.event {
+                    selectEvent(ev)
+                }
                 return
             }
             #endif
@@ -153,17 +177,8 @@ struct FeedView: View {
         .refreshable {
             await viewModel.refresh()
         }
-        .overlay(alignment: .top) {
-            // Top fade — mirrors the bottom fade above the tab bar; content
-            // dissolves into the background as it scrolls up under the nav.
-            LinearGradient(
-                colors: [Color.appBackground, Color.appBackground.opacity(0)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 24)
-            .allowsHitTesting(false)
-        }
+        // Top fade only — the bottom fade is handled by the tab bar gradient.
+        .scrollEdgeFade(top: true, bottom: false)
     }
 
     // MARK: - Feed Item Row
@@ -192,8 +207,11 @@ struct FeedView: View {
                             selectedUserProfile = user
                         }
                     }
-                }
+                },
+                profileZoomID: post.author.map { AnyHashable($0._id) },
+                profileZoomNamespace: profileZoom
             )
+            .zoomSource(id: post._id, in: postZoom)
         case .match(let match):
             FeedCard(
                 item: item,
@@ -206,12 +224,37 @@ struct FeedView: View {
                     Task { await viewModel.handleDisconnect(userId: match._id) }
                 },
                 onCardTap: { selectedUserProfile = match.toUserResponse() },
-                onAuthorTap: { selectedUserProfile = match.toUserResponse() }
+                onAuthorTap: { selectedUserProfile = match.toUserResponse() },
+                profileZoomID: AnyHashable(match._id),
+                profileZoomNamespace: profileZoom
             )
         case .event(let event):
-            FeedEventCard(event: event, tags: item.displayTags)
+            FeedEventCard(
+                event: event,
+                tags: item.displayTags,
+                onCardTap: { selectEvent(event) }
+            )
+            .zoomSource(id: event._id, in: eventZoom)
         case .none:
             EmptyView()
+        }
+    }
+
+    // MARK: - Event Selection
+
+    private func selectEvent(_ event: EventResponse) {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["JUNTO_PREVIEW_FEED"] == "1" {
+            // No backend in the preview rig — route the feed event (and its
+            // cover) straight into the detail.
+            selectedEvent = EventWithRsvpResponse.preview(from: event)
+            return
+        }
+        #endif
+        Task {
+            if let full = try? await ConvexClientManager.shared.fetchEvent(id: event._id) {
+                await MainActor.run { selectedEvent = full }
+            }
         }
     }
 

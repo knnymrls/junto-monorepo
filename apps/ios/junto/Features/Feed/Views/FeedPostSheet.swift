@@ -18,6 +18,7 @@ struct FeedPostSheet: View {
     var onEditPostTap: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var currentUser: CurrentUserManager
     @StateObject private var viewModel: PostDetailViewModel
     @State private var replyText = ""
     @State private var isReplyFocused = false
@@ -30,6 +31,9 @@ struct FeedPostSheet: View {
     @State private var commentImage: UIImage?
     @State private var showGifPicker = false
     @State private var selectedGifUrl: URL?
+
+    // Zoom transition namespace: author/commenter avatar → profile
+    @Namespace private var profileZoom
 
     private var hairline: CGFloat {
         1 / UIScreen.main.scale
@@ -50,6 +54,11 @@ struct FeedPostSheet: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
+                PostDetailTopNav(
+                    onBack: { dismiss() },
+                    onShare: { /* TODO: share post */ }
+                )
+
                 ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
                     originalPost
@@ -66,15 +75,21 @@ struct FeedPostSheet: View {
 
                     if viewModel.isLoading && viewModel.comments.isEmpty {
                         loadingState
+                    } else if viewModel.comments.isEmpty {
+                        FeedMessageState(
+                            icon: "feed.replies.empty",
+                            title: "No Replies",
+                            subtitle: "Be the first to reply"
+                        )
                     } else {
                         commentsList
                     }
                 }
             }
+            .scrollEdgeFade()
 
                 replyComposer
             }
-            .padding(.top, Spacing.xxl)
             .background(Color.appSurface)
 
             if mentionManager.showPicker {
@@ -89,8 +104,9 @@ struct FeedPostSheet: View {
         }
         .animation(.easeInOut(duration: 0.2), value: mentionManager.showPicker)
         .presentationDragIndicator(.visible)
-        .sheet(item: $selectedMentionUser) { user in
+        .fullScreenCover(item: $selectedMentionUser) { user in
             ProfileView(user: user)
+                .zoomDestination(id: user._id, in: profileZoom)
         }
         .sheet(isPresented: $showGifPicker) {
             GifPickerSheet { gif in
@@ -100,6 +116,12 @@ struct FeedPostSheet: View {
             .presentationDetents([.large])
         }
         .task {
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["JUNTO_PREVIEW_FEED"] == "1" {
+                viewModel.comments = CommentResponse.mockList
+                return
+            }
+            #endif
             viewModel.startSubscription()
             if let userId = currentUserId {
                 await viewModel.loadCurrentUser(userId: userId)
@@ -119,63 +141,56 @@ struct FeedPostSheet: View {
     // MARK: - Original Post
 
     private var originalPost: some View {
-        OriginalPostSection(
-            post: post,
+        FeedCard(
+            item: FeedItemResponse(
+                kind: "post",
+                key: "post:\(post._id)",
+                tags: post.topics,
+                post: post,
+                event: nil,
+                match: nil
+            ),
             connectionStatus: connectionStatus,
-            currentUserId: currentUserId,
-            onAuthorTap: { if let author = post.author { selectedMentionUser = author } },
+            isOwnItem: post.authorId == currentUserId,
             onConnectTap: { onConnectTap?() },
             onDisconnectTap: { onDisconnectTap?() },
-            onEditTap: {
-                dismiss()
-                onEditPostTap?()
-            },
-            onDeleteTap: {
-                Task {
-                    await viewModel.deletePost(postId: post._id)
-                    dismiss()
-                }
-            },
+            onCardTap: nil,
+            onAuthorTap: { if let author = post.author { selectedMentionUser = author } },
             onMentionTap: { name in
                 Task {
                     if let user = await viewModel.fetchUserByName(name) {
                         selectedMentionUser = user
                     }
                 }
-            }
+            },
+            profileZoomID: post.author.map { AnyHashable($0._id) },
+            profileZoomNamespace: profileZoom
         )
     }
 
     // MARK: - Replies Header
 
     private var repliesHeader: some View {
-        HStack {
+        HStack(alignment: .top) {
             Text("Replies")
-                .font(.bodySemibold)
+                .font(.bodyMedium)
                 .foregroundColor(.appPrimary)
 
             Spacer()
 
-            Menu {
-                Button(action: { viewModel.sortOrder = .recent }) {
-                    Label("Recent", systemImage: viewModel.sortOrder == .recent ? "checkmark" : "")
-                }
-                Button(action: { viewModel.sortOrder = .oldest }) {
-                    Label("Oldest", systemImage: viewModel.sortOrder == .oldest ? "checkmark" : "")
-                }
-            } label: {
-                HStack(spacing: Spacing.xxs) {
-                    Text(viewModel.sortOrder.displayName)
-                        .font(.body14)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                }
+            Text(replyCountText)
+                .font(.body14)
                 .foregroundColor(.appSecondary)
-            }
         }
         .padding(.horizontal, Spacing.md)
-        .padding(.vertical, 10)
+        .padding(.vertical, Spacing.sm)
         .background(Color.appSurface)
+    }
+
+    /// "1 Reply" / "N Replies" — Figma 78:1828.
+    private var replyCountText: String {
+        let count = viewModel.comments.count
+        return "\(count) " + (count == 1 ? "Reply" : "Replies")
     }
 
     // MARK: - Comments List
@@ -211,7 +226,9 @@ struct FeedPostSheet: View {
                         if let author = comment.author {
                             selectedMentionUser = author
                         }
-                    }
+                    },
+                    profileZoomID: comment.author.map { AnyHashable($0._id) },
+                    profileZoomNamespace: profileZoom
                 )
 
                 Rectangle()
@@ -268,8 +285,8 @@ struct FeedPostSheet: View {
                 selectedImage: $commentImage,
                 selectedGifUrl: $selectedGifUrl,
                 isFocused: $isReplyFocused,
-                avatarUrl: viewModel.currentUserAvatar,
-                avatarName: viewModel.currentUserName,
+                avatarUrl: currentUser.user?.avatarUrl ?? viewModel.currentUserAvatar,
+                avatarName: currentUser.user?.name ?? viewModel.currentUserName,
                 showMentionPicker: mentionManager.showPicker,
                 onMentionTap: { mentionManager.togglePicker(text: &replyText) },
                 onGifTap: {
@@ -328,4 +345,5 @@ struct FeedPostSheet: View {
         post: .mock,
         currentUserId: "mock_1"
     )
+    .environmentObject(CurrentUserManager.shared)
 }

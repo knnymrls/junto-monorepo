@@ -14,6 +14,10 @@ struct AttendeeRow: View {
     var eventHasEnded: Bool = false
     let onProfileTap: () -> Void
     let onConnectTap: () -> Void
+    /// When set, the avatar acts as a zoom-transition source into this
+    /// attendee's profile.
+    var profileZoomID: AnyHashable? = nil
+    var profileZoomNamespace: Namespace.ID? = nil
 
     enum AttendeeConnectionState {
         case none
@@ -28,7 +32,9 @@ struct AttendeeRow: View {
                     AvatarView(
                         avatarUrl: attendee.avatarUrl,
                         name: attendee.name,
-                        size: 44
+                        size: 44,
+                        zoomID: profileZoomID,
+                        zoomNamespace: profileZoomNamespace
                     )
 
                     VStack(alignment: .leading, spacing: Spacing.xxxs) {

@@ -2158,7 +2158,7 @@ struct PostResponse: Codable, Identifiable, Hashable {
         var displayName: String {
             switch self {
             case .asking: return "Asking"
-            case .sharing: return "Sharing"
+            case .sharing: return "Update"
             case .lookingFor: return "Looking For"
             }
         }
@@ -2336,6 +2336,19 @@ extension CommentResponse {
             createdAt: Date().addingTimeInterval(-900).timeIntervalSince1970 * 1000,
             author: UserResponse.mockList[2],
             mentionedUsers: [UserResponse.mockList[1]]
+        ),
+        CommentResponse(
+            _id: "comment_3",
+            postId: "post_1",
+            authorId: "mock_2",
+            content: "Sounds great — I'll reach out!",
+            mentions: nil,
+            imageUrl: nil,
+            linkUrl: nil,
+            gifUrl: nil,
+            createdAt: Date().addingTimeInterval(-300).timeIntervalSince1970 * 1000,
+            author: UserResponse.mockList[1],
+            mentionedUsers: nil
         )
     ]
 }

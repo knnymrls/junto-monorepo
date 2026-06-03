@@ -20,6 +20,9 @@ struct AttendeesListView: View {
     @State private var selectedUserProfile: UserResponse?
     @State private var cancellables = Set<AnyCancellable>()
 
+    // Zoom transition namespace: attendee avatar → profile
+    @Namespace private var profileZoom
+
     private let convex = ConvexClientManager.shared
 
     private var eventHasEnded: Bool {
@@ -50,8 +53,9 @@ struct AttendeesListView: View {
                 }
             }
         }
-        .sheet(item: $selectedUserProfile) { user in
+        .fullScreenCover(item: $selectedUserProfile) { user in
             ProfileView(user: user)
+                .zoomDestination(id: user._id, in: profileZoom)
         }
         .task {
             let timing = eventHasEnded ? "post_event" : "pre_event"
@@ -72,7 +76,9 @@ struct AttendeesListView: View {
                         eventTitle: event.title,
                         eventHasEnded: eventHasEnded,
                         onProfileTap: { openProfile(id: attendee.id) },
-                        onConnectTap: { connectWith(attendee) }
+                        onConnectTap: { connectWith(attendee) },
+                        profileZoomID: AnyHashable(attendee.id),
+                        profileZoomNamespace: profileZoom
                     )
                     .padding(.horizontal, Spacing.lg)
                     .padding(.vertical, Spacing.xs)

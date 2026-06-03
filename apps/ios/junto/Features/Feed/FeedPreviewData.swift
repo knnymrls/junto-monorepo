@@ -75,7 +75,7 @@ extension FeedItemResponse {
         return EventResponse(
             _id: "preview_event_1",
             title: "Open Pitch Night #3",
-            description: nil,
+            description: "Low stakes, casual environment. Share an idea or practice a pitch. Offer and receive help from faculty and peers.",
             date: start.timeIntervalSince1970 * 1000,
             endDate: end.timeIntervalSince1970 * 1000,
             location: "Lincoln, NE",
@@ -87,6 +87,33 @@ extension FeedItemResponse {
             createdAt: Date().timeIntervalSince1970 * 1000,
             host: EventResponse.EventHost(id: "mock_1", name: "Center of Entrepreneurship", avatarUrl: "https://i.pravatar.cc/200?img=52"),
             goingCount: 24,
+            attendeePreviews: nil
+        )
+    }
+}
+
+extension EventWithRsvpResponse {
+    /// Detail-shaped event built from a feed `EventResponse`, carrying the same
+    /// cover image straight through — lets the JUNTO_PREVIEW_FEED rig open
+    /// EventDetailView without the backend fetch it can't run in the simulator.
+    static func preview(from event: EventResponse) -> EventWithRsvpResponse {
+        EventWithRsvpResponse(
+            _id: event._id,
+            title: event.title,
+            description: event.description,
+            date: event.date,
+            endDate: event.endDate,
+            location: event.location,
+            fullAddress: event.location,
+            type: event.type,
+            imageUrl: event.imageUrl,
+            createdBy: event.createdBy,
+            createdAt: event.createdAt,
+            goingCount: event.goingCount ?? 0,
+            interestedCount: 0,
+            host: event.host.map {
+                EventHost(id: $0.id, name: $0.name, avatarUrl: $0.avatarUrl, headline: nil)
+            },
             attendeePreviews: nil
         )
     }

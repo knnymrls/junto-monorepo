@@ -16,6 +16,10 @@ struct AvatarAction: View {
     var onAvatarTap: (() -> Void)? = nil
     var onConnectTap: (() -> Void)? = nil
     var onDisconnectTap: (() -> Void)? = nil
+    /// Forwarded to the underlying `AvatarView` so the avatar can act as a
+    /// zoom-transition source into a profile. No-op when either is nil.
+    var zoomID: AnyHashable? = nil
+    var zoomNamespace: Namespace.ID? = nil
 
     // One component, one tap target: the whole avatar (with its status badge)
     // is a single button that opens the profile.
@@ -25,7 +29,9 @@ struct AvatarAction: View {
                 AvatarView(
                     avatarUrl: avatarUrl,
                     name: name,
-                    size: size
+                    size: size,
+                    zoomID: zoomID,
+                    zoomNamespace: zoomNamespace
                 )
 
                 if !isOwnPost {

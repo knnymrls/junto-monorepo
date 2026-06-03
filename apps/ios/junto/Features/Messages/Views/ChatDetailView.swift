@@ -24,6 +24,9 @@ struct ChatDetailView: View {
     @State private var showGifPicker = false
     @State private var selectedGifUrl: URL?
 
+    // Zoom transition namespace: chat header avatar → profile
+    @Namespace private var profileZoom
+
     init(conversationId: String?, otherParticipant: UserResponse, currentUserId: String, isRequest: Bool = false) {
         _viewModel = StateObject(wrappedValue: ChatViewModel(
             conversationId: conversationId,
@@ -87,7 +90,9 @@ struct ChatDetailView: View {
                     AvatarView(
                         avatarUrl: viewModel.otherParticipant.avatarUrl,
                         name: viewModel.otherParticipant.name,
-                        size: 40
+                        size: 40,
+                        zoomID: AnyHashable(viewModel.otherParticipant._id),
+                        zoomNamespace: profileZoom
                     )
 
                     VStack(alignment: .leading, spacing: Spacing.xxs) {
@@ -128,8 +133,9 @@ struct ChatDetailView: View {
         .padding(.top, Spacing.xl)
         .padding(.bottom, Spacing.md)
         .background(Color.appSurface)
-        .sheet(isPresented: $showProfile) {
+        .fullScreenCover(isPresented: $showProfile) {
             ProfileView(user: viewModel.otherParticipant)
+                .zoomDestination(id: viewModel.otherParticipant._id, in: profileZoom)
         }
     }
 

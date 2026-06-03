@@ -231,39 +231,22 @@ struct CompactImagePickerButton: View {
     var iconName: String = "action.image"
     var iconColor: Color = .appSecondary
 
-    @State private var showCamera = false
-    @State private var showPhotoPicker = false
-    @State private var selectedItem: PhotosPickerItem?
+    @State private var showPicker = false
 
     var body: some View {
-        Menu {
-            Button(action: { showPhotoPicker = true }) {
-                Label("Photo Library", systemImage: "photo.on.rectangle")
-            }
-
-            Button(action: { showCamera = true }) {
-                Label("Take Photo", systemImage: "camera")
-            }
-        } label: {
+        // Tapping opens the unified media picker (photo grid + camera tile).
+        Button(action: { showPicker = true }) {
             Image(iconName)
                 .renderingMode(.template)
                 .resizable()
+                .scaledToFit()
                 .frame(width: 20, height: 20)
                 .foregroundColor(selectedImage != nil ? .appPrimary : iconColor)
                 .frame(width: 28, height: 28)
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
-        .onChange(of: selectedItem) { _, newValue in
-            Task {
-                if let data = try? await newValue?.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    selectedImage = image
-                }
-            }
-        }
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraView(selectedImage: $selectedImage)
-                .ignoresSafeArea()
+        .sheet(isPresented: $showPicker) {
+            MediaPickerSheet(selectedImage: $selectedImage)
+                .presentationDetents([.large])
         }
     }
 }

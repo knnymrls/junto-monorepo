@@ -14,13 +14,16 @@ struct PostComposerView: View {
     var editingPost: PostResponse? = nil
 
     @State private var content = ""
-    @State private var selectedCategory: PostResponse.PostCategory? = nil
+    @State private var selectedCategory: PostResponse.PostCategory? = .asking
     @State private var isPosting = false
+    // Slides the white "thumb" between category segments.
+    @Namespace private var categoryThumb
 
     // Image state
     @State private var selectedImages: [UIImage] = []
     @State private var isUploadingImages = false
     @State private var existingImageUrls: [String] = []
+    @State private var showImagePicker = false
 
     // GIF state
     @State private var showGifPicker = false
@@ -137,38 +140,15 @@ struct PostComposerView: View {
                                 .padding(.top, Spacing.md)
                             }
 
-                            HStack(spacing: Spacing.lg) {
-                                Button(action: { mentionManager.togglePicker(text: &content) }) {
-                                    Image("action.mention")
-                                        .renderingMode(.template)
-                                        .resizable()
-                                        .frame(width: 20, height: 20)
-                                        .foregroundColor(mentionManager.showPicker ? .appPrimary : .appSecondary)
+                            HStack(spacing: Spacing.sm) {
+                                composerChip(icon: "action.camera", label: "Add Image") {
+                                    showImagePicker = true
                                 }
-
-                                MultiImagePickerWithCameraButton(
-                                    selectedImages: Binding(
-                                        get: { selectedImages },
-                                        set: { newImages in
-                                            selectedImages = newImages
-                                            if !newImages.isEmpty { selectedGifUrl = nil }
-                                        }
-                                    ),
-                                    iconColor: existingImageUrls.isEmpty && selectedImages.isEmpty ? .appSecondary : .appPrimary,
-                                    maxImages: 5 - existingImageUrls.count
-                                )
-
-                                Button(action: {
-                                    showGifPicker = true
-                                }) {
-                                    Image("action.gif")
-                                        .renderingMode(.template)
-                                        .resizable()
-                                        .frame(width: 20, height: 20)
-                                        .foregroundColor(selectedGifUrl != nil ? .appPrimary : .appSecondary)
+                                composerChip(icon: "action.mention.fill", label: "Mention") {
+                                    mentionManager.togglePicker(text: &content)
                                 }
                             }
-                            .padding(.top, Spacing.md)
+                            .padding(.top, Spacing.lg)
                         }
                     }
                     .padding(.horizontal, Spacing.md)
@@ -206,6 +186,21 @@ struct PostComposerView: View {
             }
             .presentationDetents([.large])
         }
+        .sheet(isPresented: $showImagePicker) {
+            // Same unified picker as the reply composer — photo grid + camera.
+            // Single-select per open; tap "Add Image" again to add more (up to 5).
+            MediaPickerSheet(selectedImage: Binding(
+                get: { nil },
+                set: { newImage in
+                    guard let newImage else { return }
+                    if selectedImages.count + existingImageUrls.count < 5 {
+                        selectedImages.append(newImage)
+                        selectedGifUrl = nil
+                    }
+                }
+            ))
+            .presentationDetents([.large])
+        }
         .onAppear {
             if let post = editingPost {
                 content = post.content
@@ -215,59 +210,110 @@ struct PostComposerView: View {
         }
     }
 
+    // MARK: - Chips
+
+    private func composerChip(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: Spacing.xxs) {
+                Image(icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 12, height: 12)
+                Text(label)
+                    .font(.captionSemibold)
+            }
+            .foregroundColor(.appSecondary)
+            .padding(Spacing.sm)
+            .background(Color.appSurfaceSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+        }
+        .buttonStyle(.pressableScale(0.95))
+    }
+
     // MARK: - Bottom Bar
 
-    private var bottomBar: some View {
-        HStack {
-            Menu {
-                ForEach(PostResponse.PostCategory.allCases, id: \.self) { category in
-                    Button(action: { selectedCategory = category }) {
-                        HStack(spacing: 8) {
-                            Image(category.customIconName)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 12, height: 12)
-                            Text(category.displayName)
+    /// Categories offered in the composer.
+    private let composerCategories: [PostResponse.PostCategory] = [.asking, .sharing]
+
+    private func categoryIcon(_ category: PostResponse.PostCategory) -> String {
+        switch category {
+        case .asking:     return "feed.ask"        // open-hand
+        case .sharing:    return "content.update"  // peace-hand — "Update"
+        case .lookingFor: return "content.looking"
+        }
+    }
+
+    private func categoryLabel(_ category: PostResponse.PostCategory) -> String {
+        switch category {
+        case .asking:     return "Ask"
+        case .sharing:    return "Update"
+        case .lookingFor: return "Looking For"
+        }
+    }
+
+    // Compact iOS-style segmented toggle: a white "thumb" slides under the
+    // selected segment via matchedGeometryEffect.
+    private var categoryToggle: some View {
+        HStack(spacing: 0) {
+            ForEach(composerCategories, id: \.self) { category in
+                let isSelected = selectedCategory == category
+                Button {
+                    withAnimation(.snappy(duration: 0.28)) { selectedCategory = category }
+                } label: {
+                    HStack(spacing: Spacing.xxs) {
+                        Image(categoryIcon(category))
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 14, height: 14)
+                        Text(categoryLabel(category))
+                            .font(.bodyMedium)
+                    }
+                    .foregroundColor(isSelected ? .appPrimary : .appSecondary)
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background {
+                        if isSelected {
+                            Capsule()
+                                .fill(Color.appSurface)
+                                .shadow(color: Color.black.opacity(0.06), radius: 2, y: 1)
+                                .matchedGeometryEffect(id: "categoryThumb", in: categoryThumb)
                         }
                     }
                 }
-            } label: {
-                HStack(spacing: Spacing.xs) {
-                    if let category = selectedCategory {
-                        Image(category.customIconName)
-                            .resizable()
-                            .frame(width: 14, height: 14)
-                    } else {
-                        Image(systemName: "square.grid.2x2")
-                            .font(.system(size: 14))
-                    }
-
-                    Text(selectedCategory?.displayName ?? "Category")
-                        .font(.bodyLargeMedium)
-                }
-                .foregroundColor(selectedCategory == nil ? .appSecondary : .appPrimary)
-                .frame(width: 140, alignment: .leading)
+                .buttonStyle(.plain)
             }
+        }
+        .padding(4)
+        .background(Capsule().fill(Color.appSurfaceSecondary))
+    }
+
+    private var bottomBar: some View {
+        HStack(spacing: Spacing.sm) {
+            categoryToggle
 
             Spacer()
 
             Text("\(content.count)/\(maxPostLength)")
                 .font(.caption12)
-                .foregroundColor(content.count > maxPostLength ? .red : .appSecondary)
+                .foregroundColor(content.count > maxPostLength ? .appError : .appSecondary)
 
             Button(action: postContent) {
                 Text(isEditing ? "Save" : "Post")
                     .font(.bodySemibold)
-                    .foregroundColor(.white)
+                    .foregroundColor(.appOnAccent)
                     .padding(.horizontal, Spacing.lg)
-                    .padding(.vertical, Spacing.md)
+                    .padding(.vertical, 10)
                     .background(canPost ? Color.appPrimary : Color.appSecondary)
-                    .cornerRadius(Spacing.xl)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
             }
+            .buttonStyle(.pressableScale(0.95))
             .disabled(!canPost || isPosting)
         }
         .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.md)
+        .padding(.top, Spacing.sm)
+        .padding(.bottom, Spacing.sm)
     }
 
     // MARK: - Computed

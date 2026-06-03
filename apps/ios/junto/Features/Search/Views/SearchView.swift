@@ -30,6 +30,9 @@ struct SearchSheet: View {
     @State private var selectedUserProfile: UserResponse?
     @State private var keyboardHeight: CGFloat = 0
 
+    // Zoom transition namespace: discover card avatar → profile
+    @Namespace private var profileZoom
+
     var body: some View {
         ZStack(alignment: .bottom) {
             contentArea
@@ -52,8 +55,9 @@ struct SearchSheet: View {
         .animation(.easeInOut(duration: 0.3), value: viewModel.aiThinking != nil)
         .animation(.easeInOut(duration: 0.3), value: showInsightsCard)
         .background(Color.appBackground)
-        .sheet(item: $selectedUserProfile) { user in
+        .fullScreenCover(item: $selectedUserProfile) { user in
             ProfileView(user: user)
+                .zoomDestination(id: user._id, in: profileZoom)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
             if let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
@@ -126,7 +130,9 @@ struct SearchSheet: View {
                                     AnalyticsService.shared.track(.connectFromSearch(toUserId: user._id))
                                     _ = await viewModel.sendConnectionRequest(toUserId: user._id)
                                 }
-                            }
+                            },
+                            profileZoomID: AnyHashable(user._id),
+                            profileZoomNamespace: profileZoom
                         )
                     }
                 }
@@ -334,7 +340,9 @@ struct SearchSheet: View {
                                 AnalyticsService.shared.track(.connectFromSearch(toUserId: result.userId))
                                 _ = await viewModel.sendConnectionRequest(toUserId: result.userId)
                             }
-                        }
+                        },
+                        profileZoomID: AnyHashable(user._id),
+                        profileZoomNamespace: profileZoom
                     )
                 }
             }

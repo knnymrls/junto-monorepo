@@ -31,12 +31,12 @@ struct ReplyComposerBar: View {
                 mediaPreview
             }
 
-            HStack(alignment: .bottom, spacing: Spacing.sm) {
+            HStack(alignment: .center, spacing: Spacing.sm) {
                 if !isActive {
                     AvatarView(
                         avatarUrl: avatarUrl,
                         name: avatarName,
-                        size: 28
+                        size: 32
                     )
                     .transition(
                         .asymmetric(
@@ -73,7 +73,7 @@ struct ReplyComposerBar: View {
                 .frame(minHeight: 28)
 
                 Button(action: onMentionTap) {
-                    Image("action.mention")
+                    Image("action.mention.fill")
                         .renderingMode(.template)
                         .resizable()
                         .frame(width: 20, height: 20)
@@ -89,19 +89,13 @@ struct ReplyComposerBar: View {
                             if newImage != nil { selectedGifUrl = nil }
                         }
                     ),
-                    iconName: "action.image",
+                    iconName: "action.camera",
                     iconColor: .appSecondary
                 )
-
-                Button(action: onGifTap) {
-                    Image("action.gif")
-                        .renderingMode(.template)
-                        .resizable()
-                        .frame(width: 20, height: 20)
-                        .foregroundColor(.appSecondary)
-                        .frame(width: 28, height: 28)
-                }
             }
+            // Keep a stable height so the pill doesn't shrink when the avatar
+            // hides on focus (avatar 32 = the resting content height).
+            .frame(minHeight: 32)
             .padding(.horizontal, Spacing.md)
             .padding(.vertical, 10)
             .background(Color.appSurfaceSecondary)

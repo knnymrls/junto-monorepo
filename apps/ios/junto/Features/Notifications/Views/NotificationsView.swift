@@ -20,6 +20,11 @@ struct NotificationsView: View {
     @State private var chatParticipant: UserResponse?
     @State private var chatConversationId: String?
 
+    // Zoom transition namespace: notification sender avatar → profile
+    @Namespace private var profileZoom
+    // Zoom transition namespace: event notification row → event detail
+    @Namespace private var eventZoom
+
     private var hairline: CGFloat { 1 / UIScreen.main.scale }
 
     var body: some View {
@@ -48,11 +53,13 @@ struct NotificationsView: View {
                 connectedUserIds: []
             )
         }
-        .sheet(item: $selectedUserProfile) { user in
+        .fullScreenCover(item: $selectedUserProfile) { user in
             ProfileView(user: user)
+                .zoomDestination(id: user._id, in: profileZoom)
         }
-        .sheet(item: $selectedEvent) { event in
+        .fullScreenCover(item: $selectedEvent) { event in
             EventDetailView(event: event)
+                .zoomDestination(id: event._id, in: eventZoom)
         }
         .sheet(item: $chatParticipant) { participant in
             if let userId = currentUser.userId {
@@ -96,7 +103,14 @@ struct NotificationsView: View {
                 }
 
                 ForEach(viewModel.notifications) { notification in
-                    notificationRow(for: notification)
+                    Group {
+                        if let eventId = notification.data?.eventId {
+                            notificationRow(for: notification)
+                                .zoomSource(id: eventId, in: eventZoom)
+                        } else {
+                            notificationRow(for: notification)
+                        }
+                    }
                         .contentShape(Rectangle())
                         .onTapGesture {
                             handleTap(notification)
@@ -136,9 +150,14 @@ struct NotificationsView: View {
 
     @ViewBuilder
     private func notificationRow(for notification: NotificationResponse) -> some View {
+        let zoomID = notification.sender.map { AnyHashable($0._id) }
         if notification.type == "connection_request" {
             if notification.isRead {
-                NotificationRow(notification: notification)
+                NotificationRow(
+                    notification: notification,
+                    profileZoomID: zoomID,
+                    profileZoomNamespace: profileZoom
+                )
             } else {
                 NotificationRow(
                     notification: notification,
@@ -147,11 +166,17 @@ struct NotificationsView: View {
                     },
                     onReject: {
                         Task { await viewModel.rejectConnection(notification) }
-                    }
+                    },
+                    profileZoomID: zoomID,
+                    profileZoomNamespace: profileZoom
                 )
             }
         } else {
-            NotificationRow(notification: notification)
+            NotificationRow(
+                notification: notification,
+                profileZoomID: zoomID,
+                profileZoomNamespace: profileZoom
+            )
         }
     }
 

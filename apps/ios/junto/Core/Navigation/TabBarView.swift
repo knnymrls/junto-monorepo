@@ -2,7 +2,8 @@
 //  TabBarView.swift
 //  mkrs-world
 //
-//  Main tab bar navigation (5 tabs) + top nav bar with profile avatar
+//  Main tab bar navigation: Home · Discover · Junto AI (center) · Messages · Activity
+//  + top nav bar with profile avatar
 //
 
 import SwiftUI
@@ -11,16 +12,16 @@ import Combine
 
 enum Tab: String, CaseIterable {
     case feed
-    case events
-    case search
+    case discover
+    case ai
     case messages
     case notifications
 
     var iconName: String {
         switch self {
         case .feed: return "tab.home"
-        case .events: return "tab.event"
-        case .search: return "tab.search"
+        case .discover: return "tab.search"
+        case .ai: return "tab.junto"
         case .messages: return "tab.envelope"
         case .notifications: return "tab.heart"
         }
@@ -29,8 +30,8 @@ enum Tab: String, CaseIterable {
     var selectedIconName: String {
         switch self {
         case .feed: return "tab.home.fill"
-        case .events: return "tab.event.fill"
-        case .search: return "tab.search"
+        case .discover: return "tab.search"
+        case .ai: return "tab.junto"
         case .messages: return "tab.envelope.fill"
         case .notifications: return "tab.heart.fill"
         }
@@ -38,23 +39,22 @@ enum Tab: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .feed: return "Feed"
-        case .events: return "Events"
-        case .search: return "Search"
+        case .feed: return "Home"
+        case .discover: return "Discover"
+        case .ai: return "Ask Junto"
         case .messages: return "Messages"
         case .notifications: return "Activity"
         }
     }
 
-    var usesSystemIcon: Bool {
-        false
-    }
+    /// The center brand button (Junto mark) that opens the AI experience.
+    var isCenter: Bool { self == .ai }
 
     /// Whether this tab shows the global compose FAB.
     var hasComposeFAB: Bool {
         switch self {
-        case .feed, .events, .messages: return true
-        case .search, .notifications: return false
+        case .feed, .discover, .messages: return true
+        case .ai, .notifications: return false
         }
     }
 }
@@ -97,6 +97,9 @@ struct TabBarView: View {
     @State private var showSettings = false
     private let menuWidth: CGFloat = 280
 
+    // Zoom transition namespace: top-nav avatar → my profile
+    @Namespace private var profileZoom
+
     private let convex = ConvexClientManager.shared
 
     var body: some View {
@@ -125,7 +128,9 @@ struct TabBarView: View {
                             avatarUrl: currentUser.user?.avatarUrl,
                             name: currentUser.user?.name ?? "?",
                             onAvatarTap: { showMyProfile = true },
-                            onMenuTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
+                            onMenuTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } },
+                            profileZoomID: currentUser.user.map { AnyHashable($0._id) },
+                            profileZoomNamespace: profileZoom
                         )
                     } else {
                         TopNavBar(
@@ -140,9 +145,9 @@ struct TabBarView: View {
                         switch selectedTab {
                         case .feed:
                             FeedView()
-                        case .events:
+                        case .discover:
                             EventsView()
-                        case .search:
+                        case .ai:
                             SearchView()
                         case .messages:
                             MessagesView()
@@ -218,10 +223,10 @@ struct TabBarView: View {
             .offset(x: showSideMenu ? -menuWidth : 0)
         }
         // Profile sheet
-        .sheet(isPresented: $showMyProfile) {
+        .fullScreenCover(isPresented: $showMyProfile) {
             if let user = currentUser.user {
                 ProfileView(user: user)
-                    .presentationDragIndicator(.visible)
+                    .zoomDestination(id: user._id, in: profileZoom)
             }
         }
         // Settings sheet
@@ -284,42 +289,21 @@ struct TabButton: View {
     var hasNotification: Bool = false
     let action: () -> Void
 
-    private var isSearchTab: Bool { tab == .search }
-
     var body: some View {
         Button(action: action) {
-            if isSearchTab {
+            if tab.isCenter {
+                // Center brand button: the Junto mark in a pill, opens the AI experience.
                 Image(tab.iconName)
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(.appSecondary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .frame(width: 28, height: 28)
+                    .foregroundColor(.appPrimary)
+                    .frame(width: 60, height: 44)
                     .background(
-                        RoundedRectangle(cornerRadius: Radius.md)
+                        RoundedRectangle(cornerRadius: Radius.xl)
                             .fill(Color.appSurfaceSecondary)
                     )
-            } else if tab.usesSystemIcon {
-                Image(systemName: isSelected ? tab.selectedIconName : tab.iconName)
-                    .font(.system(size: 22, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? .appPrimary : .appSecondary)
-                    .frame(width: 24, height: 24)
-                    .overlay(alignment: .topTrailing) {
-                        if hasNotification {
-                            Circle()
-                                .fill(.red)
-                                .frame(width: 8, height: 8)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.appSurface, lineWidth: 2)
-                                )
-                                .offset(x: 2, y: 0)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
             } else {
                 Image(isSelected ? tab.selectedIconName : tab.iconName)
                     .renderingMode(.template)
@@ -339,8 +323,8 @@ struct TabButton: View {
                                 .offset(x: 2, y: 0)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.xs)
             }
         }
         .buttonStyle(.pressableScale(0.9))

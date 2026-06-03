@@ -13,6 +13,10 @@ struct NotificationRow: View {
     var onAccept: (() -> Void)? = nil
     var onReject: (() -> Void)? = nil
     var actionStatus: String? = nil
+    /// When set, the sender avatar acts as a zoom-transition source into that
+    /// user's profile (only used when the notification has a sender).
+    var profileZoomID: AnyHashable? = nil
+    var profileZoomNamespace: Namespace.ID? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.md) {
@@ -92,7 +96,9 @@ struct NotificationRow: View {
             AvatarView(
                 avatarUrl: notification.sender?.avatarUrl,
                 name: notification.sender?.name ?? "?",
-                size: 40
+                size: 40,
+                zoomID: profileZoomID,
+                zoomNamespace: profileZoomNamespace
             )
         } else {
             let palette = paletteForType(notification.type)

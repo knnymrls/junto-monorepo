@@ -12,8 +12,23 @@ struct AvatarView: View {
     let name: String
     let size: CGFloat
     var onLoad: (() -> Void)? = nil
+    /// When both are set, this avatar becomes the source of an iOS 18 zoom
+    /// transition into a destination (e.g. ProfileView) tagged with the same
+    /// id via `.zoomDestination(id:in:)`. No-op when either is nil. See
+    /// `ZoomTransition.swift`.
+    var zoomID: AnyHashable? = nil
+    var zoomNamespace: Namespace.ID? = nil
 
     var body: some View {
+        if let zoomID, let zoomNamespace {
+            avatarContent.zoomSource(id: zoomID, in: zoomNamespace)
+        } else {
+            avatarContent
+        }
+    }
+
+    @ViewBuilder
+    private var avatarContent: some View {
         Group {
             if let avatarUrl = avatarUrl, let url = URL(string: avatarUrl) {
                 CachedAsyncImage(url: url) { image in

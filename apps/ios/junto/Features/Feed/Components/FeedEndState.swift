@@ -2,17 +2,20 @@
 //  FeedEndState.swift
 //  junto
 //
-//  Empty / end-of-feed state — smiley + "You've reached the end".
-//  Matches Figma node 70:1614. Shown when the feed has no more items
-//  (also serves as the empty state when there are none at all).
+//  Reusable centered empty/end state — 64px icon + title + subtitle.
+//  Matches Figma nodes 70:1614 (feed end) and 63:1042 (no replies).
 //
 
 import SwiftUI
 
-struct FeedEndState: View {
+struct FeedMessageState: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+
     var body: some View {
         VStack(spacing: Spacing.lg) {
-            Image("feed.empty")
+            Image(icon)
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
@@ -20,11 +23,11 @@ struct FeedEndState: View {
                 .foregroundColor(.appSecondary)
 
             VStack(spacing: Spacing.xxs) {
-                Text("You've reached the end")
+                Text(title)
                     .font(.bodyLargeMedium)
                     .foregroundColor(.appPrimary)
 
-                Text("That's all the posts we have for now!")
+                Text(subtitle)
                     .font(.body14)
                     .foregroundColor(.appSecondary)
             }
@@ -35,10 +38,21 @@ struct FeedEndState: View {
     }
 }
 
+/// Feed end-of-list / empty state.
+struct FeedEndState: View {
+    var body: some View {
+        FeedMessageState(
+            icon: "feed.empty",
+            title: "You've reached the end",
+            subtitle: "That's all the posts we have for now!"
+        )
+    }
+}
+
 #Preview {
     VStack(spacing: 0) {
         FeedEndState()
-        Spacer()
+        FeedMessageState(icon: "feed.replies.empty", title: "No Replies", subtitle: "Be the first to reply")
     }
     .background(Color.appBackground)
 }

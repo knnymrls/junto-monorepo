@@ -18,6 +18,10 @@ struct CommentCard: View {
     var onReportTap: (() -> Void)? = nil
     var onMentionTap: ((String) -> Void)? = nil
     var onAuthorTap: (() -> Void)? = nil
+    /// When set, the comment author avatar acts as a zoom-transition source
+    /// into that user's profile.
+    var profileZoomID: AnyHashable? = nil
+    var profileZoomNamespace: Namespace.ID? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.sm) {
@@ -30,46 +34,22 @@ struct CommentCard: View {
                 isOwnPost: currentUserId == comment.authorId,
                 onAvatarTap: { onAuthorTap?() },
                 onConnectTap: { onConnectTap?() },
-                onDisconnectTap: { onDisconnectTap?() }
+                onDisconnectTap: { onDisconnectTap?() },
+                zoomID: profileZoomID,
+                zoomNamespace: profileZoomNamespace
             )
 
             // Content
             VStack(alignment: .leading, spacing: Spacing.xxs) {
                 // Header
-                HStack {
-                    HStack(spacing: Spacing.xxs) {
-                        Text(comment.author?.name ?? "Unknown")
-                            .font(.bodyMedium)
-                            .foregroundColor(.appPrimary)
+                HStack(spacing: Spacing.xxs) {
+                    Text(comment.author?.name ?? "Unknown")
+                        .font(.bodyMedium)
+                        .foregroundColor(.appPrimary)
 
-                        Text(comment.createdDate.timeAgoShort())
-                            .font(.body14)
-                            .foregroundColor(.appSecondary)
-                    }
-
-                    Spacer()
-
-                    Menu {
-                        if currentUserId == comment.authorId {
-                            Button(action: { onEditTap?() }) {
-                                Label("Edit", systemImage: "pencil")
-                            }
-                            Button(role: .destructive, action: { onDeleteTap?() }) {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        } else {
-                            Button(action: { onReportTap?() }) {
-                                Label("Report", systemImage: "flag")
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 14))
-                            .foregroundColor(.appSecondary)
-                            .padding(Spacing.lg)
-                            .contentShape(Rectangle())
-                            .padding(-Spacing.sm)
-                    }
+                    Text(comment.createdDate.timeAgoShort())
+                        .font(.body14)
+                        .foregroundColor(.appSecondary)
                 }
 
                 // Content with tappable mentions
@@ -112,6 +92,10 @@ struct CommentCard: View {
                 }
             }
         }
+        // Fill the row width and left-align — otherwise a short comment shrinks
+        // the HStack to its content and the parent VStack centers it (looks
+        // like a random right-indent on short replies).
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.md)
         .background(Color.appSurface)

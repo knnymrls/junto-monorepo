@@ -20,6 +20,10 @@ struct DiscoverUserCard: View {
     var isEnhancing: Bool = false
     let onTap: () -> Void
     let onConnect: () -> Void
+    /// When set, the avatar acts as a zoom-transition source into this user's
+    /// profile.
+    var profileZoomID: AnyHashable? = nil
+    var profileZoomNamespace: Namespace.ID? = nil
 
     var body: some View {
         Button(action: onTap) {
@@ -29,7 +33,9 @@ struct DiscoverUserCard: View {
                         AvatarView(
                             avatarUrl: user.avatarUrl,
                             name: user.name,
-                            size: 36
+                            size: 36,
+                            zoomID: profileZoomID,
+                            zoomNamespace: profileZoomNamespace
                         )
 
                         VStack(alignment: .leading, spacing: Spacing.xxs) {
