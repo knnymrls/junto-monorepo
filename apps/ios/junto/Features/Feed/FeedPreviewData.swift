@@ -106,15 +106,18 @@ extension EventWithRsvpResponse {
             location: event.location,
             fullAddress: event.location,
             type: event.type,
+            category: event.category,
             imageUrl: event.imageUrl,
             createdBy: event.createdBy,
             createdAt: event.createdAt,
             goingCount: event.goingCount ?? 0,
             interestedCount: 0,
             host: event.host.map {
-                EventHost(id: $0.id, name: $0.name, avatarUrl: $0.avatarUrl, headline: nil)
+                EventHost(id: $0.id, name: $0.name, avatarUrl: $0.avatarUrl, headline: "University of Nebraska–Lincoln")
             },
-            attendeePreviews: nil
+            attendeePreviews: UserResponse.mockList.prefix(4).map {
+                AttendeePreview(id: $0._id, name: $0.name, avatarUrl: $0.avatarUrl)
+            }
         )
     }
 }

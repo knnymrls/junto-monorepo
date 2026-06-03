@@ -14,6 +14,8 @@
 //
 
 import SwiftUI
+import MapKit
+import CoreLocation
 
 struct EventDetailView: View {
     let event: EventWithRsvpResponse
@@ -21,6 +23,8 @@ struct EventDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showShareSheet = false
     @State private var calendarFile: CalendarFile?
+    @State private var locationCoordinate: CLLocationCoordinate2D?
+    @State private var selectedProfile: UserResponse?
 
     /// Identifiable wrapper so the generated .ics can drive a `.sheet(item:)`.
     private struct CalendarFile: Identifiable {
@@ -53,12 +57,16 @@ struct EventDetailView: View {
         .sheet(item: $calendarFile) { file in
             ShareSheet(items: [file.url])
         }
+        .fullScreenCover(item: $selectedProfile) { user in
+            ProfileView(user: user)
+        }
         .task {
             AnalyticsService.shared.track(.eventViewed(
                 eventId: event._id,
                 eventType: event.eventType.rawValue,
                 hostId: event.createdBy
             ))
+            await geocodeLocation()
         }
     }
 
@@ -88,18 +96,260 @@ struct EventDetailView: View {
         VStack(spacing: Spacing.lg) {
             posterCard
 
-            VStack(alignment: .leading, spacing: Spacing.lg) {
-                Text(event.title)
-                    .font(.heading1)
+            VStack(alignment: .leading, spacing: Spacing.xl) {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    Text(event.title)
+                        .font(.heading1)
+                        .foregroundColor(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    metaRows
+
+                    actionButtons
+                }
+
+                if event.location != nil || event.fullAddress != nil {
+                    locationSection
+                }
+
+                if event.host != nil {
+                    hostsSection
+                }
+
+                if event.goingCount > 0 {
+                    goingSection
+                }
+
+                if let description = event.description, !description.isEmpty {
+                    aboutSection(description)
+                }
+
+                if let category = event.category, !category.isEmpty {
+                    tagsSection(category)
+                }
+            }
+            .padding(.bottom, Spacing.xl)
+        }
+    }
+
+    // MARK: - Section Header (Junto take on the Luma section label + divider)
+
+    private func sectionHeader(_ title: String, trailing: String? = nil, trailingAction: (() -> Void)? = nil) -> some View {
+        VStack(spacing: Spacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(.bodyLargeSemibold)
                     .foregroundColor(.white)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+                if let trailing {
+                    Button(action: { trailingAction?() }) {
+                        Text(trailing)
+                            .font(.bodyLarge)
+                            .foregroundColor(.appSecondaryOnDark)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Rectangle()
+                .fill(Color.white.opacity(0.12))
+                .frame(height: 1)
+        }
+    }
 
-                metaRows
+    // MARK: - Location
 
-                actionButtons
+    private var locationSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            sectionHeader("Location")
+
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                if let location = event.location, !location.isEmpty {
+                    Text(location)
+                        .font(.bodyLargeSemibold)
+                        .foregroundColor(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if let address = event.fullAddress, !address.isEmpty {
+                    Text(address)
+                        .font(.bodyLarge)
+                        .foregroundColor(.appSecondaryOnDark)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if let coordinate = locationCoordinate {
+                mapCard(coordinate)
             }
         }
+    }
+
+    private func mapCard(_ coordinate: CLLocationCoordinate2D) -> some View {
+        Map(initialPosition: .region(MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+        ))) {
+            Marker(event.location ?? "Event", coordinate: coordinate)
+                .tint(Color.appPrimary)
+        }
+        .frame(height: 180)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+        // Static map (no pan/zoom inside the scroll); tap opens Apple Maps.
+        .allowsHitTesting(false)
+        .overlay(
+            Button(action: { openInMaps(coordinate) }) {
+                Color.clear.contentShape(Rectangle())
+            }
+        )
+    }
+
+    // MARK: - Hosts
+
+    private var hostsSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            sectionHeader("Hosts")
+
+            if let host = event.host {
+                Button(action: { openHostProfile(host) }) {
+                    HStack(spacing: Spacing.sm) {
+                        AvatarView(avatarUrl: host.avatarUrl, name: host.name, size: 44)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(host.name)
+                                .font(.bodyLargeSemibold)
+                                .foregroundColor(.white)
+                            if let headline = host.headline, !headline.isEmpty {
+                                Text(headline)
+                                    .font(.bodyLarge)
+                                    .foregroundColor(.appSecondaryOnDark)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressableScale(0.98))
+            }
+        }
+    }
+
+    private func openHostProfile(_ host: EventWithRsvpResponse.EventHost) {
+        Task {
+            if let user = try? await ConvexClientManager.shared.fetchUser(id: host.id) {
+                await MainActor.run { selectedProfile = user }
+            }
+        }
+    }
+
+    // MARK: - Going
+
+    private var goingSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            sectionHeader("\(event.goingCount) Going")
+
+            if let previews = event.attendeePreviews, !previews.isEmpty {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    attendeeAvatarStack(previews)
+                    Text(attendeeNamesText(previews))
+                        .font(.bodyLarge)
+                        .foregroundColor(.appSecondaryOnDark)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    private func attendeeAvatarStack(_ previews: [EventWithRsvpResponse.AttendeePreview]) -> some View {
+        let shown = Array(previews.prefix(4))
+        let remaining = max(0, event.goingCount - shown.count)
+        return HStack(spacing: -10) {
+            ForEach(shown) { person in
+                AvatarView(avatarUrl: person.avatarUrl, name: person.name, size: 36)
+                    .overlay(Circle().stroke(Color.black, lineWidth: 2))
+            }
+            if remaining > 0 {
+                Text("+\(remaining)")
+                    .font(.captionSemibold)
+                    .foregroundColor(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Color.white.opacity(0.15))
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.black, lineWidth: 2))
+            }
+        }
+    }
+
+    private func attendeeNamesText(_ previews: [EventWithRsvpResponse.AttendeePreview]) -> String {
+        let names = previews.prefix(4).map { $0.name }
+        let remaining = max(0, event.goingCount - names.count)
+        var text = names.joined(separator: ", ")
+        if remaining > 0 {
+            text += text.isEmpty ? "\(remaining) going" : ", and \(remaining) more"
+        }
+        return text
+    }
+
+    // MARK: - About
+
+    private func aboutSection(_ description: String) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            sectionHeader("About")
+            Text(description)
+                .font(.bodyLarge)
+                .foregroundColor(.appSecondaryOnDark)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - Tags
+
+    private func tagsSection(_ category: String) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            sectionHeader("Tags")
+            HStack {
+                Text(category)
+                    .font(.bodyMedium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.sm)
+                    .background(Color.white.opacity(0.12))
+                    .clipShape(Capsule())
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    // MARK: - Location helpers
+
+    private func geocodeLocation() async {
+        let query = [event.fullAddress, event.location]
+            .compactMap { $0 }
+            .first { !$0.isEmpty }
+        guard let query else { return }
+        // async API keeps the geocoder alive across the request (a local
+        // CLGeocoder() with a completion handler would deinit and cancel).
+        let placemarks = try? await CLGeocoder().geocodeAddressString(query)
+        if let coordinate = placemarks?.first?.location?.coordinate {
+            locationCoordinate = coordinate
+            return
+        }
+        #if DEBUG
+        // Geocoding is unreliable in the simulator — fall back so the preview
+        // rig still shows the map. Production geocodes the real address above.
+        if ProcessInfo.processInfo.environment["JUNTO_PREVIEW_FEED"] == "1" {
+            locationCoordinate = CLLocationCoordinate2D(latitude: 40.8136, longitude: -96.7026)
+        }
+        #endif
+    }
+
+    private func openInMaps(_ coordinate: CLLocationCoordinate2D) {
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        item.name = event.location ?? event.title
+        item.openInMaps()
     }
 
     // Fixed-size rounded box drives the layout; the image is an overlay clipped
@@ -139,7 +389,7 @@ struct EventDetailView: View {
             }
 
             metaRow(icon: "feed.calendar", text: dateText)
-            metaRow(icon: "feed.clock", text: timeText)
+            metaRow(icon: "event.clock", text: timeText)
         }
     }
 
@@ -275,6 +525,7 @@ struct EventDetailView: View {
             location: "Center for Entrepreneurship (HLH 315)",
             fullAddress: "Center for Entrepreneurship, Lincoln, NE 68508",
             type: "in_person",
+            category: "Pitch",
             imageUrl: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=600&fit=crop",
             createdBy: "mock_1",
             createdAt: Date().timeIntervalSince1970 * 1000,

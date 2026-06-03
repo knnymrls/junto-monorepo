@@ -24,12 +24,12 @@ struct CommentCard: View {
     var profileZoomNamespace: Namespace.ID? = nil
 
     var body: some View {
-        HStack(alignment: .top, spacing: Spacing.sm) {
+        HStack(alignment: .top, spacing: Spacing.md) {
             // Avatar with connection badge
             AvatarAction(
                 avatarUrl: comment.author?.avatarUrl,
                 name: comment.author?.name ?? "?",
-                size: 40,
+                size: 44,
                 connectionStatus: connectionStatus,
                 isOwnPost: currentUserId == comment.authorId,
                 onAvatarTap: { onAuthorTap?() },
@@ -42,20 +42,21 @@ struct CommentCard: View {
             // Content
             VStack(alignment: .leading, spacing: Spacing.xxs) {
                 // Header
-                HStack(spacing: Spacing.xxs) {
+                HStack(spacing: Spacing.sm) {
                     Text(comment.author?.name ?? "Unknown")
-                        .font(.bodyMedium)
+                        .font(.caption12)
                         .foregroundColor(.appPrimary)
 
                     Text(comment.createdDate.timeAgoShort())
-                        .font(.body14)
+                        .font(.caption12)
                         .foregroundColor(.appSecondary)
                 }
 
-                // Content with tappable mentions
+                // Content with tappable mentions — body is 14pt medium (Figma 101:2055)
                 MentionText(
                     content: comment.content,
-                    onMentionTap: onMentionTap
+                    onMentionTap: onMentionTap,
+                    font: .bodyMedium
                 )
 
                 // Comment image
@@ -97,7 +98,7 @@ struct CommentCard: View {
         // like a random right-indent on short replies).
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.md)
+        .padding(.vertical, Spacing.lg)
         .background(Color.appSurface)
     }
 }

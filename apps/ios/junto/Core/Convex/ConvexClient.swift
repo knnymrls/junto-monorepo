@@ -1945,6 +1945,7 @@ struct EventWithRsvpResponse: Codable, Identifiable {
     let location: String?
     let fullAddress: String?
     let type: String
+    let category: String?
     let imageUrl: String?
     let createdBy: String
     let createdAt: Double
