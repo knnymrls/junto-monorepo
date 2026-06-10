@@ -101,14 +101,37 @@ struct LoadingView: View {
     var body: some View {
         ZStack {
             Color.appBackground.ignoresSafeArea()
-            VStack(spacing: 16) {
+            VStack(spacing: 20) {
+                AnimatedJuntoLogo(size: 88)
                 Text("Junto")
-                    .font(.system(size: 32, weight: .bold))
+                    .font(.system(size: 28, weight: .bold))
                     .foregroundColor(.appPrimary)
-                ProgressView()
-                    .tint(.appPrimary)
             }
         }
+    }
+}
+
+/// The Junto mark with a simple breathing pulse — gently scales in and out.
+/// No spin, no fading.
+struct AnimatedJuntoLogo: View {
+    var size: CGFloat = 88
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
+
+    var body: some View {
+        Image("junto-logo")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .foregroundColor(.appPrimary)
+            .scaleEffect(reduceMotion ? 1 : (pulse ? 1.08 : 0.92))
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 0.7).repeatForever(autoreverses: true),
+                value: pulse
+            )
+            .onAppear { pulse = true }
     }
 }
 

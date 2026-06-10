@@ -172,6 +172,7 @@ class SearchViewModel: ObservableObject {
     private var vectorSearchTask: Task<Void, Never>?
     private var streamTask: Task<Void, Never>?
     private var sessionCancellable: AnyCancellable?
+    private var connectionEventsCancellable: AnyCancellable?
     private var sessionId: String?
     private var hasSubmitted = false
 
@@ -199,6 +200,37 @@ class SearchViewModel: ObservableObject {
                     self.performQuickSearch(query: query)
                 }
             }
+
+        // Keep avatar badges in sync when a connection changes from another
+        // surface (e.g. tapping Connect inside a profile sheet opened from here).
+        if connectionEventsCancellable == nil {
+            connectionEventsCancellable = NotificationCenter.default
+                .publisher(for: .connectionStatusChanged)
+                .compactMap { ConnectionEvents.decode($0) }
+                .sink { [weak self] change in
+                    guard let self else { return }
+                    Task { @MainActor in
+                        self.applyConnectionChange(userId: change.userId, status: change.status)
+                    }
+                }
+        }
+    }
+
+    /// Apply an externally-broadcast connection change to the cached sets.
+    private func applyConnectionChange(userId: String, status: ConnectionStatus) {
+        switch status {
+        case .connected:
+            pendingConnectionIds.remove(userId)
+            connectedUserIds.insert(userId)
+        case .pendingSent:
+            connectedUserIds.remove(userId)
+            pendingConnectionIds.insert(userId)
+        case .pendingReceived:
+            break
+        case .none:
+            connectedUserIds.remove(userId)
+            pendingConnectionIds.remove(userId)
+        }
     }
 
     // MARK: - Tier 1: Fast Name Search (~50ms)
@@ -528,6 +560,7 @@ class SearchViewModel: ObservableObject {
 
         do {
             _ = try await convex.sendConnectionRequest(requesterId: myUserId, accepterId: toUserId)
+            ConnectionEvents.post(userId: toUserId, status: .pendingSent)
             AnalyticsService.shared.track(.connectionSent(toUserId: toUserId, source: .search))
             await loadConnections(userId: myUserId)
             return true

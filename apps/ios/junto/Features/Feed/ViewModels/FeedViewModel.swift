@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 @MainActor
 class FeedViewModel: ObservableObject {
@@ -44,10 +45,40 @@ class FeedViewModel: ObservableObject {
     private let convex = ConvexClientManager.shared
     private let initialBatchSize = 6
     private let loadMoreBatchSize = 10
+    private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Init
 
-    init() {}
+    init() {
+        // Keep avatar badges in sync when a connection changes from another
+        // surface (e.g. tapping Connect inside a profile sheet over the feed).
+        NotificationCenter.default.publisher(for: .connectionStatusChanged)
+            .compactMap { ConnectionEvents.decode($0) }
+            .sink { [weak self] change in
+                guard let self else { return }
+                Task { @MainActor in
+                    self.applyConnectionChange(userId: change.userId, status: change.status)
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Apply an externally-broadcast connection change to the cached sets.
+    private func applyConnectionChange(userId: String, status: ConnectionStatus) {
+        switch status {
+        case .connected:
+            pendingConnectionIds.remove(userId)
+            connectedUserIds.insert(userId)
+        case .pendingSent:
+            connectedUserIds.remove(userId)
+            pendingConnectionIds.insert(userId)
+        case .pendingReceived:
+            break
+        case .none:
+            connectedUserIds.remove(userId)
+            pendingConnectionIds.remove(userId)
+        }
+    }
 
     // MARK: - Public Methods
 
@@ -257,6 +288,7 @@ class FeedViewModel: ObservableObject {
         do {
             _ = try await convex.sendConnectionRequest(requesterId: myUserId, accepterId: toUserId)
             print("FeedViewModel: Sent connection request to \(toUserId)")
+            ConnectionEvents.post(userId: toUserId, status: .pendingSent)
 
             // Track connection request
             AnalyticsService.shared.track(.connectionSent(toUserId: toUserId, source: source))
@@ -286,6 +318,7 @@ class FeedViewModel: ObservableObject {
         do {
             _ = try await convex.withdrawConnectionRequest(requesterId: myUserId, accepterId: toUserId)
             print("FeedViewModel: Withdrew connection request to \(toUserId)")
+            ConnectionEvents.post(userId: toUserId, status: .none)
             await loadConnections(userId: myUserId)
             return true
         } catch {
@@ -322,6 +355,7 @@ class FeedViewModel: ObservableObject {
         do {
             _ = try await convex.removeConnection(userId1: myUserId, userId2: withUserId)
             print("FeedViewModel: Removed connection with \(withUserId)")
+            ConnectionEvents.post(userId: withUserId, status: .none)
             // Reload to stay in sync with backend
             await loadConnections(userId: myUserId)
             return true
