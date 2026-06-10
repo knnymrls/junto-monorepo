@@ -8,6 +8,11 @@
  * @module
  */
 
+import type * as askJunto from "../askJunto.js";
+import type * as askJuntoAgent from "../askJuntoAgent.js";
+import type * as askJuntoCore from "../askJuntoCore.js";
+import type * as askJuntoDashboard from "../askJuntoDashboard.js";
+import type * as askJuntoData from "../askJuntoData.js";
 import type * as comments from "../comments.js";
 import type * as connections from "../connections.js";
 import type * as crons from "../crons.js";
@@ -46,6 +51,11 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  askJunto: typeof askJunto;
+  askJuntoAgent: typeof askJuntoAgent;
+  askJuntoCore: typeof askJuntoCore;
+  askJuntoDashboard: typeof askJuntoDashboard;
+  askJuntoData: typeof askJuntoData;
   comments: typeof comments;
   connections: typeof connections;
   crons: typeof crons;
