@@ -1414,6 +1414,37 @@ enum ConnectionStatus: String {
     case connected = "connected"
 }
 
+// MARK: - Connection Events
+
+extension Notification.Name {
+    /// Broadcast whenever the current user's connection status with someone
+    /// changes (request sent / accepted / withdrawn / removed). Lets every
+    /// surface that caches connection state (feed, search, attendees) update
+    /// its avatar badges immediately instead of waiting for the next reload.
+    static let connectionStatusChanged = Notification.Name("connectionStatusChanged")
+}
+
+enum ConnectionEvents {
+    static let userIdKey = "userId"
+    static let statusKey = "status"
+
+    /// Broadcast that the current user's connection status with `userId` is now `status`.
+    static func post(userId: String, status: ConnectionStatus) {
+        NotificationCenter.default.post(
+            name: .connectionStatusChanged,
+            object: nil,
+            userInfo: [userIdKey: userId, statusKey: status]
+        )
+    }
+
+    /// Decode a `.connectionStatusChanged` notification. Returns nil if malformed.
+    static func decode(_ note: Notification) -> (userId: String, status: ConnectionStatus)? {
+        guard let userId = note.userInfo?[userIdKey] as? String,
+              let status = note.userInfo?[statusKey] as? ConnectionStatus else { return nil }
+        return (userId, status)
+    }
+}
+
 // MARK: - Vouches
 
 struct VouchResponse: Codable, Identifiable {

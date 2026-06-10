@@ -62,6 +62,28 @@ struct AttendeesListView: View {
             AnalyticsService.shared.track(.attendeesListViewed(eventId: event._id, timing: timing))
             await loadData()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .connectionStatusChanged)) { note in
+            guard let change = ConnectionEvents.decode(note) else { return }
+            applyConnectionChange(userId: change.userId, status: change.status)
+        }
+    }
+
+    /// Apply an externally-broadcast connection change to the cached sets
+    /// (e.g. when the user connects from a profile sheet opened from this list).
+    private func applyConnectionChange(userId: String, status: ConnectionStatus) {
+        switch status {
+        case .connected:
+            pendingConnectionIds.remove(userId)
+            connectedIds.insert(userId)
+        case .pendingSent:
+            connectedIds.remove(userId)
+            pendingConnectionIds.insert(userId)
+        case .pendingReceived:
+            break
+        case .none:
+            connectedIds.remove(userId)
+            pendingConnectionIds.remove(userId)
+        }
     }
 
     // MARK: - Attendees List
@@ -173,6 +195,7 @@ struct AttendeesListView: View {
         Task {
             do {
                 _ = try await convex.sendConnectionRequest(requesterId: userId, accepterId: attendee.id)
+                ConnectionEvents.post(userId: attendee.id, status: .pendingSent)
             } catch {
                 print("Connection request failed: \(error)")
                 await MainActor.run {

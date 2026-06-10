@@ -208,6 +208,7 @@ struct ProfileView: View {
                     accepterId: user._id
                 )
                 connectionStatus = .pendingSent
+                ConnectionEvents.post(userId: user._id, status: .pendingSent)
             } catch {
                 print("Send connection request error: \(error)")
             }
@@ -225,6 +226,7 @@ struct ProfileView: View {
                     otherUserId: user._id
                 )
                 connectionStatus = .connected
+                ConnectionEvents.post(userId: user._id, status: .connected)
             } catch {
                 print("Accept connection request error: \(error)")
             }

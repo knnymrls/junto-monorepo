@@ -26,9 +26,11 @@ struct WelcomeView: View {
                     // Logo + Brand
                     VStack(spacing: 0) {
                         Image("junto-logo")
+                            .renderingMode(.template)
                             .resizable()
                             .scaledToFit()
                             .frame(width: 162, height: 162)
+                            .foregroundColor(.appPrimary)
 
                         Text("Junto")
                             .font(.juntoDisplay)
