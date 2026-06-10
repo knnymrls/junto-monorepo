@@ -1,11 +1,17 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
+import { scorePost } from "./feedScoring";
 
 // ── Tuning ──
-const MATCH_EVERY_N_POSTS = 4; // inject one match after every N posts (page 0 only)
-const EVENT_POSITION = 1; // inject the soonest event after this many posts (page 0 only)
-const MAX_MATCH_TAGS = 2; // skill categories shown on a match card
+const INJECT_EVERY_N_POSTS = 5; // pop one filler card after every N posts (page 0)
+const EVENT_TOP_SLOT = 2; // imminent event injected after this many posts
+const IMMINENT_EVENT_MS = 48 * 60 * 60 * 1000; // event is "imminent" if within 48h
+const MAX_MATCH_TAGS = 2; // skill categories shown on a person card
+const MAX_NEW_MAKERS = 6; // people-discovery cards mined from the roster
+const SPINE_THIN_THRESHOLD = 5; // below this, the feed leans on manufactured cards
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const MILESTONES = [5, 10, 25, 50, 100];
 
 // ── Helpers (kept local so this module is self-contained) ──
 
@@ -31,37 +37,6 @@ function stripUserEmbeddings(user: Doc<"users">) {
   return rest;
 }
 
-function cosineSimilarity(a: number[], b: number[]): number {
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  if (normA === 0 || normB === 0) return 0;
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-// Same scoring as posts.getFeed: connections (tier) + recency + relevance
-function calculateFeedScore(
-  post: Doc<"posts">,
-  isConnection: boolean,
-  userEmbedding: number[] | null,
-  now: number
-): number {
-  const tierWeight = isConnection ? 10000 : 0;
-  const ageHours = (now - post.createdAt) / (1000 * 60 * 60);
-  const recencyScore = Math.max(0, 1000 * Math.exp(-ageHours / 24));
-  let relevanceScore = 0;
-  if (userEmbedding && post.embedding) {
-    const similarity = cosineSimilarity(userEmbedding, post.embedding);
-    relevanceScore = Math.max(0, (similarity - 0.3) * 714);
-  }
-  return tierWeight + recencyScore + relevanceScore;
-}
-
 async function resolveImageUrl(
   ctx: { storage: { getUrl: (id: any) => Promise<string | null> } },
   url: string | null | undefined
@@ -82,11 +57,29 @@ function currentWeekMonday(): string {
   return monday.toISOString().slice(0, 10);
 }
 
+// Resolve a person's skills → distinct skill categories (the tag pills on a
+// person card). Takes a prebuilt skillId→category map to avoid re-querying.
+function tagsForUser(
+  user: Doc<"users">,
+  skillCategoryById: Map<string, string>
+): string[] {
+  const tags: string[] = [];
+  for (const skillVal of user.skills ?? []) {
+    const category =
+      skillCategoryById.get(skillVal as string) ?? (skillVal as string);
+    if (category && !tags.includes(category)) tags.push(category);
+    if (tags.length >= MAX_MATCH_TAGS) break;
+  }
+  return tags;
+}
+
 // ── Unified feed ──
-// Returns one ordered list of typed items: posts are the spine (scored like
-// posts.getFeed), with the soonest upcoming event and this week's matches
-// injected into page 0. Pages 1+ are posts-only so infinite scroll never
-// repeats an event/match. `offset` counts POSTS already loaded.
+// One ordered list of typed cards. Asks + Updates are the scored spine; Matches,
+// Opportunities (events), and manufactured cards (new makers, digest, momentum,
+// vouch, milestone, prompt) are injected on page 0 so the feed stays full even
+// on a near-empty campus. Page 0 ends with a `caught_up` sentinel (finite feed).
+// Pages 1+ are spine-only so infinite scroll never repeats an injected card.
+// `offset` counts POSTS already loaded. See docs/feed-spec.md.
 export const getFeed = query({
   args: {
     userId: v.id("users"),
@@ -98,12 +91,14 @@ export const getFeed = query({
     const offset = args.offset ?? 0;
     const isFirstPage = offset === 0;
     const now = Date.now();
+    const weekStart = now - WEEK_MS;
 
     const currentUser = await ctx.db.get(args.userId);
-    const userEmbedding = currentUser?.profileEmbedding ?? null;
+    const profileEmbedding = currentUser?.profileEmbedding ?? null;
+    const needsEmbedding = currentUser?.needsEmbedding ?? null;
     const userUniversityId = currentUser?.universityId ?? null;
 
-    // --- Connections (for tier weighting) ---
+    // --- Connections (tier weighting + already-acted) ---
     const asRequester = await ctx.db
       .query("connections")
       .withIndex("by_requester", (q) => q.eq("requesterId", args.userId))
@@ -118,39 +113,75 @@ export const getFeed = query({
       ...asRequester.map((c) => c.accepterId),
       ...asAccepter.map((c) => c.requesterId),
     ]);
+    // Real connection count, captured before weekly-match ids are folded into
+    // `connectionIds` below (those are added only to de-dupe people-discovery).
+    const realConnectionCount = connectionIds.size;
 
-    // --- Post spine (scored + paginated, same as posts.getFeed) ---
+    // Posts I've already acted on: I commented, or I connected from this post.
+    const myComments = await ctx.db
+      .query("comments")
+      .withIndex("by_author", (q) => q.eq("authorId", args.userId))
+      .collect();
+    const actedPostIds = new Set<string>(myComments.map((c) => c.postId));
+    for (const c of [...asRequester, ...asAccepter]) {
+      if (c.source?.type === "post" && c.source.referenceId) {
+        actedPostIds.add(c.source.referenceId);
+      }
+    }
+
+    // Posts I've reported (hide them). No by-reporter index; the table is small.
+    const myReports = await ctx.db
+      .query("reports")
+      .filter((q) => q.eq(q.field("reporterId"), args.userId))
+      .collect();
+    const reportedPostIds = new Set<string>(myReports.map((r) => r.postId));
+
+    // --- Post spine (scored + paginated), excluding own/reported posts ---
     const allPosts = await ctx.db
       .query("posts")
       .withIndex("by_created")
       .order("desc")
-      .take((offset + limit) * 2);
+      .take((offset + limit) * 2 + 10);
 
-    const scoredPosts = allPosts
-      .map((post) => ({
-        post,
-        score: calculateFeedScore(
-          post,
-          connectionIds.has(post.authorId),
-          userEmbedding,
-          now
-        ),
-      }))
-      .sort((a, b) => b.score - a.score);
+    const eligiblePosts = allPosts.filter(
+      (p) => p.authorId !== args.userId && !reportedPostIds.has(p._id)
+    );
 
-    const pagePosts = scoredPosts
-      .slice(offset, offset + limit)
-      .map((sp) => sp.post);
-
-    // Enrich posts: author, comment count, recent commenters
-    const postItems = await Promise.all(
-      pagePosts.map(async (post) => {
-        const author = await ctx.db.get(post.authorId);
+    // We need each post's comment count for both the engagement signal and the
+    // card payload — fetch comments once per post, reuse.
+    const postsWithComments = await Promise.all(
+      eligiblePosts.map(async (post) => {
         const comments = await ctx.db
           .query("comments")
           .withIndex("by_post", (q) => q.eq("postId", post._id))
           .order("desc")
           .collect();
+        return { post, comments };
+      })
+    );
+
+    const scored = postsWithComments
+      .map(({ post, comments }) => ({
+        post,
+        comments,
+        score: scorePost({
+          post,
+          isConnection: connectionIds.has(post.authorId),
+          profileEmbedding,
+          needsEmbedding,
+          responseCount: comments.length,
+          alreadyActed: actedPostIds.has(post._id),
+          now,
+        }),
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    const page = scored.slice(offset, offset + limit);
+
+    // Enrich spine posts: author + comment count + recent commenters
+    const postItems = await Promise.all(
+      page.map(async ({ post, comments }) => {
+        const author = await ctx.db.get(post.authorId);
 
         const seen = new Set<string>();
         const recentCommenters: {
@@ -187,38 +218,118 @@ export const getFeed = query({
       })
     );
 
-    // Pages 1+ are posts-only — return the spine as-is.
+    // Pages 1+ are spine-only — return as-is.
     if (!isFirstPage) {
       return postItems;
     }
 
-    // --- Soonest upcoming event (page 0 only) ---
+    // ════════════════════════ PAGE 0: manufactured cards ════════════════════════
+
+    // Build a skillId→category map once for all person-card tag resolution.
+    const allSkills = await ctx.db.query("skills").collect();
+    const skillCategoryById = new Map<string, string>();
+    for (const s of allSkills) {
+      skillCategoryById.set(s._id as string, s.category);
+    }
+
+    // --- Matches: this week's batch (hero + spread through the feed) ---
+    const matchItems: any[] = [];
+    {
+      const batch = await ctx.db
+        .query("weeklyMatchBatches")
+        .withIndex("by_user_week", (q) =>
+          q.eq("userId", args.userId).eq("weekOf", currentWeekMonday())
+        )
+        .first();
+
+      if (batch && batch.matches.length > 0) {
+        for (const m of batch.matches) {
+          const user = await ctx.db.get(m.matchId as Id<"users">);
+          if (!user) continue;
+          connectionIds.add(user._id); // de-dupe against new-maker mining below
+          matchItems.push({
+            kind: "match" as const,
+            key: `match:${user._id}`,
+            tags: tagsForUser(user, skillCategoryById),
+            match: {
+              ...stripUserEmbeddings(user),
+              matchType: m.matchType,
+              matchReason: m.matchReason,
+            },
+          });
+        }
+      }
+    }
+
+    // --- New makers / people-discovery: mine the roster (scales with campus
+    //     SIZE, not posting activity). Reuses the `match` person card. ---
+    const peopleItems: any[] = [];
+    {
+      const candidates = userUniversityId
+        ? await ctx.db
+            .query("users")
+            .withIndex("by_university", (q) =>
+              q.eq("universityId", userUniversityId)
+            )
+            .collect()
+        : await ctx.db.query("users").collect();
+
+      const fresh = candidates
+        .filter(
+          (u) =>
+            u._id !== args.userId &&
+            u.isOnboarded &&
+            !connectionIds.has(u._id)
+        )
+        .sort((a, b) => b.createdAt - a.createdAt) // newest joiners first
+        .slice(0, MAX_NEW_MAKERS);
+
+      for (const user of fresh) {
+        const isNew = user.createdAt > weekStart;
+        peopleItems.push({
+          kind: "match" as const,
+          key: `person:${user._id}`,
+          tags: tagsForUser(user, skillCategoryById),
+          match: {
+            ...stripUserEmbeddings(user),
+            matchType: "serendipity",
+            matchReason: isNew
+              ? "New on campus — say hi"
+              : "Someone you should know",
+          },
+        });
+      }
+    }
+
+    // --- Opportunity: soonest upcoming event, university-scoped ---
     let eventItem: any = null;
+    let eventImminent = false;
     {
       const events = await ctx.db.query("events").withIndex("by_date").collect();
       let upcoming = events.filter((e) => e.date > now);
       if (userUniversityId) {
-        const scoped = upcoming.filter((e) => e.universityId === userUniversityId);
-        // Fall back to all upcoming if this university has none.
+        const scoped = upcoming.filter(
+          (e) => e.universityId === userUniversityId
+        );
         upcoming = scoped.length > 0 ? scoped : upcoming;
       }
       upcoming.sort((a, b) => a.date - b.date);
       const event = upcoming[0];
       if (event) {
+        eventImminent = event.date - now <= IMMINENT_EVENT_MS;
         const host = await ctx.db.get(event.createdBy);
         const rsvps = await ctx.db
           .query("eventRsvps")
           .withIndex("by_event", (q) => q.eq("eventId", event._id))
           .collect();
-        const goingCount = rsvps.filter((r) => r.status === "going").length;
-        const previewRsvps = rsvps
-          .filter((r) => r.status === "going")
-          .slice(0, 3);
+        const going = rsvps.filter((r) => r.status === "going");
         const attendeePreviews = (
           await Promise.all(
-            previewRsvps.map(async (r) => {
+            going.slice(0, 3).map(async (r) => {
               const u = await ctx.db.get(r.userId);
-              return u ? { id: u._id, name: u.name, avatarUrl: u.avatarUrl } : null;
+              return u
+                ? { id: u._id, name: u.name, avatarUrl: u.avatarUrl }
+                : null;
             })
           )
         ).filter(Boolean);
@@ -233,88 +344,190 @@ export const getFeed = query({
             host: host
               ? { id: host._id, name: host.name, avatarUrl: host.avatarUrl }
               : null,
-            goingCount,
+            goingCount: going.length,
             attendeePreviews,
           },
         };
       }
     }
 
-    // --- This week's matches (page 0 only) ---
-    const matchItems: any[] = [];
+    // --- Digest: this week's campus activity in one card ---
+    let digestItem: any = null;
     {
-      const weekOf = currentWeekMonday();
-      const batch = await ctx.db
-        .query("weeklyMatchBatches")
-        .withIndex("by_user_week", (q) =>
-          q.eq("userId", args.userId).eq("weekOf", weekOf)
-        )
-        .first();
+      const newMakers = (
+        userUniversityId
+          ? await ctx.db
+              .query("users")
+              .withIndex("by_university", (q) =>
+                q.eq("universityId", userUniversityId)
+              )
+              .collect()
+          : await ctx.db.query("users").collect()
+      ).filter((u) => u.isOnboarded && u.createdAt > weekStart).length;
 
-      if (batch && batch.matches.length > 0) {
-        // Build a skill id/name → category map once for tag resolution.
-        const allSkills = await ctx.db.query("skills").collect();
-        const skillCategoryById = new Map<string, string>();
-        for (const s of allSkills) {
-          skillCategoryById.set(s._id as string, s.category);
-        }
+      const newAsks = scored.filter(
+        ({ post }) => post.createdAt > weekStart && post.category !== "sharing"
+      ).length;
 
-        for (const m of batch.matches) {
-          const user = await ctx.db.get(m.matchId as Id<"users">);
-          if (!user) continue;
+      const upcomingEvents = (
+        await ctx.db.query("events").withIndex("by_date").collect()
+      ).filter(
+        (e) =>
+          e.date > now &&
+          (!userUniversityId || e.universityId === userUniversityId)
+      ).length;
 
-          // Resolve the person's skills → distinct skill categories (the tag pills).
-          const tags: string[] = [];
-          for (const skillVal of user.skills ?? []) {
-            const category =
-              skillCategoryById.get(skillVal as string) ?? (skillVal as string);
-            if (category && !tags.includes(category)) tags.push(category);
-            if (tags.length >= MAX_MATCH_TAGS) break;
-          }
+      if (newMakers > 0 || newAsks > 0 || upcomingEvents > 0) {
+        digestItem = {
+          kind: "digest" as const,
+          key: `digest:${currentWeekMonday()}`,
+          digest: { newMakers, newAsks, upcomingEvents },
+        };
+      }
+    }
 
-          matchItems.push({
-            kind: "match" as const,
-            key: `match:${user._id}`,
-            tags,
-            match: {
-              ...stripUserEmbeddings(user),
-              matchType: m.matchType,
-              matchReason: m.matchReason,
+    // --- Momentum: connections made across the platform this week ---
+    let momentumItem: any = null;
+    {
+      const connectedThisWeek = (
+        await ctx.db
+          .query("connections")
+          .withIndex("by_status", (q) => q.eq("status", "connected"))
+          .collect()
+      ).filter((c) => (c.connectedAt ?? c.createdAt) > weekStart).length;
+
+      if (connectedThisWeek > 0) {
+        momentumItem = {
+          kind: "momentum" as const,
+          key: `momentum:${currentWeekMonday()}`,
+          momentum: { connectionsThisWeek: connectedThisWeek },
+        };
+      }
+    }
+
+    // --- Vouch: vouches I received this week ("Alex vouched for you") ---
+    let vouchItem: any = null;
+    {
+      const recentVouch = (
+        await ctx.db
+          .query("vouches")
+          .withIndex("by_to_user", (q) => q.eq("toUserId", args.userId))
+          .order("desc")
+          .collect()
+      ).find((vch) => vch.createdAt > weekStart);
+
+      if (recentVouch) {
+        const fromUser = await ctx.db.get(recentVouch.fromUserId);
+        if (fromUser) {
+          vouchItem = {
+            kind: "vouch" as const,
+            key: `vouch:${recentVouch._id}`,
+            vouch: {
+              _id: recentVouch._id,
+              reason: recentVouch.reason,
+              createdAt: recentVouch.createdAt,
+              fromUser: {
+                _id: fromUser._id,
+                name: fromUser.name,
+                avatarUrl: fromUser.avatarUrl,
+                headline: fromUser.headline,
+              },
             },
-          });
+          };
         }
       }
     }
 
-    // --- Interleave: posts spine + event near top + matches every N posts ---
+    // --- Milestone: I just crossed a connection milestone ---
+    let milestoneItem: any = null;
+    {
+      // Only celebrate when freshly crossed (within +2 of the threshold), since
+      // there's no per-user "seen" state yet — avoids showing it forever.
+      const justCrossed = MILESTONES.find(
+        (m) => realConnectionCount >= m && realConnectionCount < m + 3
+      );
+      if (justCrossed) {
+        milestoneItem = {
+          kind: "milestone" as const,
+          key: `milestone:${justCrossed}`,
+          milestone: { count: justCrossed },
+        };
+      }
+    }
+
+    // --- Prompt: nudge to post if I've been quiet for 7 days ---
+    let promptItem: any = null;
+    {
+      const myLatestPost = await ctx.db
+        .query("posts")
+        .withIndex("by_author", (q) => q.eq("authorId", args.userId))
+        .order("desc")
+        .first();
+      const quiet = !myLatestPost || myLatestPost.createdAt < weekStart;
+      if (quiet) {
+        promptItem = {
+          kind: "prompt" as const,
+          key: `prompt:${currentWeekMonday()}`,
+          prompt: { text: "What do you need right now?" },
+        };
+      }
+    }
+
+    // ════════════════════════ Assembly ════════════════════════
+
     const items: any[] = [];
-    let matchCursor = 0;
-    let eventInjected = false;
+
+    // Hero: the strongest re-engagement card opens the feed.
+    const heroMatch = matchItems.shift() ?? null;
+    if (heroMatch) items.push(heroMatch);
+
+    // Filler queue, popped between posts and then drained so nothing is lost
+    // (this is what keeps a sparse feed full). Imminent events lead.
+    const fillers: any[] = [];
+    if (eventItem && eventImminent) fillers.push(eventItem);
+    fillers.push(...matchItems, ...peopleItems);
+    if (digestItem) fillers.push(digestItem);
+    if (momentumItem) fillers.push(momentumItem);
+    if (vouchItem) fillers.push(vouchItem);
+    if (milestoneItem) fillers.push(milestoneItem);
+    if (eventItem && !eventImminent) fillers.push(eventItem);
 
     for (let i = 0; i < postItems.length; i++) {
       items.push(postItems[i]);
       const postsSoFar = i + 1;
 
-      if (!eventInjected && eventItem && postsSoFar === EVENT_POSITION) {
-        items.push(eventItem);
-        eventInjected = true;
-      }
-
+      // Drop an imminent event near the very top.
       if (
-        postsSoFar % MATCH_EVERY_N_POSTS === 0 &&
-        matchCursor < matchItems.length
+        eventItem &&
+        eventImminent &&
+        postsSoFar === EVENT_TOP_SLOT &&
+        fillers[0] === eventItem
       ) {
-        items.push(matchItems[matchCursor++]);
+        items.push(fillers.shift());
+        continue;
+      }
+
+      if (postsSoFar % INJECT_EVERY_N_POSTS === 0 && fillers.length > 0) {
+        items.push(fillers.shift());
       }
     }
 
-    // If the page was short (few posts), make sure the event still appears.
-    if (!eventInjected && eventItem) {
-      items.unshift(eventItem);
+    // Is the whole spine on this page? (No page 1 to load.) Only then do the
+    // terminal cards belong at the end — otherwise they'd strand mid-feed once
+    // load-more appends the next page of posts.
+    const spineExhausted = scored.length <= offset + limit;
+
+    if (!spineExhausted && promptItem) {
+      // More posts exist — fold the prompt into the interleave instead of trailing it.
+      fillers.push(promptItem);
     }
-    // Append any matches that didn't fit the cadence so they aren't lost.
-    while (matchCursor < matchItems.length) {
-      items.push(matchItems[matchCursor++]);
+
+    // Drain remaining fillers — on a thin spine this is most of the feed.
+    while (fillers.length > 0) items.push(fillers.shift());
+
+    if (spineExhausted) {
+      if (promptItem) items.push(promptItem);
+      items.push({ kind: "caught_up" as const, key: "caught_up" });
     }
 
     return items;
