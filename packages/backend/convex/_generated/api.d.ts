@@ -16,6 +16,7 @@ import type * as deviceTokens from "../deviceTokens.js";
 import type * as embeddings from "../embeddings.js";
 import type * as events from "../events.js";
 import type * as feed from "../feed.js";
+import type * as feedScoring from "../feedScoring.js";
 import type * as http from "../http.js";
 import type * as inviteLinks from "../inviteLinks.js";
 import type * as majorCache from "../majorCache.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   embeddings: typeof embeddings;
   events: typeof events;
   feed: typeof feed;
+  feedScoring: typeof feedScoring;
   http: typeof http;
   inviteLinks: typeof inviteLinks;
   majorCache: typeof majorCache;

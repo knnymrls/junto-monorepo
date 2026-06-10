@@ -145,7 +145,8 @@ struct FeedCard: View {
                 text: match.matchReason,
                 useMentions: false
             )
-        case .event, .none:
+        case .event, .digest, .vouch, .momentum, .milestone, .prompt, .caughtUp, .none:
+            // Not person/post cards — rendered by their own views in FeedView.
             return nil
         }
     }

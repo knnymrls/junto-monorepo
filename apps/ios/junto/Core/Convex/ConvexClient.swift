@@ -2221,11 +2221,47 @@ struct FeedItemResponse: Codable, Identifiable, Hashable {
     let post: PostResponse?
     let event: EventResponse?
     let match: SuggestedMatchResponse?
+    // Manufactured "house" cards that keep a sparse feed full (see feed-spec.md).
+    let digest: DigestFeedResponse?
+    let vouch: VouchFeedResponse?
+    let momentum: MomentumFeedResponse?
+    let milestone: MilestoneFeedResponse?
+    let prompt: PromptFeedResponse?
 
     var id: String { key }
 
+    // Explicit init so existing call sites (previews) that pass only the
+    // taxonomy payloads keep compiling; new house payloads default to nil.
+    init(
+        kind: String,
+        key: String,
+        tags: [String]?,
+        post: PostResponse? = nil,
+        event: EventResponse? = nil,
+        match: SuggestedMatchResponse? = nil,
+        digest: DigestFeedResponse? = nil,
+        vouch: VouchFeedResponse? = nil,
+        momentum: MomentumFeedResponse? = nil,
+        milestone: MilestoneFeedResponse? = nil,
+        prompt: PromptFeedResponse? = nil
+    ) {
+        self.kind = kind
+        self.key = key
+        self.tags = tags
+        self.post = post
+        self.event = event
+        self.match = match
+        self.digest = digest
+        self.vouch = vouch
+        self.momentum = momentum
+        self.milestone = milestone
+        self.prompt = prompt
+    }
+
     enum Kind: String, Codable {
         case post, event, match
+        case digest, vouch, momentum, milestone, prompt
+        case caughtUp = "caught_up"
     }
 
     var kindType: Kind? { Kind(rawValue: kind) }
@@ -2235,19 +2271,72 @@ struct FeedItemResponse: Codable, Identifiable, Hashable {
         case post(PostResponse)
         case event(EventResponse)
         case match(SuggestedMatchResponse)
+        case digest(DigestFeedResponse)
+        case vouch(VouchFeedResponse)
+        case momentum(MomentumFeedResponse)
+        case milestone(MilestoneFeedResponse)
+        case prompt(PromptFeedResponse)
+        case caughtUp
     }
 
     var content: Content? {
         switch kindType {
-        case .post:  return post.map(Content.post)
-        case .event: return event.map(Content.event)
-        case .match: return match.map(Content.match)
-        case .none:  return nil
+        case .post:      return post.map(Content.post)
+        case .event:     return event.map(Content.event)
+        case .match:     return match.map(Content.match)
+        case .digest:    return digest.map(Content.digest)
+        case .vouch:     return vouch.map(Content.vouch)
+        case .momentum:  return momentum.map(Content.momentum)
+        case .milestone: return milestone.map(Content.milestone)
+        case .prompt:    return prompt.map(Content.prompt)
+        case .caughtUp:  return .caughtUp
+        case .none:      return nil
         }
     }
 
     /// Skill-category tag pills (post topics / match person's skill categories).
     var displayTags: [String] { tags ?? [] }
+}
+
+// MARK: - Manufactured "house" card payloads
+
+/// "This week: N makers, N asks, N events."
+struct DigestFeedResponse: Codable, Hashable {
+    let newMakers: Int
+    let newAsks: Int
+    let upcomingEvents: Int
+}
+
+/// "Alex vouched for you." Surfaced from a recent vouch you received.
+struct VouchFeedResponse: Codable, Hashable {
+    let _id: String
+    let reason: String
+    let createdAt: Double
+    let fromUser: VouchFromUser
+
+    struct VouchFromUser: Codable, Hashable {
+        let _id: String
+        let name: String
+        let avatarUrl: String?
+        let headline: String?
+    }
+
+    var createdDate: Date { Date(timeIntervalSince1970: createdAt / 1000) }
+}
+
+/// "Builders made N connections this week."
+struct MomentumFeedResponse: Codable, Hashable {
+    let connectionsThisWeek: Int
+}
+
+/// "You hit N connections."
+struct MilestoneFeedResponse: Codable, Hashable {
+    let count: Int
+}
+
+/// "What do you need right now?" — nudge to post.
+struct PromptFeedResponse: Codable, Hashable {
+    let text: String
 }
 
 // MARK: - Mock Data for Posts

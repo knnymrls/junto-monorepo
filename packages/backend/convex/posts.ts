@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
+import { scorePost } from "./feedScoring";
 
 // Helper to strip embedding from post (reduces bandwidth significantly)
 function stripEmbedding(post: Doc<"posts">) {
@@ -20,50 +21,26 @@ function stripEmbedding(post: Doc<"posts">) {
   };
 }
 
-// Helper: Cosine similarity between two embedding vectors
-function cosineSimilarity(a: number[], b: number[]): number {
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-
-  if (normA === 0 || normB === 0) return 0;
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-// Calculate feed score for sorting
-// Score = TierWeight + RecencyScore + RelevanceScore
-// - TierWeight: 10000 (connections) or 0 (others)
-// - RecencyScore: 0-1000 (exponential decay, ~24h half-life)
-// - RelevanceScore: 0-500 (cosine similarity between user & post embeddings)
+// Feed score for sorting. Delegates to the shared model in feedScoring.ts so
+// this legacy feed can't drift from feed.getFeed (the unified feed iOS calls).
+// This path lacks per-post engagement / already-acted / needs-embedding, so it
+// passes neutral values for those; ranking philosophy (soft tier, complementary
+// relevance, per-card decay) is identical.
 function calculateFeedScore(
   post: Doc<"posts">,
   isConnection: boolean,
   userEmbedding: number[] | null,
   now: number
 ): number {
-  // Tier: connections always rank first
-  const tierWeight = isConnection ? 10000 : 0;
-
-  // Recency: newer = higher (0-1000), exponential decay with ~24h half-life
-  const ageHours = (now - post.createdAt) / (1000 * 60 * 60);
-  const recencyScore = Math.max(0, 1000 * Math.exp(-ageHours / 24));
-
-  // Relevance: similarity to user profile (0-500)
-  let relevanceScore = 0;
-  if (userEmbedding && post.embedding) {
-    const similarity = cosineSimilarity(userEmbedding, post.embedding);
-    // Map similarity (0.3-1.0) to score (0-500)
-    // Similarity below 0.3 is considered noise
-    relevanceScore = Math.max(0, (similarity - 0.3) * 714);
-  }
-
-  return tierWeight + recencyScore + relevanceScore;
+  return scorePost({
+    post,
+    isConnection,
+    profileEmbedding: userEmbedding,
+    needsEmbedding: userEmbedding,
+    responseCount: 0,
+    alreadyActed: false,
+    now,
+  });
 }
 
 // === QUERIES ===

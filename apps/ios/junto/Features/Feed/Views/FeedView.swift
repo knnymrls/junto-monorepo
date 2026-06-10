@@ -235,9 +235,47 @@ struct FeedView: View {
                 onCardTap: { selectEvent(event) }
             )
             .zoomSource(id: event._id, in: eventZoom)
+        case .digest(let digest):
+            FeedNoticeCard(
+                icon: "sparkles",
+                title: "This week on campus",
+                subtitle: digestSubtitle(digest)
+            )
+        case .vouch(let vouch):
+            FeedVouchCard(vouch: vouch)
+        case .momentum(let momentum):
+            FeedNoticeCard(
+                icon: "person.2",
+                title: "Campus momentum",
+                subtitle: "\(momentum.connectionsThisWeek) connection\(momentum.connectionsThisWeek == 1 ? "" : "s") made this week"
+            )
+        case .milestone(let milestone):
+            FeedNoticeCard(
+                icon: "trophy",
+                title: "You've reached \(milestone.count) connections",
+                subtitle: "Your network is growing"
+            )
+        case .prompt(let prompt):
+            FeedNoticeCard(
+                icon: "square.and.pencil",
+                title: prompt.text,
+                subtitle: "Tap to post",
+                onTap: { showComposer = true }
+            )
+        case .caughtUp:
+            FeedCaughtUpCard()
         case .none:
             EmptyView()
         }
+    }
+
+    /// Builds the digest subtitle, dropping zero counts (e.g. "5 new makers · 2 events").
+    private func digestSubtitle(_ d: DigestFeedResponse) -> String {
+        var parts: [String] = []
+        if d.newMakers > 0 { parts.append("\(d.newMakers) new maker\(d.newMakers == 1 ? "" : "s")") }
+        if d.newAsks > 0 { parts.append("\(d.newAsks) ask\(d.newAsks == 1 ? "" : "s")") }
+        if d.upcomingEvents > 0 { parts.append("\(d.upcomingEvents) event\(d.upcomingEvents == 1 ? "" : "s")") }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: - Event Selection
