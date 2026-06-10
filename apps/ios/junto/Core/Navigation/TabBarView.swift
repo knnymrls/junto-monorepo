@@ -63,6 +63,10 @@ enum Tab: String, CaseIterable {
 // tab's rawValue so each tab can filter for its own notifications.
 extension Notification.Name {
     static let composeFABTapped = Notification.Name("composeFABTapped")
+    /// Ask Junto conversations drawer → open a past thread (object = threadId String).
+    static let askJuntoOpenThread = Notification.Name("askJuntoOpenThread")
+    /// Ask Junto conversations drawer → start a fresh conversation.
+    static let askJuntoNewConversation = Notification.Name("askJuntoNewConversation")
 }
 
 // Environment key to hide tab bar
@@ -79,6 +83,7 @@ extension EnvironmentValues {
 
 struct TabBarView: View {
     @Environment(\.clerk) private var clerk
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var currentUser: CurrentUserManager
     @State private var selectedTab: Tab = .feed
     @State private var isTabBarVisible = true
@@ -95,7 +100,12 @@ struct TabBarView: View {
     @State private var showSideMenu = false
     @State private var showMyProfile = false
     @State private var showSettings = false
+    @State private var showAIConversations = false
     private let menuWidth: CGFloat = 280
+    private let aiDrawerWidth: CGFloat = 300
+
+    /// True when either side drawer is open — drives the rounded-page treatment.
+    private var drawerOpen: Bool { showSideMenu || showAIConversations }
 
     // Zoom transition namespace: top-nav avatar → my profile
     @Namespace private var profileZoom
@@ -119,6 +129,22 @@ struct TabBarView: View {
                 .frame(width: menuWidth)
             }
 
+            // Ask Junto conversations drawer (sits at right edge, behind content)
+            if showAIConversations, let uid = currentUser.userId {
+                AskJuntoThreadsDrawer(
+                    userId: uid,
+                    onSelect: { id in
+                        NotificationCenter.default.post(name: .askJuntoOpenThread, object: id)
+                        withAnimation(.easeInOut(duration: 0.25)) { showAIConversations = false }
+                    },
+                    onNew: {
+                        NotificationCenter.default.post(name: .askJuntoNewConversation, object: nil)
+                        withAnimation(.easeInOut(duration: 0.25)) { showAIConversations = false }
+                    }
+                )
+                .frame(width: aiDrawerWidth)
+            }
+
             // Main content (slides left to reveal menu)
             ZStack(alignment: .bottom) {
                 Group {
@@ -136,10 +162,12 @@ struct TabBarView: View {
                             profileZoomNamespace: profileZoom
                         )
                     case .ai:
-                        VStack(spacing: 0) {
-                            defaultTopNav(.ai)
-                            SearchView()
-                        }
+                        // Ask Junto owns its own header (avatar + title + history),
+                        // empty state, conversation, and composer.
+                        AskJuntoView(
+                            onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } },
+                            onOpenConversations: { withAnimation(.easeInOut(duration: 0.25)) { showAIConversations = true } }
+                        )
                     case .messages:
                         VStack(spacing: 0) {
                             defaultTopNav(.messages)
@@ -210,13 +238,37 @@ struct TabBarView: View {
                 }
             }
             .overlay {
-                if showSideMenu {
+                if showSideMenu || showAIConversations {
                     Color.black.opacity(0.001)
                         .ignoresSafeArea()
-                        .onTapGesture { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu = false } }
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                showSideMenu = false
+                                showAIConversations = false
+                            }
+                        }
                 }
             }
-            .offset(x: showSideMenu ? -menuWidth : 0)
+            // Round the content like a natural iOS page sitting on the drawer.
+            // A mask that ignores the safe area rounds the FULL screen (incl. the
+            // top/bottom safe areas) without shifting any layout, so no black gaps.
+            .mask {
+                RoundedRectangle(cornerRadius: drawerOpen ? 40 : 0, style: .continuous)
+                    .ignoresSafeArea()
+            }
+            // Always-present so it rounds with the card instead of opacity-fading
+            // in (lineWidth 0 when closed keeps it off the full-screen edges).
+            .overlay {
+                RoundedRectangle(cornerRadius: drawerOpen ? 40 : 0, style: .continuous)
+                    .stroke(Color.appBorder, lineWidth: drawerOpen ? 1 : 0)
+                    .ignoresSafeArea()
+            }
+            // Shadow only in light mode — on the dark surface it read as a black smudge.
+            .shadow(
+                color: .black.opacity((drawerOpen && colorScheme == .light) ? 0.12 : 0),
+                radius: 16, x: 0, y: 2
+            )
+            .offset(x: showSideMenu ? -menuWidth : (showAIConversations ? -aiDrawerWidth : 0))
         }
         // Profile sheet
         .fullScreenCover(isPresented: $showMyProfile) {

@@ -70,6 +70,12 @@ extension Color {
             : UIColor(red: 0.96, green: 0.96, blue: 0.96, alpha: 1.0)  // #F5F5F5
     })
 
+    /// Slide-out drawer background — pure white (light) / pure black (dark), so
+    /// the rounded content page reads as a layer on top of it.
+    static let appDrawerBackground = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark ? .black : .white
+    })
+
     /// Input fill — #F2F2F2 light / #262626 dark
     static let appInputFill = Color(UIColor { tc in
         tc.userInterfaceStyle == .dark

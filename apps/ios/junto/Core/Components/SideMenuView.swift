@@ -36,7 +36,7 @@ struct SideMenuView: View {
         .padding(.horizontal, Spacing.xl)
         .padding(.top, 60)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.appSurfaceDimmed)
+        .background(Color.appDrawerBackground)
         .ignoresSafeArea()
     }
 

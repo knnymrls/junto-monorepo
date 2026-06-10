@@ -483,4 +483,71 @@ export default defineSchema({
     .index("by_target_active", ["targetUserId", "dismissed", "expiresAt"])
     .index("by_fingerprint", ["fingerprint"])
     .index("by_created", ["createdAt"]),
+
+  // === ASK JUNTO (AI assistant) ===
+  // A conversation thread between a student and the Ask Junto agent.
+  askJuntoThreads: defineTable({
+    userId: v.id("users"),
+    title: v.string(),
+    lastMessageAt: v.number(),
+    lastMessagePreview: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId", "lastMessageAt"]),
+
+  // Render rows the client subscribes to. Assistant rows carry the block array.
+  askJuntoMessages: defineTable({
+    threadId: v.id("askJuntoThreads"),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    text: v.optional(v.string()),          // user's question, or assistant summary line
+    blocks: v.optional(v.string()),        // JSON of Block[] (assistant only)
+    status: v.optional(v.string()),        // "pending" | "complete" | "error" (assistant only)
+    step: v.optional(v.string()),          // live progress label while pending (assistant only)
+    createdAt: v.number(),
+  })
+    .index("by_thread", ["threadId", "createdAt"]),
+
+  // The Agents-SDK Session store: raw AgentInputItem[] for conversation memory.
+  // Kept separate from render rows so we own both the agent's history and the UI.
+  askJuntoItems: defineTable({
+    threadId: v.id("askJuntoThreads"),
+    seq: v.number(),                       // monotonic order within the thread
+    item: v.string(),                      // JSON of a single AgentInputItem
+    createdAt: v.number(),
+  })
+    .index("by_thread", ["threadId", "seq"]),
+
+  // What students are asking — the university-facing signal feed (Pulse + Asks).
+  // One signal per thread: later turns update it instead of inserting duplicates,
+  // so a back-and-forth conversation about one need counts once.
+  askJuntoSignals: defineTable({
+    userId: v.id("users"),
+    universityId: v.optional(v.id("universities")),
+    threadId: v.id("askJuntoThreads"),
+    text: v.string(),                      // normalized one-line need
+    category: v.string(),                  // one of NEED_CATEGORIES
+    status: v.union(
+      v.literal("open"),
+      v.literal("matched"),
+      v.literal("resolved")
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_university", ["universityId", "createdAt"])
+    .index("by_university_status", ["universityId", "status"])
+    .index("by_thread", ["threadId"])
+    .index("by_user", ["userId", "createdAt"]),
+
+  // Durable per-user memory the agent builds up across conversations — what
+  // they're building, what they need, preferences. Loaded into every turn so
+  // Ask Junto "remembers" the student and personalizes future answers.
+  askJuntoMemory: defineTable({
+    userId: v.id("users"),
+    text: v.string(),                      // one durable fact, e.g. "Building FindU, a college decision app"
+    category: v.optional(v.string()),      // "project" | "looking_for" | "skill" | "interest" | "other"
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId", "createdAt"]),
 });

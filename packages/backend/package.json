@@ -4,10 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "convex dev",
-    "deploy": "convex deploy"
+    "deploy": "convex deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "ask": "tsx scripts/ask.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.26",
+    "@openai/agents": "^0.11.6",
     "@supabase/supabase-js": "^2.99.1",
     "ai": "^6.0.78",
     "convex": "^1.17.0",
@@ -16,6 +20,8 @@
   },
   "devDependencies": {
     "@types/node": "^25.0.10",
-    "typescript": "^5.3.0"
+    "tsx": "^4.22.4",
+    "typescript": "^5.3.0",
+    "vitest": "^4.1.8"
   }
 }
