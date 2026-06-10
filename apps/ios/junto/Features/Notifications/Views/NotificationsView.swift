@@ -127,7 +127,6 @@ struct NotificationsView: View {
             .buttonStyle(.pressableScale(0.9))
         }
         .padding(.horizontal, Spacing.lg)
-        .padding(.top, Spacing.sm)
         .padding(.bottom, Spacing.sm)
         .background(Color.appSurface.ignoresSafeArea(edges: .top))
     }
