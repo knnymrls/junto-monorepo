@@ -16,6 +16,8 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import EventKit
+import EventKitUI
 
 struct EventDetailView: View {
     let event: EventWithRsvpResponse
@@ -23,13 +25,23 @@ struct EventDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showShareSheet = false
     @State private var calendarFile: CalendarFile?
+    @State private var calendarRequest: CalendarEditRequest?
     @State private var locationCoordinate: CLLocationCoordinate2D?
     @State private var selectedProfile: UserResponse?
+    @State private var isGoing = false
+    @State private var showCancelConfirm = false
 
     /// Identifiable wrapper so the generated .ics can drive a `.sheet(item:)`.
     private struct CalendarFile: Identifiable {
         let id = UUID()
         let url: URL
+    }
+
+    /// Drives the native EventKit "Add Event" modal.
+    private struct CalendarEditRequest: Identifiable {
+        let id = UUID()
+        let event: EKEvent
+        let store: EKEventStore
     }
 
     var body: some View {
@@ -57,10 +69,17 @@ struct EventDetailView: View {
         .sheet(item: $calendarFile) { file in
             ShareSheet(items: [file.url])
         }
+        .sheet(item: $calendarRequest) { req in
+            CalendarEventEditView(event: req.event, eventStore: req.store) {
+                calendarRequest = nil
+            }
+            .ignoresSafeArea()
+        }
         .fullScreenCover(item: $selectedProfile) { user in
             ProfileView(user: user)
         }
         .task {
+            isGoing = (event.myStatus == "going")
             AnalyticsService.shared.track(.eventViewed(
                 eventId: event._id,
                 eventType: event.eventType.rawValue,
@@ -125,8 +144,8 @@ struct EventDetailView: View {
                     aboutSection(description)
                 }
 
-                if let category = event.category, !category.isEmpty {
-                    tagsSection(category)
+                if !eventMakerCategories.isEmpty || !(event.category ?? "").isEmpty {
+                    tagsSection
                 }
             }
             .padding(.bottom, Spacing.xl)
@@ -307,20 +326,41 @@ struct EventDetailView: View {
 
     // MARK: - Tags
 
-    private func tagsSection(_ category: String) -> some View {
+    private var eventMakerCategories: [SkillCategory] {
+        (event.categories ?? []).compactMap { SkillCategory.match($0) }
+    }
+
+    private var tagsSection: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             sectionHeader("Tags")
-            HStack {
-                Text(category)
-                    .font(.bodyMedium)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.sm)
-                    .background(Color.white.opacity(0.12))
-                    .clipShape(Capsule())
-                Spacer(minLength: 0)
+            FlowLayout(spacing: Spacing.sm) {
+                ForEach(eventMakerCategories, id: \.self) { cat in
+                    eventTagPill(label: cat.label, icon: cat)
+                }
+                if let type = event.category, !type.isEmpty {
+                    eventTagPill(label: type, icon: eventMakerCategories.first)
+                }
             }
         }
+    }
+
+    private func eventTagPill(label: String, icon: SkillCategory?) -> some View {
+        HStack(spacing: Spacing.xxs) {
+            if let asset = icon?.icon {
+                Image(asset)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
+            }
+            Text(label)
+                .font(.bodyMedium)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(Color.white.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
     }
 
     // MARK: - Location helpers
@@ -413,14 +453,40 @@ struct EventDetailView: View {
 
     private var actionButtons: some View {
         HStack(spacing: Spacing.sm) {
-            actionButton(icon: "event.ticket", label: "Register", primary: true) {
-                // TODO: event registration flow
+            actionButton(
+                icon: "event.ticket",
+                label: isGoing ? "Going" : "Register",
+                primary: !isGoing
+            ) {
+                if isGoing { showCancelConfirm = true } else { setRsvp("going") }
             }
             actionButton(icon: "feed.calendar", label: "Add to Calendar", primary: false) {
                 addToCalendar()
             }
         }
         .padding(.top, Spacing.xxs)
+        .confirmationDialog("Cancel your RSVP?", isPresented: $showCancelConfirm, titleVisibility: .visible) {
+            Button("Cancel RSVP", role: .destructive) { setRsvp("not_going") }
+            Button("Keep Going", role: .cancel) {}
+        }
+    }
+
+    private func setRsvp(_ status: String) {
+        guard let userId = CurrentUserManager.shared.userId else { return }
+        let wasGoing = isGoing
+        withAnimation(.easeInOut(duration: 0.2)) { isGoing = (status == "going") }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Task {
+            do {
+                _ = try await ConvexClientManager.shared.rsvpToEvent(
+                    eventId: event._id, userId: userId, status: status
+                )
+            } catch {
+                await MainActor.run {
+                    withAnimation { isGoing = wasGoing }
+                }
+            }
+        }
     }
 
     private func actionButton(icon: String, label: String, primary: Bool, action: @escaping () -> Void) -> some View {
@@ -444,10 +510,39 @@ struct EventDetailView: View {
     }
 
     // MARK: - Add to Calendar
-    // Generates a standard .ics and hands it to the share sheet, which surfaces
-    // the system "Add to Calendar" action — no calendar permission needed.
+    // Writes the event straight into the user's Apple Calendar via EventKit.
+    // If calendar access is denied, falls back to sharing a standard .ics.
 
     private func addToCalendar() {
+        let store = EKEventStore()
+
+        let handler: (Bool, Error?) -> Void = { granted, _ in
+            guard granted else {
+                DispatchQueue.main.async { shareICS() }
+                return
+            }
+            DispatchQueue.main.async {
+                let ekEvent = EKEvent(eventStore: store)
+                ekEvent.title = event.title
+                ekEvent.startDate = event.dateValue
+                ekEvent.endDate = event.endDateValue ?? event.dateValue.addingTimeInterval(3600)
+                ekEvent.location = event.location
+                ekEvent.notes = event.description
+                ekEvent.calendar = store.defaultCalendarForNewEvents
+                // Show the native "Add Event" modal so the user can review + confirm.
+                calendarRequest = CalendarEditRequest(event: ekEvent, store: store)
+            }
+        }
+
+        if #available(iOS 17.0, *) {
+            store.requestFullAccessToEvents(completion: handler)
+        } else {
+            store.requestAccess(to: .event, completion: handler)
+        }
+    }
+
+    /// Fallback: hand a generated .ics to the share sheet (no permission needed).
+    private func shareICS() {
         let stamp = DateFormatter()
         stamp.locale = Locale(identifier: "en_US_POSIX")
         stamp.dateFormat = "yyyyMMdd'T'HHmmss"
@@ -543,4 +638,37 @@ struct EventDetailView: View {
             ]
         )
     )
+}
+
+// MARK: - Native calendar "Add Event" modal
+
+/// Wraps EventKitUI's `EKEventEditViewController` so tapping "Add to Calendar"
+/// pops the system Add Event sheet — the user sees the event and confirms.
+struct CalendarEventEditView: UIViewControllerRepresentable {
+    let event: EKEvent
+    let eventStore: EKEventStore
+    var onDismiss: () -> Void
+
+    func makeUIViewController(context: Context) -> EKEventEditViewController {
+        let controller = EKEventEditViewController()
+        controller.event = event
+        controller.eventStore = eventStore
+        controller.editViewDelegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: EKEventEditViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(onDismiss: onDismiss) }
+
+    class Coordinator: NSObject, EKEventEditViewDelegate {
+        let onDismiss: () -> Void
+        init(onDismiss: @escaping () -> Void) { self.onDismiss = onDismiss }
+
+        func eventEditViewController(_ controller: EKEventEditViewController,
+                                     didCompleteWith action: EKEventEditViewAction) {
+            controller.dismiss(animated: true)
+            onDismiss()
+        }
+    }
 }

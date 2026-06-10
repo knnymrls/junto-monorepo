@@ -22,6 +22,65 @@ export const insertSkills = internalMutation({
   },
 });
 
+// ============================================================
+// JUNTO SKILL CATALOG — the 12 maker categories and the starter
+// skills under each. Categories match the client SkillCategory enum
+// exactly, so a user's skillCategories = unique(category per skill).
+// Curated, not exhaustive — add skills, keep each in one category.
+// ============================================================
+export const SKILL_CATALOG: { name: string; category: string }[] = [
+  // Software
+  ...["Web Development", "iOS Development", "Android Development", "Backend & APIs", "Full-Stack", "DevOps & Cloud", "Game Development"].map((name) => ({ name, category: "Software" })),
+  // AI
+  ...["Machine Learning", "Generative AI", "LLM Apps", "Computer Vision", "NLP", "AI Agents", "Prompt Engineering"].map((name) => ({ name, category: "AI" })),
+  // Design
+  ...["UX/UI Design", "Product Design", "Brand Identity", "Graphic Design", "Industrial Design", "Motion Design", "Wireframing"].map((name) => ({ name, category: "Design" })),
+  // Hardware
+  ...["Mechanical Engineering", "Electrical Engineering", "Robotics", "CAD & 3D Modeling", "Embedded Systems", "Prototyping", "Manufacturing"].map((name) => ({ name, category: "Hardware" })),
+  // Data
+  ...["Data Science", "Data Analytics", "SQL & Databases", "Data Visualization", "Statistics", "A/B Testing"].map((name) => ({ name, category: "Data" })),
+  // Business
+  ...["Business Strategy", "Operations", "Product Management", "Consulting", "Supply Chain", "Legal & IP"].map((name) => ({ name, category: "Business" })),
+  // Finance
+  ...["Accounting", "Fundraising", "Investing", "Financial Modeling", "Fintech", "Venture Capital"].map((name) => ({ name, category: "Finance" })),
+  // Marketing
+  ...["Growth Marketing", "Social Media", "SEO & SEM", "Content Marketing", "Sales", "Partnerships"].map((name) => ({ name, category: "Marketing" })),
+  // Content
+  ...["Video Production", "Photography", "Copywriting", "Music & Audio", "Podcasting", "Video Editing", "Creative Writing"].map((name) => ({ name, category: "Content" })),
+  // Science
+  ...["Biology", "Chemistry", "Physics", "Lab Research", "Environmental Science", "Agriculture"].map((name) => ({ name, category: "Science" })),
+  // Health
+  ...["Pre-Med & Clinical", "Public Health", "Nutrition & Wellness", "Biotech", "Nursing", "Mental Health"].map((name) => ({ name, category: "Health" })),
+  // Impact
+  ...["Public Policy", "Nonprofit", "Sustainability", "Education", "Social Entrepreneurship", "Community Organizing"].map((name) => ({ name, category: "Impact" })),
+  // Leadership
+  ...["Public Speaking", "Team Leadership", "Project Management", "Event Organizing", "Mentorship", "Recruiting"].map((name) => ({ name, category: "Leadership" })),
+];
+
+// Seed the catalog (dedup by name) — safe to re-run.
+export const seedSkillCatalog = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let inserted = 0;
+    let recategorized = 0;
+    for (const skill of SKILL_CATALOG) {
+      const existing = await ctx.db
+        .query("skills")
+        .withSearchIndex("search_name", (q) => q.search("name", skill.name))
+        .first();
+      if (!existing || existing.name !== skill.name) {
+        await ctx.db.insert("skills", skill);
+        inserted++;
+      } else if (existing.category !== skill.category) {
+        // Re-point an existing skill onto the new maker category.
+        await ctx.db.patch(existing._id, { category: skill.category });
+        recategorized++;
+      }
+    }
+    return { inserted, recategorized, total: SKILL_CATALOG.length };
+  },
+});
+
 // Insert a batch of interests, skipping duplicates by name
 export const insertInterests = internalMutation({
   args: {

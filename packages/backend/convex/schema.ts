@@ -28,6 +28,7 @@ export default defineSchema({
 
     // Matching (collected at onboarding)
     skills: v.optional(v.array(v.id("skills"))),
+    skillCategories: v.optional(v.array(v.string())),  // derived from skills' categories — the maker buckets a person fills
     interests: v.optional(v.array(v.id("interests"))),
     lookingFor: v.optional(v.string()),     // Free text — feeds needsEmbedding
     canHelpWith: v.optional(v.string()),    // Free text — feeds profileEmbedding
@@ -102,7 +103,8 @@ export default defineSchema({
     fullAddress: v.optional(v.string()),      // Full address revealed after RSVP
     type: v.string(),              // "in_person", "online", "hybrid"
     hostName: v.optional(v.string()),         // Display host (e.g. "Center of Entrepreneurship") — feed card name
-    category: v.optional(v.string()),         // Event category (e.g. "Pitch", "Workshop", "Networking") — feed meta chip
+    category: v.optional(v.string()),         // Event type chip (e.g. "Pitch", "Workshop", "Networking")
+    categories: v.optional(v.array(v.string())),  // maker categories the event is relevant to (skill taxonomy)
     imageUrl: v.optional(v.string()),
     createdBy: v.id("users"),
     universityId: v.optional(v.id("universities")),

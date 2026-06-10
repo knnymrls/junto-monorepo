@@ -360,6 +360,58 @@ struct SearchMasonryCardSkeleton: View {
     }
 }
 
+// MARK: - Discover Event Row Skeleton (matches DiscoverEventCard)
+
+struct DiscoverEventCardSkeleton: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.md) {
+            SkeletonShape(width: 80, height: 80, cornerRadius: Radius.xl)
+
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                SkeletonShape(width: 90, height: 12)
+                SkeletonShape(width: 210, height: 16)
+                SkeletonShape(width: 150, height: 14)
+                HStack(spacing: Spacing.xs) {
+                    SkeletonShape(width: 56, height: 18, cornerRadius: 9)
+                    SkeletonShape(width: 44, height: 18, cornerRadius: 9)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.md)
+        .background(Color.appSurface)
+    }
+}
+
+// MARK: - Discover Person Row Skeleton (matches DiscoverPersonCard)
+
+struct DiscoverPersonCardSkeleton: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.md) {
+            SkeletonCircle(size: 44)
+
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    SkeletonShape(width: 100, height: 12)
+                    SkeletonShape(width: 220, height: 16)
+                }
+                HStack(spacing: Spacing.xs) {
+                    SkeletonShape(width: 56, height: 18, cornerRadius: 9)
+                    SkeletonShape(width: 72, height: 18, cornerRadius: 9)
+                    SkeletonShape(width: 44, height: 18, cornerRadius: 9)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.lg)
+        .background(Color.appSurface)
+    }
+}
+
 // MARK: - Skeleton List
 
 struct SkeletonList<Skeleton: View>: View {

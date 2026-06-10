@@ -40,6 +40,8 @@ class SearchViewModel: ObservableObject {
 
     // Default discover masonry — populated from users:list, shown when search is idle
     @Published var defaultUsers: [UserResponse] = []
+    // True once the default users subscription has returned at least once.
+    @Published var hasLoadedDefaults = false
 
     /// The list of users to render while the user is typing or browsing.
     /// Combines an instant client-side substring filter over `defaultUsers`
@@ -504,6 +506,7 @@ class SearchViewModel: ObservableObject {
                     for user in users {
                         self.userProfiles[user._id] = user
                     }
+                    self.hasLoadedDefaults = true
                 }
             )
     }

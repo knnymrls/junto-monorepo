@@ -12,6 +12,7 @@ struct JuntoTextArea: View {
     @Binding var text: String
     var label: String? = nil
     var characterLimit: Int? = nil
+    var fill: Color = .appInputFill
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -62,7 +63,7 @@ struct JuntoTextArea: View {
             }
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.xs)
-            .background(Color.appInputFill)
+            .background(fill)
             .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
         }
     }
