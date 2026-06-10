@@ -19,6 +19,11 @@ class ChatViewModel: ObservableObject {
     @Published var isAccepting = false
     @Published var isDeclining = false
 
+    /// Message the composer is replying to (nil = not replying).
+    @Published var replyingTo: MessageResponse?
+    /// Message currently being edited (nil = composing a new message).
+    @Published var editingMessage: MessageResponse?
+
     private(set) var conversationId: String?
     let otherParticipant: UserResponse
     let currentUserId: String
@@ -70,6 +75,15 @@ class ChatViewModel: ObservableObject {
             )
     }
 
+    /// Composer submit — routes to edit when an edit is in flight, else sends.
+    func submitComposer() {
+        if editingMessage != nil {
+            commitEdit()
+        } else {
+            sendMessage()
+        }
+    }
+
     func sendMessage(gifUrl: String? = nil) {
         let content = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty || gifUrl != nil else { return }
@@ -77,6 +91,8 @@ class ChatViewModel: ObservableObject {
         isSending = true
         let messageContent = gifUrl != nil && content.isEmpty ? " " : content
         messageText = ""
+        let replyToId = replyingTo?._id
+        replyingTo = nil
         let wasNewConversation = conversationId == nil
 
         Task {
@@ -85,7 +101,8 @@ class ChatViewModel: ObservableObject {
                     senderId: currentUserId,
                     recipientId: otherParticipant._id,
                     content: messageContent,
-                    gifUrl: gifUrl
+                    gifUrl: gifUrl,
+                    replyToId: replyToId
                 )
 
                 // First message created the conversation — look it up and subscribe
@@ -107,6 +124,73 @@ class ChatViewModel: ObservableObject {
             }
             isSending = false
         }
+    }
+
+    // MARK: - Message actions (reply / edit / delete / react)
+
+    /// Start replying to a message — composer shows a reply preview.
+    func beginReply(to message: MessageResponse) {
+        editingMessage = nil
+        replyingTo = message
+    }
+
+    /// Start editing a message — composer pre-fills with the current text.
+    func beginEdit(_ message: MessageResponse) {
+        guard message.senderId == currentUserId, !message.isDeleted, message.gifUrl == nil else { return }
+        replyingTo = nil
+        editingMessage = message
+        messageText = message.content
+    }
+
+    /// Cancel an in-progress reply or edit.
+    func cancelComposerContext() {
+        replyingTo = nil
+        if editingMessage != nil {
+            editingMessage = nil
+            messageText = ""
+        }
+    }
+
+    private func commitEdit() {
+        guard let target = editingMessage else { return }
+        let content = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else { return }
+        messageText = ""
+        editingMessage = nil
+        Task {
+            do {
+                try await convex.editMessage(messageId: target._id, userId: currentUserId, content: content)
+            } catch {
+                print("Edit message error: \(error)")
+            }
+        }
+    }
+
+    func deleteMessage(_ message: MessageResponse) {
+        guard message.senderId == currentUserId else { return }
+        Task {
+            do {
+                try await convex.deleteMessage(messageId: message._id, userId: currentUserId)
+            } catch {
+                print("Delete message error: \(error)")
+            }
+        }
+    }
+
+    func toggleReaction(_ message: MessageResponse, emoji: String) {
+        guard !message.isDeleted else { return }
+        Task {
+            do {
+                try await convex.toggleMessageReaction(messageId: message._id, userId: currentUserId, emoji: emoji)
+            } catch {
+                print("React error: \(error)")
+            }
+        }
+    }
+
+    /// Resolve the message a reply points to (from the loaded thread).
+    func message(withId id: String) -> MessageResponse? {
+        messages.first { $0._id == id }
     }
 
     func markAsRead() {

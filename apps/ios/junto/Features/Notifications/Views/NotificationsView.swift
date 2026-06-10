@@ -19,6 +19,10 @@ struct NotificationsView: View {
     @State private var showComposer = false
     @State private var chatParticipant: UserResponse?
     @State private var chatConversationId: String?
+    @State private var showPreferences = false
+
+    /// Avatar tap is owned by TabBarView (→ side menu), matching the other tabs.
+    var onProfileTap: (() -> Void)? = nil
 
     // Zoom transition namespace: notification sender avatar → profile
     @Namespace private var profileZoom
@@ -29,6 +33,8 @@ struct NotificationsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            header
+
             ZStack {
                 Color.appBackground.ignoresSafeArea()
 
@@ -73,12 +79,57 @@ struct NotificationsView: View {
         .sheet(isPresented: $showComposer) {
             PostComposerView(viewModel: FeedViewModel())
         }
+        .sheet(isPresented: $showPreferences) {
+            NotificationPreferencesView()
+                .environmentObject(currentUser)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         .task {
             if let userId = currentUser.userId {
                 viewModel.subscribe(userId: userId)
             }
             AnalyticsService.shared.track(.notificationsViewed)
         }
+    }
+
+    // MARK: - Header
+
+    /// Mirrors BrandTopNav (avatar + title) with a trailing preferences action
+    /// that opens the notification-category toggles.
+    private var header: some View {
+        HStack(spacing: Spacing.sm) {
+            Button { onProfileTap?() } label: {
+                AvatarView(
+                    avatarUrl: currentUser.user?.avatarUrl,
+                    name: currentUser.user?.name ?? "?",
+                    size: 40
+                )
+            }
+            .buttonStyle(.pressableScale(0.9))
+
+            Text("Activity")
+                .font(.heading1)
+                .foregroundColor(.appPrimary)
+
+            Spacer()
+
+            Button { showPreferences = true } label: {
+                Image("nav.preferences")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 28, height: 28)
+                    .foregroundColor(.appPrimary)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressableScale(0.9))
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.top, Spacing.sm)
+        .padding(.bottom, Spacing.sm)
+        .background(Color.appSurface.ignoresSafeArea(edges: .top))
     }
 
     // MARK: - Notification List
@@ -133,6 +184,7 @@ struct NotificationsView: View {
                 Color.clear.frame(height: 80)
             }
         }
+        .scrollEdgeFade(top: true, bottom: false)
     }
 
     // MARK: - Loading State

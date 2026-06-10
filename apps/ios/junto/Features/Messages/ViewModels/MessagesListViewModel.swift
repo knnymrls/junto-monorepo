@@ -9,6 +9,7 @@ import Foundation
 import Combine
 
 enum MessagesFilter: String, CaseIterable {
+    case all = "All"
     case inbox = "Inbox"
     case requests = "Requests"
 }
@@ -19,7 +20,7 @@ class MessagesListViewModel: ObservableObject {
     @Published var connections: [UserResponse] = []
     @Published var isLoading = true
     @Published var searchText = ""
-    @Published var filter: MessagesFilter = .inbox
+    @Published var filter: MessagesFilter = .all
     @Published var dismissedSuggestionIds: Set<String> = []
 
     private var conversationsCancellable: AnyCancellable?
@@ -44,9 +45,21 @@ class MessagesListViewModel: ObservableObject {
         requestConversations.count
     }
 
+    /// Inbox + incoming requests merged into one list, newest activity first.
+    /// Requests are tagged in the row, so they live alongside active threads.
+    var allConversations: [ConversationResponse] {
+        (inboxConversations + requestConversations)
+            .sorted { $0.lastMessageAt > $1.lastMessageAt }
+    }
+
     /// Conversations filtered by current tab + search text
     var filteredConversations: [ConversationResponse] {
-        let base = filter == .inbox ? inboxConversations : requestConversations
+        let base: [ConversationResponse]
+        switch filter {
+        case .all:      base = allConversations
+        case .inbox:    base = inboxConversations
+        case .requests: base = requestConversations
+        }
         if searchText.isEmpty { return base }
         let query = searchText.lowercased()
         return base.filter { conv in
@@ -57,7 +70,7 @@ class MessagesListViewModel: ObservableObject {
 
     /// Connections who don't have an existing conversation yet (and aren't dismissed)
     var suggestedUsers: [UserResponse] {
-        guard filter == .inbox else { return [] }
+        guard filter == .all || filter == .inbox else { return [] }
         let conversationParticipantIds = Set(conversations.compactMap { $0.otherParticipant?._id })
         let suggested = connections.filter { user in
             !conversationParticipantIds.contains(user._id) &&

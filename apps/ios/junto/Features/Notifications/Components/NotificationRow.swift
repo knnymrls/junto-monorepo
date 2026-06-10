@@ -106,25 +106,26 @@ struct NotificationRow: View {
                 .fill(palette.background)
                 .frame(width: 40, height: 40)
                 .overlay(
-                    Image(systemName: iconForType(notification.type))
-                        .font(.system(size: 16, weight: .medium))
+                    Image(iconForType(notification.type))
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
                         .foregroundColor(palette.foreground)
                 )
         }
     }
 
+    /// Streamline Flex SOLID icons (icons on a filled circle are solid).
     private func iconForType(_ type: String) -> String {
         switch type {
-        case "comment", "mention": return "bubble.left.fill"
-        case "connection_request", "connection_accepted", "pending_connection_reminder": return "person.badge.plus"
-        case "event_rsvp", "event_reminder", "new_event": return "calendar"
-        case "new_message", "message_request": return "envelope.fill"
-        case "content_prompt": return "pencil"
-        case "meet_nudge": return "hand.wave.fill"
-        case "weekly_digest": return "sparkles"
-        case "inactivity_nudge": return "flame.fill"
-        case "milestone": return "trophy.fill"
-        default: return "bell.fill"
+        case "comment", "mention": return "notif.comments"
+        case "connection_request", "connection_accepted", "pending_connection_reminder", "meet_nudge": return "notif.connections"
+        case "event_rsvp", "event_reminder", "new_event": return "notif.events"
+        case "new_message", "message_request": return "notif.messages"
+        case "content_prompt", "weekly_digest", "inactivity_nudge": return "notif.updates"
+        case "milestone": return "notif.milestone"
+        default: return "notif.bell"
         }
     }
 

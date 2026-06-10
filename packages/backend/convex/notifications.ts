@@ -3,6 +3,31 @@ import { query, mutation, action, internalMutation, internalQuery, internalActio
 import { internal } from "./_generated/api";
 import { importPKCS8, SignJWT } from "jose";
 
+// === NOTIFICATION CATEGORIES ===
+// User-facing preference buckets. Each raw notification type maps to one
+// category; muting a category suppresses both the in-app row and the push.
+const TYPE_TO_CATEGORY: Record<string, string> = {
+  connection_request: "connections",
+  connection_accepted: "connections",
+  pending_connection_reminder: "connections",
+  new_message: "messages",
+  message_request: "messages",
+  meet_nudge: "messages",
+  event_rsvp: "events",
+  event_reminder: "events",
+  new_event: "events",
+  comment: "comments",
+  mention: "comments",
+  content_prompt: "updates",
+  weekly_digest: "updates",
+  inactivity_nudge: "updates",
+  milestone: "updates",
+};
+
+function categoryForType(type: string): string | null {
+  return TYPE_TO_CATEGORY[type] ?? null;
+}
+
 // === QUERIES ===
 
 // Get notifications for a user
@@ -53,7 +78,39 @@ export const getUnreadCount = query({
   },
 });
 
+// Notification category preferences — the list of categories the user muted.
+export const getPreferences = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    return user?.mutedNotificationCategories ?? [];
+  },
+});
+
+// Internal: muted categories for a recipient (used to gate notifyUser).
+export const getMutedCategories = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    return user?.mutedNotificationCategories ?? [];
+  },
+});
+
 // === MUTATIONS ===
+
+// Set the user's muted notification categories (full replace).
+export const setPreferences = mutation({
+  args: {
+    userId: v.id("users"),
+    mutedCategories: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.userId, {
+      mutedNotificationCategories: args.mutedCategories,
+      updatedAt: Date.now(),
+    });
+  },
+});
 
 // Create a notification (internal use)
 export const create = internalMutation({
@@ -271,6 +328,15 @@ export const notifyUser = internalAction({
       return;
     }
 
+    // Respect the recipient's muted categories
+    const category = categoryForType(args.type);
+    if (category) {
+      const muted = await ctx.runQuery(internal.notifications.getMutedCategories, {
+        userId: args.recipientId,
+      });
+      if (muted.includes(category)) return;
+    }
+
     // Create in-app notification
     await ctx.runMutation(internal.notifications.create, {
       recipientId: args.recipientId,
@@ -314,6 +380,15 @@ export const notifySystem = internalAction({
     })),
   },
   handler: async (ctx, args) => {
+    // Respect the recipient's muted categories
+    const category = categoryForType(args.type);
+    if (category) {
+      const muted = await ctx.runQuery(internal.notifications.getMutedCategories, {
+        userId: args.recipientId,
+      });
+      if (muted.includes(category)) return;
+    }
+
     // Create in-app notification
     await ctx.runMutation(internal.notifications.create, {
       recipientId: args.recipientId,
