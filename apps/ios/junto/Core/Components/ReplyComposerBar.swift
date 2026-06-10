@@ -31,7 +31,7 @@ struct ReplyComposerBar: View {
                 mediaPreview
             }
 
-            HStack(alignment: .center, spacing: Spacing.sm) {
+            HStack(alignment: .bottom, spacing: Spacing.sm) {
                 if !isActive {
                     AvatarView(
                         avatarUrl: avatarUrl,

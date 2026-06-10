@@ -76,7 +76,7 @@ struct AskJuntoView: View {
             EventDetailView(event: event)
                 .zoomDestination(id: event._id, in: eventZoom)
         }
-        .sheet(item: $selectedChatUser) { user in
+        .fullScreenCover(item: $selectedChatUser) { user in
             if let uid = currentUser.userId {
                 ChatDetailView(conversationId: nil, otherParticipant: user, currentUserId: uid)
                     .environmentObject(currentUser)

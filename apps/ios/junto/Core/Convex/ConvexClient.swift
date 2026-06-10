@@ -383,6 +383,11 @@ extension ConvexClientManager {
     func subscribeUnreadCount(userId: String) -> AnyPublisher<Int, ClientError> {
         return client.subscribe(to: "notifications:getUnreadCount", with: ["userId": userId], yielding: Int.self)
     }
+
+    /// Subscribe to the user's muted notification categories.
+    func subscribeNotificationPreferences(userId: String) -> AnyPublisher<[String], ClientError> {
+        return client.subscribe(to: "notifications:getPreferences", with: ["userId": userId], yielding: [String].self)
+    }
 }
 
 // MARK: - File Storage
@@ -752,16 +757,67 @@ extension ConvexClientManager {
         ])
     }
 
+    func fetchNotificationPreferences(userId: String) async throws -> [String] {
+        return try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = subscribeNotificationPreferences(userId: userId)
+                .first()
+                .sink(
+                    receiveCompletion: { completion in
+                        if case .failure(let error) = completion {
+                            continuation.resume(throwing: error)
+                        }
+                        cancellable?.cancel()
+                    },
+                    receiveValue: { categories in
+                        continuation.resume(returning: categories)
+                    }
+                )
+        }
+    }
+
+    func setNotificationPreferences(userId: String, mutedCategories: [String]) async throws {
+        let categories: [ConvexEncodable?] = mutedCategories.map { $0 as ConvexEncodable? }
+        let _: String? = try await client.mutation("notifications:setPreferences", with: [
+            "userId": userId,
+            "mutedCategories": categories
+        ])
+    }
+
     // MARK: Messages
 
-    func sendMessage(senderId: String, recipientId: String, content: String, gifUrl: String? = nil) async throws -> String {
+    func sendMessage(senderId: String, recipientId: String, content: String, gifUrl: String? = nil, replyToId: String? = nil) async throws -> String {
         var args: [String: (any ConvexEncodable)?] = [
             "senderId": senderId,
             "recipientId": recipientId,
             "content": content
         ]
         if let gifUrl { args["gifUrl"] = gifUrl }
+        if let replyToId { args["replyToId"] = replyToId }
         return try await client.mutation("messages:sendMessage", with: args)
+    }
+
+    func editMessage(messageId: String, userId: String, content: String) async throws {
+        let _: String? = try await client.mutation("messages:editMessage", with: [
+            "messageId": messageId,
+            "userId": userId,
+            "content": content
+        ])
+    }
+
+    func deleteMessage(messageId: String, userId: String) async throws {
+        let _: String? = try await client.mutation("messages:deleteMessage", with: [
+            "messageId": messageId,
+            "userId": userId
+        ])
+    }
+
+    func toggleMessageReaction(messageId: String, userId: String, emoji: String) async throws {
+        let _: String? = try await client.mutation("messages:toggleReaction", with: [
+            "messageId": messageId,
+            "userId": userId,
+            "emoji": emoji
+        ])
     }
 
     func markConversationRead(conversationId: String, userId: String) async throws {
@@ -2589,6 +2645,11 @@ struct ConversationResponse: Codable, Identifiable {
 
 // MARK: - Message Response
 
+struct MessageReaction: Codable, Hashable {
+    let userId: String
+    let emoji: String
+}
+
 struct MessageResponse: Codable, Identifiable {
     let _id: String
     let conversationId: String
@@ -2597,10 +2658,28 @@ struct MessageResponse: Codable, Identifiable {
     let gifUrl: String?
     let readAt: Double?
     let createdAt: Double
+    let editedAt: Double?
+    let deletedAt: Double?
+    let replyToId: String?
+    let reactions: [MessageReaction]?
 
     var id: String { _id }
     var createdDate: Date { Date(timeIntervalSince1970: createdAt / 1000) }
     var isRead: Bool { readAt != nil }
+    var isEdited: Bool { editedAt != nil }
+    var isDeleted: Bool { deletedAt != nil }
+
+    /// Reactions grouped by emoji, preserving first-seen order.
+    var groupedReactions: [(emoji: String, userIds: [String])] {
+        guard let reactions, !reactions.isEmpty else { return [] }
+        var order: [String] = []
+        var map: [String: [String]] = [:]
+        for r in reactions {
+            if map[r.emoji] == nil { order.append(r.emoji) }
+            map[r.emoji, default: []].append(r.userId)
+        }
+        return order.map { ($0, map[$0] ?? []) }
+    }
 }
 
 // MARK: - Notification Response

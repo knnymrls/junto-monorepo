@@ -169,15 +169,17 @@ struct TabBarView: View {
                             onOpenConversations: { withAnimation(.easeInOut(duration: 0.25)) { showAIConversations = true } }
                         )
                     case .messages:
-                        VStack(spacing: 0) {
-                            defaultTopNav(.messages)
-                            MessagesView()
-                        }
+                        // Messages owns its own header (avatar + title + search),
+                        // matching Discover and Ask Junto.
+                        MessagesView(
+                            onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
+                        )
                     case .notifications:
-                        VStack(spacing: 0) {
-                            defaultTopNav(.notifications)
-                            NotificationsView()
-                        }
+                        // Activity owns its own header (avatar + title + preferences),
+                        // matching Messages / Discover / Ask Junto.
+                        NotificationsView(
+                            onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
+                        )
                     }
                 }
                 .environment(\.tabBarVisible, $isTabBarVisible)
@@ -328,14 +330,6 @@ struct TabBarView: View {
         )
     }
 
-    private func defaultTopNav(_ tab: Tab) -> some View {
-        TopNavBar(
-            title: tab.title,
-            avatarUrl: currentUser.user?.avatarUrl,
-            avatarName: currentUser.user?.name ?? "?",
-            onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
-        )
-    }
 
     private func checkForFeedbackPrompt() async {
         guard !hasCheckedFeedback else { return }

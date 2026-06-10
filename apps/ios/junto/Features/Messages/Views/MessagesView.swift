@@ -18,11 +18,24 @@ struct MessagesView: View {
     @State private var showNewConversation = false
     @State private var chatParticipant: UserResponse?
     @State private var chatConversationId: String?
+    @State private var showSearch = false
+    @FocusState private var searchFocused: Bool
+    @State private var selectedUserProfile: UserResponse?
+
+    /// Zoom transition: conversation row → chat detail.
+    @Namespace private var chatZoom
+    /// Zoom transition: suggested card → that person's profile.
+    @Namespace private var profileZoom
+
+    /// Avatar tap is owned by TabBarView (→ side menu), matching the other tabs.
+    var onProfileTap: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
-            searchBar
-            filterTabs
+            header
+            if showSearch {
+                searchBar
+            }
 
             ZStack {
                 Color.appBackground.ignoresSafeArea()
@@ -53,7 +66,7 @@ struct MessagesView: View {
         .onDisappear {
             tabBarVisible.wrappedValue = true
         }
-        .sheet(item: $selectedConversation) { conversation in
+        .fullScreenCover(item: $selectedConversation) { conversation in
             if let otherParticipant = conversation.otherParticipant,
                let userId = currentUser.userId {
                 ChatDetailView(
@@ -62,7 +75,8 @@ struct MessagesView: View {
                     currentUserId: userId,
                     isRequest: conversation.isRequest == true
                 )
-                .presentationDragIndicator(.visible)
+                .environmentObject(currentUser)
+                .zoomDestination(id: conversation._id, in: chatZoom)
             }
         }
         .sheet(isPresented: $showNewConversation) {
@@ -80,15 +94,20 @@ struct MessagesView: View {
                 }
             }
         }
-        .sheet(item: $chatParticipant) { participant in
+        .fullScreenCover(item: $chatParticipant) { participant in
             if let userId = currentUser.userId {
                 ChatDetailView(
                     conversationId: chatConversationId,
                     otherParticipant: participant,
                     currentUserId: userId
                 )
-                .presentationDragIndicator(.visible)
+                .environmentObject(currentUser)
+                .zoomDestination(id: participant._id, in: chatZoom)
             }
+        }
+        .fullScreenCover(item: $selectedUserProfile) { user in
+            ProfileView(user: user)
+                .zoomDestination(id: user._id, in: profileZoom)
         }
         .task {
             if let userId = currentUser.userId {
@@ -98,70 +117,110 @@ struct MessagesView: View {
         }
     }
 
+    // MARK: - Header
+
+    /// Mirrors BrandTopNav (avatar + title), but carries two trailing actions:
+    /// search (toggles the search field) and a filter menu (All / Inbox /
+    /// Requests). Both are 28pt Flex line icons in 40pt tap targets.
+    private var header: some View {
+        HStack(spacing: Spacing.sm) {
+            Button { onProfileTap?() } label: {
+                AvatarView(
+                    avatarUrl: currentUser.user?.avatarUrl,
+                    name: currentUser.user?.name ?? "?",
+                    size: 40
+                )
+            }
+            .buttonStyle(.pressableScale(0.9))
+
+            Text("Messages")
+                .font(.heading1)
+                .foregroundColor(.appPrimary)
+
+            Spacer()
+
+            HStack(spacing: Spacing.xxs) {
+                headerIcon("nav.search", tint: showSearch ? .appAccent : .appPrimary) {
+                    withAnimation(.easeInOut(duration: 0.2)) { showSearch.toggle() }
+                    if showSearch {
+                        searchFocused = true
+                    } else {
+                        viewModel.searchText = ""
+                    }
+                }
+                filterMenu
+            }
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.bottom, Spacing.sm)
+        .background(Color.appSurface.ignoresSafeArea(edges: .top))
+    }
+
+    private func headerIcon(_ name: String, tint: Color = .appPrimary, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            headerIconImage(name, tint: tint)
+        }
+        .buttonStyle(.pressableScale(0.9))
+    }
+
+    private func headerIconImage(_ name: String, tint: Color) -> some View {
+        Image(name)
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 28, height: 28)
+            .foregroundColor(tint)
+            .frame(width: 40, height: 40)
+            .contentShape(Rectangle())
+    }
+
+    /// Filter menu — replaces the old Inbox/Requests segmented tabs. Defaults to
+    /// "All" (both inbox + requests shown together); the icon tints accent when
+    /// a narrower filter is active.
+    private var filterMenu: some View {
+        Menu {
+            Picker("Filter", selection: $viewModel.filter) {
+                ForEach(MessagesFilter.allCases, id: \.self) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+        } label: {
+            headerIconImage("nav.filter", tint: viewModel.filter == .all ? .appPrimary : .appAccent)
+        }
+        .buttonStyle(.pressableScale(0.9))
+    }
+
     // MARK: - Search Bar
 
     private var searchBar: some View {
         HStack(spacing: Spacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 16))
+            Image("nav.search")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
                 .foregroundColor(.appSecondary)
 
-            TextField("Search conversations...", text: $viewModel.searchText)
-                .font(.body14)
+            TextField("Search", text: $viewModel.searchText)
+                .font(.bodyLargeMedium)
                 .foregroundColor(.appPrimary)
+                .tint(.appPrimary)
+                .focused($searchFocused)
+                .submitLabel(.search)
 
             if !viewModel.searchText.isEmpty {
-                Button(action: { viewModel.searchText = "" }) {
+                Button { viewModel.searchText = "" } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 14))
+                        .font(.system(size: 16))
                         .foregroundColor(.appSecondary)
-                }
-            }
-        }
-        .padding(Spacing.md)
-        .background(Color.appSurfaceSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.sm)
-        .background(Color.appSurface)
-    }
-
-    // MARK: - Filter Tabs
-
-    private var filterTabs: some View {
-        HStack(spacing: Spacing.sm) {
-            ForEach(MessagesFilter.allCases, id: \.self) { tab in
-                let isSelected = viewModel.filter == tab
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        viewModel.filter = tab
-                    }
-                }) {
-                    HStack(spacing: Spacing.xxs) {
-                        Text(tab.rawValue)
-                            .font(isSelected ? .bodySemibold : .bodyMedium)
-                            .foregroundColor(isSelected ? .appOnAccent : .appSecondary)
-
-                        if tab == .requests && viewModel.requestCount > 0 {
-                            Text("\(viewModel.requestCount)")
-                                .font(.captionSmallSemibold)
-                                .foregroundColor(isSelected ? .appPrimary : .appOnAccent)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(isSelected ? Color.appOnAccent : Color.appSecondary)
-                                .clipShape(Capsule())
-                        }
-                    }
-                    .padding(.horizontal, 13)
-                    .frame(height: 32)
-                    .background(isSelected ? Color.appPrimary : Color.appSurfaceSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
                 }
                 .buttonStyle(.plain)
             }
-
-            Spacer()
         }
+        .padding(.horizontal, Spacing.lg)
+        .frame(maxWidth: .infinity)
+        .frame(height: 37)
+        .background(Color.appSurfaceSecondary, in: Capsule())
         .padding(.horizontal, Spacing.lg)
         .padding(.bottom, Spacing.sm)
         .background(Color.appSurface)
@@ -189,6 +248,7 @@ struct MessagesView: View {
                             .onTapGesture {
                                 selectedConversation = conversation
                             }
+                            .zoomSource(id: conversation._id, in: chatZoom)
                         }
                     }
 
@@ -200,39 +260,29 @@ struct MessagesView: View {
                 Color.clear.frame(height: 80)
             }
         }
+        .scrollEdgeFade(top: true, bottom: false)
     }
 
     // MARK: - Suggested Section
 
+    /// Connections without a thread yet — rendered with the same "People you
+    /// should know" card as Discover. Tapping a card opens a chat with them.
     private func suggestedSection(users: [UserResponse]) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
-            Text("Suggested")
-                .font(.bodySemibold)
-                .foregroundColor(.appPrimary)
-                .padding(.horizontal, Spacing.md)
-                .padding(.top, Spacing.xl)
-                .padding(.bottom, Spacing.md)
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            SectionHeader(title: "Suggested")
+                .padding(.top, Spacing.lg)
 
-            ForEach(users) { user in
-                SuggestedMessageRow(
-                    user: user,
-                    onMessageTap: {
-                        guard let userId = currentUser.userId else { return }
-                        Task {
-                            let conv = try? await ConvexClientManager.shared.fetchConversationBetween(
-                                userId1: userId,
-                                userId2: user._id
-                            )
-                            chatConversationId = conv?._id
-                            chatParticipant = user
-                        }
-                    },
-                    onDismiss: {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            viewModel.dismissSuggestion(user._id)
-                        }
-                    }
-                )
+            VStack(spacing: 0) {
+                ForEach(users) { user in
+                    DiscoverPersonCard(
+                        user: user,
+                        connectionStatus: .connected,
+                        onTap: { selectedUserProfile = user },
+                        profileZoomID: AnyHashable(user._id),
+                        profileZoomNamespace: profileZoom
+                    )
+                    .zoomSource(id: user._id, in: profileZoom)
+                }
             }
         }
     }

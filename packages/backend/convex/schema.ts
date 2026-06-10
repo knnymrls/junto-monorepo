@@ -51,6 +51,7 @@ export default defineSchema({
     role: v.optional(v.string()),           // Identity: "student" | "alumni" | "faculty"
     platformRole: v.optional(v.string()),   // Permissions: "user" | "creator" | "superadmin" (default "user")
     status: v.optional(v.string()),         // "active" | "graduated" | "deactivated"
+    mutedNotificationCategories: v.optional(v.array(v.string())), // categories the user turned off (connections|messages|events|comments|updates)
     isOnboarded: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -284,6 +285,12 @@ export default defineSchema({
     gifUrl: v.optional(v.string()),
     readAt: v.optional(v.number()),
     createdAt: v.number(),
+    editedAt: v.optional(v.number()),       // last edit time (undefined = never edited)
+    deletedAt: v.optional(v.number()),      // soft-delete time (undefined = live)
+    replyToId: v.optional(v.id("messages")), // message this one replies to
+    reactions: v.optional(
+      v.array(v.object({ userId: v.id("users"), emoji: v.string() }))
+    ),
   })
     .index("by_conversation", ["conversationId", "createdAt"]),
 

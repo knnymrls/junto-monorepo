@@ -47,7 +47,12 @@ struct ChatDetailView: View {
                 if viewModel.isRequest {
                     requestBanner
                 } else {
-                    inputBar
+                    VStack(spacing: 0) {
+                        if viewModel.replyingTo != nil || viewModel.editingMessage != nil {
+                            composerContextBar
+                        }
+                        inputBar
+                    }
                 }
             }
             .background(Color.appBackground)
@@ -85,6 +90,8 @@ struct ChatDetailView: View {
 
     private var chatHeader: some View {
         HStack(spacing: Spacing.sm) {
+            DiscoverCircleButton(icon: "nav.back", action: { dismiss() })
+
             Button(action: { showProfile = true }) {
                 HStack(spacing: Spacing.sm) {
                     AvatarView(
@@ -123,16 +130,19 @@ struct ChatDetailView: View {
                     Label("Report", systemImage: "exclamationmark.triangle")
                 }
             } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16))
+                Image("nav.more")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
                     .foregroundColor(.appPrimary)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
             }
         }
-        .padding(.horizontal, Spacing.md)
-        .padding(.top, Spacing.xl)
-        .padding(.bottom, Spacing.md)
-        .background(Color.appSurface)
+        .padding(.horizontal, Spacing.lg)
+        .padding(.bottom, Spacing.sm)
+        .background(Color.appSurface.ignoresSafeArea(edges: .top))
         .fullScreenCover(isPresented: $showProfile) {
             ProfileView(user: viewModel.otherParticipant)
                 .zoomDestination(id: viewModel.otherParticipant._id, in: profileZoom)
@@ -152,9 +162,23 @@ struct ChatDetailView: View {
                     }
 
                     ForEach(viewModel.messages) { message in
+                        let reply = replyContext(for: message)
                         MessageBubble(
                             message: message,
-                            isSent: message.senderId == viewModel.currentUserId
+                            isSent: message.senderId == viewModel.currentUserId,
+                            currentUserId: viewModel.currentUserId,
+                            replyAuthor: reply?.author,
+                            replyText: reply?.text,
+                            onReply: {
+                                viewModel.beginReply(to: message)
+                                isInputFocused = true
+                            },
+                            onEdit: {
+                                viewModel.beginEdit(message)
+                                isInputFocused = true
+                            },
+                            onDelete: { viewModel.deleteMessage(message) },
+                            onReact: { viewModel.toggleReaction(message, emoji: $0) }
                         )
                         .id("\(message._id)_\(message.readAt ?? 0)")
                     }
@@ -162,6 +186,7 @@ struct ChatDetailView: View {
                 .padding(.horizontal, Spacing.md)
                 .padding(.vertical, Spacing.sm)
             }
+            .scrollEdgeFade(top: true, bottom: true)
             .onChange(of: viewModel.messages.count) { _, _ in
                 if let lastMessage = viewModel.messages.last {
                     withAnimation(.easeOut(duration: 0.2)) {
@@ -217,7 +242,7 @@ struct ChatDetailView: View {
             },
             onSubmit: {
                 if !viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    viewModel.sendMessage()
+                    viewModel.submitComposer()
                 }
             }
         )
@@ -283,6 +308,63 @@ struct ChatDetailView: View {
         }
         showMentionPicker = false
         isInputFocused = true
+    }
+
+    // MARK: - Composer context bar (reply / edit preview)
+
+    private var composerContextBar: some View {
+        let isEditing = viewModel.editingMessage != nil
+        let title = isEditing ? "Editing message" : "Replying to \(replyingAuthorName)"
+        let snippet = isEditing
+            ? (viewModel.editingMessage?.content ?? "")
+            : replySnippet(viewModel.replyingTo)
+
+        return HStack(spacing: Spacing.sm) {
+            Image(systemName: isEditing ? "pencil" : "arrowshape.turn.up.left")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.appSecondary)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.captionSmallSemibold)
+                    .foregroundColor(.appPrimary)
+                Text(snippet)
+                    .font(.caption12)
+                    .foregroundColor(.appSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button { viewModel.cancelComposerContext() } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.appSecondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.sm)
+        .background(Color.appSurface)
+    }
+
+    private var replyingAuthorName: String {
+        guard let replying = viewModel.replyingTo else { return "" }
+        return replying.senderId == viewModel.currentUserId ? "yourself" : viewModel.otherParticipant.name
+    }
+
+    private func replySnippet(_ message: MessageResponse?) -> String {
+        guard let message else { return "" }
+        if message.isDeleted { return "Message deleted" }
+        return message.gifUrl != nil ? "GIF" : message.content
+    }
+
+    /// The quoted reply shown above a message bubble, resolved from the thread.
+    private func replyContext(for message: MessageResponse) -> (author: String, text: String)? {
+        guard let replyToId = message.replyToId,
+              let replied = viewModel.message(withId: replyToId) else { return nil }
+        let author = replied.senderId == viewModel.currentUserId ? "You" : viewModel.otherParticipant.name
+        return (author, replySnippet(replied))
     }
 
     // MARK: - Request Banner

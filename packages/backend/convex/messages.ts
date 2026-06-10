@@ -195,6 +195,7 @@ export const sendMessage = mutation({
     recipientId: v.id("users"),
     content: v.string(),
     gifUrl: v.optional(v.string()),
+    replyToId: v.optional(v.id("messages")),
   },
   handler: async (ctx, args) => {
     const { p1, p2 } = getCanonicalParticipants(args.senderId, args.recipientId);
@@ -253,6 +254,7 @@ export const sendMessage = mutation({
       senderId: args.senderId,
       content: args.content,
       gifUrl: args.gifUrl,
+      replyToId: args.replyToId,
       createdAt: now,
     });
 
@@ -434,5 +436,103 @@ export const clearTyping = mutation({
     if (existing) {
       await ctx.db.delete(existing._id);
     }
+  },
+});
+
+// Is this message the conversation's most recent one? Used to keep the
+// conversation-list preview in sync after an edit/delete.
+async function isLatestMessage(
+  ctx: any,
+  conversationId: Id<"conversations">,
+  messageId: Id<"messages">
+): Promise<boolean> {
+  const latest = await ctx.db
+    .query("messages")
+    .withIndex("by_conversation", (q: any) =>
+      q.eq("conversationId", conversationId)
+    )
+    .order("desc")
+    .first();
+  return latest?._id === messageId;
+}
+
+// Edit a message (sender only). Updates the conversation preview if it was the
+// last message.
+export const editMessage = mutation({
+  args: {
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
+    if (message.senderId !== args.userId) throw new Error("Not your message");
+    if (message.deletedAt) throw new Error("Message was deleted");
+
+    await ctx.db.patch(args.messageId, {
+      content: args.content,
+      editedAt: Date.now(),
+    });
+
+    if (await isLatestMessage(ctx, message.conversationId, args.messageId)) {
+      await ctx.db.patch(message.conversationId, {
+        lastMessagePreview: args.content.substring(0, 100),
+      });
+    }
+  },
+});
+
+// Soft-delete a message (sender only). Keeps the row so the thread layout is
+// stable, but blanks the content and drops reactions.
+export const deleteMessage = mutation({
+  args: {
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
+    if (message.senderId !== args.userId) throw new Error("Not your message");
+
+    await ctx.db.patch(args.messageId, {
+      deletedAt: Date.now(),
+      content: "",
+      gifUrl: undefined,
+      reactions: [],
+    });
+
+    if (await isLatestMessage(ctx, message.conversationId, args.messageId)) {
+      await ctx.db.patch(message.conversationId, {
+        lastMessagePreview: "Message deleted",
+      });
+    }
+  },
+});
+
+// Toggle an emoji reaction on a message for a user. Same user + emoji removes
+// it; otherwise it's added (a user may react with several distinct emojis).
+export const toggleReaction = mutation({
+  args: {
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+    emoji: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
+    if (message.deletedAt) return;
+
+    const reactions = message.reactions ?? [];
+    const existingIndex = reactions.findIndex(
+      (r) => r.userId === args.userId && r.emoji === args.emoji
+    );
+
+    const next =
+      existingIndex >= 0
+        ? reactions.filter((_, i) => i !== existingIndex)
+        : [...reactions, { userId: args.userId, emoji: args.emoji }];
+
+    await ctx.db.patch(args.messageId, { reactions: next });
   },
 });

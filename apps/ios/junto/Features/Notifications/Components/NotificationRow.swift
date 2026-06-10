@@ -93,6 +93,8 @@ struct NotificationRow: View {
     @ViewBuilder
     private var avatar: some View {
         if notification.sender != nil {
+            // Sender avatar + a small type badge so the (distinct) type icon
+            // still reads on every row.
             AvatarView(
                 avatarUrl: notification.sender?.avatarUrl,
                 name: notification.sender?.name ?? "?",
@@ -100,31 +102,59 @@ struct NotificationRow: View {
                 zoomID: profileZoomID,
                 zoomNamespace: profileZoomNamespace
             )
+            .overlay(alignment: .bottomTrailing) {
+                typeBadge.offset(x: 3, y: 3)
+            }
         } else {
             let palette = paletteForType(notification.type)
             Circle()
                 .fill(palette.background)
                 .frame(width: 40, height: 40)
                 .overlay(
-                    Image(systemName: iconForType(notification.type))
-                        .font(.system(size: 16, weight: .medium))
+                    Image(iconForType(notification.type))
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
                         .foregroundColor(palette.foreground)
                 )
         }
     }
 
+    /// Small colored type indicator that sits on the corner of the avatar.
+    private var typeBadge: some View {
+        let palette = paletteForType(notification.type)
+        return ZStack {
+            Circle()
+                .fill(Color.appSurface)
+                .frame(width: 20, height: 20)
+            Circle()
+                .fill(palette.background)
+                .frame(width: 17, height: 17)
+            Image(iconForType(notification.type))
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 10, height: 10)
+                .foregroundColor(palette.foreground)
+        }
+    }
+
+    /// Streamline Flex SOLID icons — one per notification type so each reads
+    /// distinctly (icons on a filled circle are solid).
     private func iconForType(_ type: String) -> String {
         switch type {
-        case "comment", "mention": return "bubble.left.fill"
-        case "connection_request", "connection_accepted", "pending_connection_reminder": return "person.badge.plus"
-        case "event_rsvp", "event_reminder", "new_event": return "calendar"
-        case "new_message", "message_request": return "envelope.fill"
-        case "content_prompt": return "pencil"
-        case "meet_nudge": return "hand.wave.fill"
-        case "weekly_digest": return "sparkles"
-        case "inactivity_nudge": return "flame.fill"
-        case "milestone": return "trophy.fill"
-        default: return "bell.fill"
+        case "comment": return "notif.comments"
+        case "mention": return "action.mention.fill"
+        case "connection_request", "connection_accepted", "pending_connection_reminder": return "notif.connections"
+        case "event_rsvp", "event_reminder", "new_event": return "notif.events"
+        case "new_message", "message_request": return "notif.messages"
+        case "content_prompt": return "notif.content"
+        case "meet_nudge": return "notif.meet"
+        case "weekly_digest": return "notif.updates"
+        case "inactivity_nudge": return "notif.flame"
+        case "milestone": return "notif.milestone"
+        default: return "notif.bell"
         }
     }
 
