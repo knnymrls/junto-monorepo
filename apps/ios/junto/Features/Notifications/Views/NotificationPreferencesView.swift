@@ -89,7 +89,7 @@ struct NotificationPreferencesView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, Spacing.lg)
-        .padding(.top, Spacing.lg)
+        .padding(.top, Spacing.xxl)
         .padding(.bottom, Spacing.sm)
         .background(Color.appSurface)
     }
