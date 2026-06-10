@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Junto adds events you save to your Apple Calendar.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Junto adds events you save to your Apple Calendar.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Junto adds events you save to your Apple Calendar.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>BricolageGrotesque-VariableFont_opsz,wdth,wght.ttf</string>

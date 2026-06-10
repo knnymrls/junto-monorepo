@@ -1,3 +1,4 @@
+import { v } from "convex/values";
 import { internalMutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
@@ -955,6 +956,273 @@ export const seedEvents = internalMutation({
     }
 
     return { events: 2 };
+  },
+});
+
+// ============================================================
+// SEED UPCOMING EVENTS — future-dated (relative to now) so the
+// Discover "Upcoming Events" strip is populated. Deduped by title,
+// so it's safe to re-run.
+// ============================================================
+export const seedUpcomingEvents = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const day = 86400000;
+    const hour = 3600000;
+
+    const users = await ctx.db.query("users").collect();
+    if (users.length === 0) return { created: 0, reason: "no users" };
+
+    // A timestamp `daysFromNow` ahead at `hourCT` Central time (CDT = UTC-5).
+    const at = (daysFromNow: number, hourCT: number) => {
+      const base = new Date(now + daysFromNow * day);
+      return Date.UTC(
+        base.getUTCFullYear(),
+        base.getUTCMonth(),
+        base.getUTCDate(),
+        hourCT + 5,
+        0,
+        0,
+      );
+    };
+
+    const pickHost = (i: number) => users[i % users.length]._id;
+
+    const specs = [
+      {
+        title: "SPRING PITCH NIGHT",
+        description:
+          "Pitch your startup in 5 minutes to judges, mentors, and fellow founders. Working product or napkin sketch — all UNL students welcome. Food provided.",
+        date: at(3, 18),
+        durationH: 3,
+        location: "Lincoln, NE",
+        fullAddress: "Howard L. Hawks Hall, 730 N 14th St, Lincoln, NE 68588",
+        hostName: "Center for Entrepreneurship",
+        category: "Pitch",
+        imageUrl:
+          "https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=800&h=600&fit=crop",
+        rsvps: 14,
+      },
+      {
+        title: "MAKER MEETUP",
+        description:
+          "Casual meetup for anyone building something. Bring your laptop, your prototype, your half-baked idea. No decks, no pressure — just demos and real feedback. Coffee provided.",
+        date: at(5, 17),
+        durationH: 2,
+        location: "Lincoln, NE",
+        fullAddress: "The Mill Coffee, 800 P St, Lincoln, NE 68508",
+        hostName: "Junto",
+        category: "Networking",
+        imageUrl:
+          "https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800&h=600&fit=crop",
+        rsvps: 9,
+      },
+      {
+        title: "DESIGN JAM: PORTFOLIO REVIEW",
+        description:
+          "Bring your portfolio and get live critique from designers and product folks. Applying for internships or just leveling up — walk away with concrete next steps.",
+        date: at(8, 18),
+        durationH: 2,
+        location: "Lincoln, NE",
+        fullAddress: "Nebraska Innovation Studio, 2021 Transformation Dr, Lincoln, NE 68508",
+        hostName: "UNL Design Collective",
+        category: "Workshop",
+        imageUrl:
+          "https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=800&h=600&fit=crop",
+        rsvps: 7,
+      },
+      {
+        title: "FOUNDERS COFFEE",
+        description:
+          "Early-morning coffee for student founders. No agenda — show up, meet people working on hard things, trade notes on what's working and what isn't.",
+        date: at(11, 8),
+        durationH: 1,
+        location: "Lincoln, NE",
+        fullAddress: "Cultiva Coffee, 720 O St, Lincoln, NE 68508",
+        hostName: "Junto",
+        category: "Networking",
+        imageUrl:
+          "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800&h=600&fit=crop",
+        rsvps: 6,
+      },
+      {
+        title: "BUILD WEEKEND KICKOFF",
+        description:
+          "48 hours to go from idea to demo. Form a team Friday night, build all weekend, demo Sunday. Mentors on-site, prizes for the best builds. All skill levels welcome.",
+        date: at(15, 18),
+        durationH: 3,
+        location: "Lincoln, NE",
+        fullAddress: "Nebraska Innovation Campus, 2021 Transformation Dr, Lincoln, NE 68508",
+        hostName: "Center for Entrepreneurship",
+        category: "Hackathon",
+        imageUrl:
+          "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&h=600&fit=crop",
+        rsvps: 18,
+      },
+    ];
+
+    // Skip titles that already exist so re-running doesn't duplicate.
+    const existing = await ctx.db.query("events").collect();
+    const existingTitles = new Set(existing.map((e) => e.title));
+
+    let created = 0;
+    for (let i = 0; i < specs.length; i++) {
+      const s = specs[i];
+      if (existingTitles.has(s.title)) continue;
+
+      const eventId = await ctx.db.insert("events", {
+        title: s.title,
+        description: s.description,
+        date: s.date,
+        endDate: s.date + s.durationH * hour,
+        location: s.location,
+        fullAddress: s.fullAddress,
+        type: "in_person",
+        hostName: s.hostName,
+        category: s.category,
+        imageUrl: s.imageUrl,
+        createdBy: pickHost(i),
+        createdAt: now,
+      });
+
+      const goingCount = Math.min(s.rsvps, users.length);
+      for (let r = 0; r < goingCount; r++) {
+        await ctx.db.insert("eventRsvps", {
+          eventId,
+          userId: users[r]._id,
+          status: "going",
+          createdAt: now - r * hour,
+        });
+      }
+      created++;
+    }
+
+    return { created };
+  },
+});
+
+// ============================================================
+// SEED CATEGORIZE — give users skills (→ derive skillCategories)
+// and tag events with maker categories. Run after the skill
+// catalog is seeded (referenceData.seedSkillCatalog). Safe to re-run;
+// only assigns demo skills to users who have none.
+// ============================================================
+export const seedCategorize = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // The 12 maker categories (must match the client SkillCategory enum).
+    const MAKER_CATEGORIES = [
+      "Software", "AI", "Design", "Hardware", "Data", "Business", "Finance",
+      "Marketing", "Content", "Science", "Health", "Impact", "Leadership",
+    ];
+    const isMaker = (c: string) => MAKER_CATEGORIES.includes(c);
+
+    const allSkills = (await ctx.db.query("skills").collect()).filter((s) => isMaker(s.category));
+    if (allSkills.length === 0) return { error: "seed the skill catalog first" };
+
+    const skillById = new Map(allSkills.map((s) => [s._id, s]));
+
+    // Skills grouped by category, for assigning demo skills.
+    const byCategory: Record<string, typeof allSkills> = {};
+    for (const s of allSkills) (byCategory[s.category] ??= []).push(s);
+    const categories = Object.keys(byCategory);
+
+    // 1. Users — derive skillCategories; assign demo skills if they have none.
+    const users = await ctx.db.query("users").collect();
+    let usersUpdated = 0;
+    for (let i = 0; i < users.length; i++) {
+      const user = users[i];
+      // (Re)assign demo skills from the maker catalog — a primary + secondary
+      // category, 2 skills each — so the seeded data is always clean.
+      const skillIds: Id<"skills">[] = [];
+      const primary = categories[i % categories.length];
+      const secondary = categories[(i * 3 + 2) % categories.length];
+      const picks = primary === secondary ? [primary] : [primary, secondary];
+      for (const cat of picks) {
+        const pool = byCategory[cat];
+        for (let k = 0; k < Math.min(2, pool.length); k++) {
+          skillIds.push(pool[(i + k) % pool.length]._id);
+        }
+      }
+
+      const cats = new Set<string>();
+      for (const sid of skillIds) {
+        const skill = skillById.get(sid);
+        if (skill) cats.add(skill.category);
+      }
+
+      await ctx.db.patch(user._id, {
+        skills: skillIds,
+        skillCategories: Array.from(cats),
+      });
+      usersUpdated++;
+    }
+
+    // 2. Events — tag with the maker categories they're relevant to.
+    const eventCategoryMap: Record<string, string[]> = {
+      "SPRING PITCH NIGHT": ["Business", "Finance"],
+      "MAKER MEETUP": ["Software", "Hardware", "Design"],
+      "DESIGN JAM: PORTFOLIO REVIEW": ["Design", "Content"],
+      "FOUNDERS COFFEE": ["Business", "Leadership"],
+      "BUILD WEEKEND KICKOFF": ["Software", "Hardware", "Design"],
+    };
+    const events = await ctx.db.query("events").collect();
+    let eventsUpdated = 0;
+    for (const event of events) {
+      const cats = eventCategoryMap[event.title];
+      if (cats) {
+        await ctx.db.patch(event._id, { categories: cats });
+        eventsUpdated++;
+      }
+    }
+
+    return { usersUpdated, eventsUpdated };
+  },
+});
+
+// ============================================================
+// SEED GOING RSVPs — RSVP a user "going" to a couple upcoming
+// events so the Discover "Your Events" strip renders. Defaults to
+// the first user (Kenny). Safe to re-run.
+// ============================================================
+export const seedGoingRsvps = internalMutation({
+  args: { clerkId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    let user = args.clerkId
+      ? await ctx.db
+          .query("users")
+          .filter((q) => q.eq(q.field("clerkId"), args.clerkId!))
+          .first()
+      : null;
+    if (!user) user = await ctx.db.query("users").first();
+    if (!user) return { error: "no user" };
+
+    const upcoming = (await ctx.db.query("events").collect())
+      .filter((e) => e.date > now)
+      .sort((a, b) => a.date - b.date)
+      .slice(0, 2);
+
+    let added = 0;
+    for (const event of upcoming) {
+      const existing = await ctx.db
+        .query("eventRsvps")
+        .withIndex("by_event", (q) => q.eq("eventId", event._id))
+        .filter((q) => q.eq(q.field("userId"), user!._id))
+        .first();
+      if (!existing) {
+        await ctx.db.insert("eventRsvps", {
+          eventId: event._id,
+          userId: user._id,
+          status: "going",
+          createdAt: now,
+        });
+        added++;
+      }
+    }
+    return { user: user.name, added };
   },
 });
 

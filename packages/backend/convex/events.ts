@@ -81,6 +81,59 @@ export const listUpcoming = query({
   },
 });
 
+// Upcoming events the user has RSVP'd "going" to — drives the Discover
+// "Your Events" strip (rendered only when non-empty).
+export const listGoingUpcoming = query({
+  args: {
+    userId: v.id("users"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    const myRsvps = await ctx.db
+      .query("eventRsvps")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .filter((q) => q.eq(q.field("status"), "going"))
+      .collect();
+
+    let events = (
+      await Promise.all(myRsvps.map((r) => ctx.db.get(r.eventId)))
+    ).filter((e): e is NonNullable<typeof e> => e !== null && e.date > now);
+
+    events.sort((a, b) => a.date - b.date);
+    if (args.limit) events = events.slice(0, args.limit);
+
+    return await Promise.all(
+      events.map(async (event) => {
+        const host = await ctx.db.get(event.createdBy);
+        const rsvps = await ctx.db
+          .query("eventRsvps")
+          .withIndex("by_event", (q) => q.eq("eventId", event._id))
+          .collect();
+        const goingCount = rsvps.filter((r) => r.status === "going").length;
+        const previewRsvps = rsvps.filter((r) => r.status === "going").slice(0, 3);
+        const attendeePreviews = (
+          await Promise.all(
+            previewRsvps.map(async (rsvp) => {
+              const user = await ctx.db.get(rsvp.userId);
+              return user ? { id: user._id, name: user.name, avatarUrl: user.avatarUrl } : null;
+            })
+          )
+        ).filter(Boolean);
+
+        return {
+          ...event,
+          imageUrl: await resolveImageUrl(ctx, event.imageUrl),
+          host: host ? { id: host._id, name: host.name, avatarUrl: host.avatarUrl } : null,
+          goingCount,
+          attendeePreviews,
+        };
+      })
+    );
+  },
+});
+
 // List past events with preview data (most recent first)
 export const listPast = query({
   args: {
@@ -139,7 +192,7 @@ export const listPast = query({
 
 // Get single event with RSVP count, host, and attendee previews
 export const get = query({
-  args: { id: v.id("events") },
+  args: { id: v.id("events"), userId: v.optional(v.id("users")) },
   handler: async (ctx, args) => {
     const event = await ctx.db.get(args.id);
     if (!event) return null;
@@ -176,6 +229,9 @@ export const get = query({
       goingCount: goingRsvps.length,
       interestedCount: interestedRsvps.length,
       attendeePreviews: attendeePreviews.filter(Boolean),
+      myStatus: args.userId
+        ? (rsvps.find((r) => r.userId === args.userId)?.status ?? null)
+        : null,
     };
   },
 });
@@ -468,6 +524,7 @@ export const create = mutation({
     type: v.string(),
     hostName: v.optional(v.string()),
     category: v.optional(v.string()),
+    categories: v.optional(v.array(v.string())),
     imageUrl: v.optional(v.string()),
     createdBy: v.id("users"),
     universityId: v.optional(v.id("universities")),

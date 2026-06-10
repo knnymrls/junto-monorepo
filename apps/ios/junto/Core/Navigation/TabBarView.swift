@@ -121,42 +121,38 @@ struct TabBarView: View {
 
             // Main content (slides left to reveal menu)
             ZStack(alignment: .bottom) {
-                VStack(spacing: 0) {
-                    if selectedTab == .feed {
-                        // Feed uses the brand nav (user avatar + Junto wordmark + menu)
-                        FeedTopNav(
-                            avatarUrl: currentUser.user?.avatarUrl,
-                            name: currentUser.user?.name ?? "?",
+                Group {
+                    switch selectedTab {
+                    case .feed:
+                        VStack(spacing: 0) {
+                            feedTopNav
+                            FeedView()
+                        }
+                    case .discover:
+                        // Discover owns its own NavigationStack + header so the
+                        // Events / People / Search pages push in from the right.
+                        DiscoverView(
                             onAvatarTap: { showMyProfile = true },
-                            onMenuTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } },
-                            profileZoomID: currentUser.user.map { AnyHashable($0._id) },
                             profileZoomNamespace: profileZoom
                         )
-                    } else {
-                        TopNavBar(
-                            title: selectedTab.title,
-                            avatarUrl: currentUser.user?.avatarUrl,
-                            avatarName: currentUser.user?.name ?? "?",
-                            onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
-                        )
-                    }
-
-                    Group {
-                        switch selectedTab {
-                        case .feed:
-                            FeedView()
-                        case .discover:
-                            EventsView()
-                        case .ai:
+                    case .ai:
+                        VStack(spacing: 0) {
+                            defaultTopNav(.ai)
                             SearchView()
-                        case .messages:
+                        }
+                    case .messages:
+                        VStack(spacing: 0) {
+                            defaultTopNav(.messages)
                             MessagesView()
-                        case .notifications:
+                        }
+                    case .notifications:
+                        VStack(spacing: 0) {
+                            defaultTopNav(.notifications)
                             NotificationsView()
                         }
                     }
-                    .environment(\.tabBarVisible, $isTabBarVisible)
                 }
+                .environment(\.tabBarVisible, $isTabBarVisible)
                 .ignoresSafeArea(.keyboard, edges: .bottom)
 
                 if isTabBarVisible {
@@ -263,6 +259,30 @@ struct TabBarView: View {
                     )
             }
         }
+    }
+
+    // MARK: - Top navs
+
+    private var feedTopNav: some View {
+        BrandTopNav(
+            avatarUrl: currentUser.user?.avatarUrl,
+            name: currentUser.user?.name ?? "?",
+            center: .wordmark("Junto"),
+            onAvatarTap: { showMyProfile = true },
+            trailingIcon: "nav.menu",
+            onTrailingTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } },
+            profileZoomID: currentUser.user.map { AnyHashable($0._id) },
+            profileZoomNamespace: profileZoom
+        )
+    }
+
+    private func defaultTopNav(_ tab: Tab) -> some View {
+        TopNavBar(
+            title: tab.title,
+            avatarUrl: currentUser.user?.avatarUrl,
+            avatarName: currentUser.user?.name ?? "?",
+            onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
+        )
     }
 
     private func checkForFeedbackPrompt() async {

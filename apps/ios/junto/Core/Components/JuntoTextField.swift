@@ -15,6 +15,7 @@ struct JuntoTextField: View {
     var keyboardType: UIKeyboardType = .default
     var textContentType: UITextContentType? = nil
     var autocapitalization: TextInputAutocapitalization = .sentences
+    var fill: Color = .appInputFill
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -44,7 +45,7 @@ struct JuntoTextField: View {
             }
             .padding(.horizontal, Spacing.md)
             .frame(height: 53)
-            .background(Color.appInputFill)
+            .background(fill)
             .clipShape(RoundedRectangle(cornerRadius: Radius.xxl))
         }
     }

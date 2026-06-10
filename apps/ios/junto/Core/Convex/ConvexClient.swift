@@ -269,6 +269,15 @@ extension ConvexClientManager {
         }
     }
 
+    /// Upcoming events the user has RSVP'd "going" to (Discover "Your Events").
+    func subscribeGoingUpcomingEvents(userId: String, limit: Int? = nil) -> AnyPublisher<[EventResponse], ClientError> {
+        var args: [String: (any ConvexEncodable)?] = ["userId": userId]
+        if let limit = limit {
+            args["limit"] = Double(limit)
+        }
+        return client.subscribe(to: "events:listGoingUpcoming", with: args, yielding: [EventResponse].self)
+    }
+
     /// Subscribe to past events (most recent first)
     func subscribePastEvents(universityId: String? = nil, limit: Int? = nil) -> AnyPublisher<[EventResponse], ClientError> {
         var args: [String: (any ConvexEncodable)?] = [:]
@@ -287,8 +296,10 @@ extension ConvexClientManager {
     }
 
     /// Subscribe to a single event with RSVP counts
-    func subscribeEvent(id: String) -> AnyPublisher<EventWithRsvpResponse?, ClientError> {
-        return client.subscribe(to: "events:get", with: ["id": id], yielding: EventWithRsvpResponse?.self)
+    func subscribeEvent(id: String, userId: String? = nil) -> AnyPublisher<EventWithRsvpResponse?, ClientError> {
+        var args: [String: (any ConvexEncodable)?] = ["id": id]
+        if let userId = userId { args["userId"] = userId }
+        return client.subscribe(to: "events:get", with: args, yielding: EventWithRsvpResponse?.self)
     }
 
     /// Subscribe to event attendees
@@ -878,6 +889,8 @@ extension ConvexClientManager {
         endDate: Double? = nil,
         location: String? = nil,
         type: String,
+        category: String? = nil,
+        categories: [String]? = nil,
         imageUrl: String? = nil,
         createdBy: String,
         universityId: String?
@@ -891,6 +904,10 @@ extension ConvexClientManager {
         if let description { args["description"] = description }
         if let endDate { args["endDate"] = endDate }
         if let location { args["location"] = location }
+        if let category { args["category"] = category }
+        if let categories, !categories.isEmpty {
+            args["categories"] = categories.map { $0 as ConvexEncodable? }
+        }
         if let imageUrl { args["imageUrl"] = imageUrl }
         if let universityId { args["universityId"] = universityId }
 
@@ -1496,6 +1513,7 @@ struct UserResponse: Codable, Identifiable, Hashable {
     let graduationSemester: String?
     let programs: [String]?
     let skills: [String]?
+    var skillCategories: [String]? = nil
     let interests: [String]?
     let lookingFor: String?
     let canHelpWith: String?
@@ -1835,7 +1853,8 @@ struct EventResponse: Codable, Identifiable, Hashable {
     let location: String?
     let type: String
     let hostName: String?          // Display host (e.g. "Center of Entrepreneurship") — feed card name
-    let category: String?          // Event category (e.g. "Pitch") — feed meta chip
+    let category: String?          // Event type chip (e.g. "Pitch")
+    var categories: [String]? = nil  // Maker categories the event is relevant to (skill taxonomy)
     let imageUrl: String?
     let createdBy: String
     let createdAt: Double
@@ -1848,6 +1867,12 @@ struct EventResponse: Codable, Identifiable, Hashable {
 
     /// Best display name for the event's host (explicit hostName, else the creator's name).
     var displayHostName: String? { hostName ?? host?.name }
+
+    /// Tags shown on event cards: the maker categories it touches (icon'd) plus
+    /// the event-type word (e.g. "Pitch", "Workshop") — type renders label-only.
+    var displayTags: [String] {
+        (categories ?? []) + ([category].compactMap { $0 })
+    }
 
     var dateValue: Date { Date(timeIntervalSince1970: date / 1000) }
     var endDateValue: Date? { endDate.map { Date(timeIntervalSince1970: $0 / 1000) } }
@@ -1946,6 +1971,7 @@ struct EventWithRsvpResponse: Codable, Identifiable {
     let fullAddress: String?
     let type: String
     let category: String?
+    var categories: [String]? = nil
     let imageUrl: String?
     let createdBy: String
     let createdAt: Double
@@ -1953,6 +1979,7 @@ struct EventWithRsvpResponse: Codable, Identifiable {
     let interestedCount: Int
     let host: EventHost?
     let attendeePreviews: [AttendeePreview]?
+    var myStatus: String? = nil   // current user's RSVP status ("going", etc.)
 
     var id: String { _id }
 

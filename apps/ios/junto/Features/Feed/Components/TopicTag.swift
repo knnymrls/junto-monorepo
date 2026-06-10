@@ -14,10 +14,17 @@ import SwiftUI
 
 struct TopicTag: View {
     let category: String
+    /// Explicit icon source — used when the label itself isn't a category
+    /// (e.g. an event type like "Pitch" borrowing its event's primary category).
+    var iconCategory: SkillCategory? = nil
+
+    private var iconAsset: String? {
+        (iconCategory ?? SkillCategory.match(category))?.icon
+    }
 
     var body: some View {
         HStack(spacing: Spacing.xxs) {
-            if let icon = TopicIcon.assetName(for: category) {
+            if let icon = iconAsset {
                 Image(icon)
                     .renderingMode(.template)
                     .resizable()
@@ -37,20 +44,13 @@ struct TopicTag: View {
 
 /// Maps a skill category (post topic / match tag) to a line icon asset.
 ///
-/// Line icons on the plain card background, per the icon convention.
-/// Returns `nil` for categories that don't have a designed icon yet — the
-/// tag then renders label-only rather than guessing an icon. Add cases here
-/// (with a matching `topic.*` imageset) as Kenny designs them.
+/// Delegates to the canonical `SkillCategory` taxonomy so every feed tag,
+/// event-card category, and Discover chip shares one icon vocabulary. Returns
+/// `nil` for strings that don't normalize to a known category — the tag then
+/// renders label-only rather than guessing an icon.
 enum TopicIcon {
     static func assetName(for category: String) -> String? {
-        switch category.lowercased() {
-        case "software development", "software engineering", "engineering", "development", "programming":
-            return "topic.code"
-        case "design", "ui design", "ux design", "product design", "graphic design":
-            return "topic.design"
-        default:
-            return nil
-        }
+        SkillCategory.match(category)?.icon
     }
 }
 
