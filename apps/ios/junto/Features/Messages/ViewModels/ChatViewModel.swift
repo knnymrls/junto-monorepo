@@ -18,6 +18,8 @@ class ChatViewModel: ObservableObject {
     @Published var isRequest = false
     @Published var isAccepting = false
     @Published var isDeclining = false
+    /// User-facing failure from send/edit/delete/react — the view alerts on it.
+    @Published var sendError: String?
 
     /// Message the composer is replying to (nil = not replying).
     @Published var replyingTo: MessageResponse?
@@ -32,6 +34,7 @@ class ChatViewModel: ObservableObject {
     private var messagesCancellable: AnyCancellable?
     private var typingCancellable: AnyCancellable?
     private var typingTimer: Timer?
+    private var lastTypingSentAt: Date?
     private let convex = ConvexClientManager.shared
 
     init(conversationId: String?, otherParticipant: UserResponse, currentUserId: String, isRequest: Bool = false) {
@@ -44,7 +47,22 @@ class ChatViewModel: ObservableObject {
 
     func subscribe() {
         guard let conversationId else {
-            isLoading = false
+            // Entry points like a profile's Message button don't know whether
+            // a conversation already exists — resolve it so months of history
+            // (and the unread state) aren't hidden behind an empty thread.
+            Task {
+                if let conv = try? await convex.fetchConversationBetween(
+                    userId1: currentUserId,
+                    userId2: otherParticipant._id
+                ) {
+                    conversationId = conv._id
+                    isRequest = (conv.status ?? "active") == "request" && conv.initiatorId != currentUserId
+                    subscribe()
+                    markAsRead()
+                } else {
+                    isLoading = false
+                }
+            }
             return
         }
 
@@ -91,7 +109,7 @@ class ChatViewModel: ObservableObject {
         isSending = true
         let messageContent = gifUrl != nil && content.isEmpty ? " " : content
         messageText = ""
-        let replyToId = replyingTo?._id
+        let replyTarget = replyingTo
         replyingTo = nil
         let wasNewConversation = conversationId == nil
 
@@ -102,11 +120,26 @@ class ChatViewModel: ObservableObject {
                     recipientId: otherParticipant._id,
                     content: messageContent,
                     gifUrl: gifUrl,
-                    replyToId: replyToId
+                    replyToId: replyTarget?._id
                 )
+            } catch {
+                // The send itself failed: restore everything the user staged
+                // (text, reply context, the GIF used to vanish) and tell them.
+                print("Send message error: \(error)")
+                messageText = content
+                replyingTo = replyTarget
+                sendError = gifUrl != nil
+                    ? "Couldn't send your GIF. Check your connection and try again."
+                    : "Couldn't send your message. Check your connection and try again."
+                isSending = false
+                return
+            }
 
-                // First message created the conversation — look it up and subscribe
-                if wasNewConversation {
+            // The message is delivered past this point — a failure in the
+            // follow-up conversation lookup must NOT read as a failed send
+            // (it used to restore the text and invite a duplicate send).
+            if wasNewConversation {
+                do {
                     let conv = try await convex.fetchConversationBetween(
                         userId1: currentUserId,
                         userId2: otherParticipant._id
@@ -115,13 +148,12 @@ class ChatViewModel: ObservableObject {
                         conversationId = conv._id
                         subscribe()
                     }
+                } catch {
+                    print("Conversation lookup after first send failed: \(error)")
                 }
-
-                AnalyticsService.shared.track(.messageSent(conversationId: conversationId ?? "new"))
-            } catch {
-                print("Send message error: \(error)")
-                messageText = content
             }
+
+            AnalyticsService.shared.track(.messageSent(conversationId: conversationId ?? "new"))
             isSending = false
         }
     }
@@ -162,6 +194,10 @@ class ChatViewModel: ObservableObject {
                 try await convex.editMessage(messageId: target._id, userId: currentUserId, content: content)
             } catch {
                 print("Edit message error: \(error)")
+                // Restore the edit so the user's rewrite isn't lost.
+                editingMessage = target
+                messageText = content
+                sendError = "Couldn't save your edit. Check your connection and try again."
             }
         }
     }
@@ -173,6 +209,7 @@ class ChatViewModel: ObservableObject {
                 try await convex.deleteMessage(messageId: message._id, userId: currentUserId)
             } catch {
                 print("Delete message error: \(error)")
+                sendError = "Couldn't delete the message. Try again."
             }
         }
     }
@@ -184,6 +221,7 @@ class ChatViewModel: ObservableObject {
                 try await convex.toggleMessageReaction(messageId: message._id, userId: currentUserId, emoji: emoji)
             } catch {
                 print("React error: \(error)")
+                sendError = "Couldn't add your reaction. Try again."
             }
         }
     }
@@ -204,8 +242,15 @@ class ChatViewModel: ObservableObject {
         guard let conversationId else { return }
 
         typingTimer?.invalidate()
-        Task {
-            try? await convex.setTyping(conversationId: conversationId, userId: currentUserId)
+        // Heartbeat, not per-keystroke: the backend indicator lives ~5s, so
+        // one mutation every 2.5s keeps it alive. Unthrottled, a 100-char
+        // message fired 100 mutations.
+        let now = Date()
+        if lastTypingSentAt == nil || now.timeIntervalSince(lastTypingSentAt!) >= 2.5 {
+            lastTypingSentAt = now
+            Task {
+                try? await convex.setTyping(conversationId: conversationId, userId: currentUserId)
+            }
         }
 
         typingTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
@@ -218,6 +263,7 @@ class ChatViewModel: ObservableObject {
     func stopTyping() {
         typingTimer?.invalidate()
         typingTimer = nil
+        lastTypingSentAt = nil
         guard let conversationId else { return }
         Task {
             try? await convex.clearTyping(conversationId: conversationId, userId: currentUserId)
@@ -233,6 +279,7 @@ class ChatViewModel: ObservableObject {
                 isRequest = false
             } catch {
                 print("Accept request error: \(error)")
+                sendError = "Couldn't accept the request. Try again."
             }
             isAccepting = false
         }
@@ -247,6 +294,7 @@ class ChatViewModel: ObservableObject {
                 dismiss()
             } catch {
                 print("Decline request error: \(error)")
+                sendError = "Couldn't decline the request. Try again."
             }
             isDeclining = false
         }

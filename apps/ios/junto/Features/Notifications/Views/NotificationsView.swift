@@ -91,6 +91,7 @@ struct NotificationsView: View {
             }
             AnalyticsService.shared.track(.notificationsViewed)
         }
+        .errorAlert($viewModel.actionError)
     }
 
     // MARK: - Header
@@ -165,7 +166,10 @@ struct NotificationsView: View {
                         .onTapGesture {
                             handleTap(notification)
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        // swipeActions only works inside a List — in this
+                        // LazyVStack it rendered nothing, so delete was
+                        // unreachable. Long-press is the system alternative.
+                        .contextMenu {
                             Button(role: .destructive) {
                                 Task { await viewModel.remove(notification) }
                             } label: {

@@ -22,6 +22,7 @@ struct PortfolioTabView: View {
     @State private var showAddSheet = false
     @State private var activeSuggestion: VocationSuggestion?
     @State private var cancellable: AnyCancellable?
+    @State private var actionError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -74,6 +75,7 @@ struct PortfolioTabView: View {
         }
         .onAppear { startSubscription() }
         .onDisappear { cancellable?.cancel() }
+        .errorAlert($actionError)
     }
 
     // MARK: - Widget Card Router
@@ -128,6 +130,7 @@ struct PortfolioTabView: View {
                 try await ConvexClientManager.shared.deletePortfolioItem(id: item._id)
             } catch {
                 print("PortfolioTabView: delete error: \(error)")
+                actionError = "Couldn't delete the widget. Try again."
             }
         }
     }

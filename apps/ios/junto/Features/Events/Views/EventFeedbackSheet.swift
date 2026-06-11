@@ -24,6 +24,7 @@ struct EventFeedbackSheet: View {
     @State private var connectedIds: Set<String> = []
     @State private var pendingConnectionIds: Set<String> = []
     @State private var isSubmitting = false
+    @State private var submitError: String?
     @State private var cancellables = Set<AnyCancellable>()
 
     private let convex = ConvexClientManager.shared
@@ -80,6 +81,7 @@ struct EventFeedbackSheet: View {
             }
         }
         .interactiveDismissDisabled()
+        .errorAlert($submitError, title: "Couldn't Submit Feedback")
         .task {
             await loadAttendees()
         }
@@ -347,6 +349,7 @@ struct EventFeedbackSheet: View {
             } catch {
                 print("Feedback submission failed: \(error)")
                 await MainActor.run {
+                    submitError = "Couldn't submit your feedback. Check your connection and try again."
                     isSubmitting = false
                 }
             }

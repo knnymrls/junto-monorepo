@@ -53,6 +53,8 @@ final class AskJuntoViewModel: ObservableObject {
     /// Connection state for the person-card connect badge.
     @Published var connectedUserIds: Set<String> = []
     @Published var pendingConnectionIds: Set<String> = []
+    /// User-facing failure from send/intro/RSVP — the view alerts on it.
+    @Published var sendError: String?
 
     var currentUserId: String?
 
@@ -120,7 +122,14 @@ final class AskJuntoViewModel: ObservableObject {
                 }
                 try await convex.runAskJunto(threadId: tid, message: text, currentUserId: userId)
             } catch {
+                // isSending is otherwise only reset by an assistant row arriving
+                // — which never happens on failure, so the composer locked
+                // forever with an eternal loader and the typed message lost.
                 print("AskJuntoViewModel: send error: \(error)")
+                optimisticUser = nil
+                isSending = false
+                draft = text
+                sendError = "Couldn't send your message. Check your connection and try again."
             }
         }
     }
@@ -253,6 +262,7 @@ final class AskJuntoViewModel: ObservableObject {
             return true
         } catch {
             print("AskJuntoViewModel: sendIntro error: \(error)")
+            sendError = "Couldn't send your intro. Check your connection and try again."
             return false
         }
     }

@@ -68,6 +68,7 @@ struct AskJuntoView: View {
                 }
             }
         .background(Color.appBackground)
+        .errorAlert($vm.sendError)
         .fullScreenCover(item: $selectedProfile) { user in
             ProfileView(user: user)
                 .zoomDestination(id: user._id, in: profileZoom)

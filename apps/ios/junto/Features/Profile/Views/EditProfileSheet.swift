@@ -350,6 +350,7 @@ struct WidgetLayoutEditor: View {
     @State private var items: [PortfolioItemResponse] = []
     @State private var isLoading = true
     @State private var isSaving = false
+    @State private var saveError: String?
     @State private var showAddSheet = false
     @State private var activeSuggestion: VocationSuggestion?
 
@@ -407,6 +408,7 @@ struct WidgetLayoutEditor: View {
             )
         }
         .task { await loadItems() }
+        .errorAlert($saveError)
     }
 
     private func loadItems() async {
@@ -415,6 +417,7 @@ struct WidgetLayoutEditor: View {
             isLoading = false
         } catch {
             print("WidgetLayoutEditor: load error: \(error)")
+            saveError = "Couldn't load your widgets. Check your connection and try again."
             isLoading = false
         }
     }
@@ -430,6 +433,7 @@ struct WidgetLayoutEditor: View {
                 await MainActor.run { dismiss() }
             } catch {
                 print("WidgetLayoutEditor: save error: \(error)")
+                saveError = "Couldn't save your layout. Check your connection and try again."
                 isSaving = false
             }
         }

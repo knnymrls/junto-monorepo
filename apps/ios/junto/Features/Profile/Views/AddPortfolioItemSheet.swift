@@ -16,6 +16,7 @@ struct AddPortfolioItemSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedType: PortfolioItemResponse.PortfolioType?
     @State private var isSaving = false
+    @State private var saveError: String?
 
     init(userId: String, initialType: PortfolioItemResponse.PortfolioType? = nil, suggestedTitle: String? = nil) {
         self.userId = userId
@@ -95,6 +96,7 @@ struct AddPortfolioItemSheet: View {
             }
         }
         .presentationDragIndicator(.visible)
+        .errorAlert($saveError, title: "Couldn't Save")
     }
 
     // MARK: - Type Picker
@@ -465,6 +467,7 @@ struct AddPortfolioItemSheet: View {
                 dismiss()
             } catch {
                 print("AddPortfolioItemSheet: save error: \(error)")
+                saveError = "Couldn't save your widget. Check your connection and try again."
                 isSaving = false
             }
         }

@@ -32,6 +32,7 @@ struct NotificationPreferencesView: View {
 
     @State private var muted: Set<String> = []
     @State private var loaded = false
+    @State private var saveError: String?
 
     private var hairline: CGFloat { 1 / UIScreen.main.scale }
 
@@ -64,11 +65,16 @@ struct NotificationPreferencesView: View {
         .background(Color.appBackground)
         .task {
             guard !loaded, let userId = currentUser.userId else { return }
-            if let prefs = try? await ConvexClientManager.shared.fetchNotificationPreferences(userId: userId) {
-                muted = Set(prefs)
+            do {
+                muted = Set(try await ConvexClientManager.shared.fetchNotificationPreferences(userId: userId))
+                loaded = true
+            } catch {
+                // Don't render default-ON toggles over unknown real state.
+                saveError = "Couldn't load your notification settings. Try again."
+                dismiss()
             }
-            loaded = true
         }
+        .errorAlert($saveError)
     }
 
     // MARK: - Header
@@ -142,10 +148,18 @@ struct NotificationPreferencesView: View {
         guard let userId = currentUser.userId else { return }
         let categoriesToMute = Array(muted)
         Task {
-            try? await ConvexClientManager.shared.setNotificationPreferences(
-                userId: userId,
-                mutedCategories: categoriesToMute
-            )
+            do {
+                try await ConvexClientManager.shared.setNotificationPreferences(
+                    userId: userId,
+                    mutedCategories: categoriesToMute
+                )
+            } catch {
+                // The toggle animated but nothing persisted — reload truth.
+                saveError = "Couldn't save that change. Try again."
+                if let prefs = try? await ConvexClientManager.shared.fetchNotificationPreferences(userId: userId) {
+                    muted = Set(prefs)
+                }
+            }
         }
     }
 }

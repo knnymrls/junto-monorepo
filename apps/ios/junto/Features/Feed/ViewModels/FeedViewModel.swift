@@ -88,6 +88,7 @@ class FeedViewModel: ObservableObject {
 
         isLoading = true
         hasMorePosts = true
+        error = nil
 
         do {
             let items = try await convex.fetchUnifiedFeed(userId: userId, limit: initialBatchSize)
