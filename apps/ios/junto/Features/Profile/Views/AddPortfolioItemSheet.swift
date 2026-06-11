@@ -293,6 +293,8 @@ struct AddPortfolioItemSheet: View {
 
                 TextEditor(text: $expDescription)
                     .font(.bodyLarge)
+                    .foregroundColor(.appPrimary)
+                    .scrollContentBackground(.hidden)
                     .frame(minHeight: 80)
                     .padding(Spacing.sm)
                     .background(Color.appSurfaceSecondary)

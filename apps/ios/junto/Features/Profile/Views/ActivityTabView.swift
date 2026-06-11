@@ -31,6 +31,10 @@ struct ActivityTabView: View {
     @State private var postsCancellable: AnyCancellable?
     @State private var eventsCancellable: AnyCancellable?
 
+    // Zoom transitions: tapped card grows into its detail page (iOS 18).
+    @Namespace private var postZoom
+    @Namespace private var eventZoom
+
     private var hairline: CGFloat { 1 / UIScreen.main.scale }
 
     /// Posts and events merged into one timeline, newest first.
@@ -88,9 +92,11 @@ struct ActivityTabView: View {
                 currentUserId: currentUser.userId,
                 connectedUserIds: []
             )
+            .zoomDestination(id: post._id, in: postZoom)
         }
         .fullScreenCover(item: $selectedEvent) { event in
             EventDetailView(event: event)
+                .zoomDestination(id: event._id, in: eventZoom)
         }
         .onAppear {
             startPostsSubscription()
@@ -120,6 +126,7 @@ struct ActivityTabView: View {
                 onConnectTap: onConnect,
                 onCardTap: { selectedPost = post }
             )
+            .zoomSource(id: post._id, in: postZoom)
 
         case .event(let event):
             FeedEventCard(
@@ -127,6 +134,7 @@ struct ActivityTabView: View {
                 tags: event.displayTags,
                 onCardTap: { openEvent(event) }
             )
+            .zoomSource(id: event._id, in: eventZoom)
         }
     }
 
