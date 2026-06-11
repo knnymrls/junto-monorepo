@@ -287,11 +287,12 @@ struct EditProfileSheet: View {
 
         Task {
             do {
-                // Upload the new photo first (if picked) and resolve a real URL.
+                // Upload the new photo first (if picked). ImageUploadService
+                // resolves a real HTTP URL or throws — a raw storage ID must
+                // never reach users.avatarUrl (it renders nowhere).
                 var avatarUrl: String?
                 if let newAvatar {
-                    let storageId = try await ConvexClientManager.shared.uploadImage(newAvatar)
-                    avatarUrl = try await ConvexClientManager.shared.getFileUrl(storageId: storageId) ?? storageId
+                    avatarUrl = try await ImageUploadService.shared.upload(newAvatar).url
                 }
 
                 // users:upsert patches only the keys we send — academic fields,

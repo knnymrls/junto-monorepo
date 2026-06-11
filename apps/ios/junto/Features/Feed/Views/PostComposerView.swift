@@ -178,6 +178,11 @@ struct PostComposerView: View {
         } message: {
             Text("Please select a category for your post.")
         }
+        .alert(isEditing ? "Couldn't Save Post" : "Couldn't Post", isPresented: $showPostError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(postErrorMessage)
+        }
         .sheet(isPresented: $showGifPicker) {
             GifPickerSheet { gif in
                 selectedGifUrl = gif.mp4Url
@@ -353,29 +358,18 @@ struct PostComposerView: View {
         isPosting = true
 
         Task {
-            print("PostComposerView: Attempting to \(isEditing ? "update" : "create") post...")
-            print("PostComposerView: Content: \(content.prefix(50))...")
-            print("PostComposerView: Category: \(category.rawValue)")
-
-            let convex = ConvexClientManager.shared
             var uploadedImageUrls: [String] = existingImageUrls
             if !selectedImages.isEmpty {
                 isUploadingImages = true
-                for (index, image) in selectedImages.enumerated() {
-                    do {
-                        let storageId = try await convex.uploadImage(image)
-                        if let url = try await convex.getFileUrl(storageId: storageId) {
-                            uploadedImageUrls.append(url)
-                            print("PostComposerView: Image \(index + 1) uploaded")
-                        }
-                    } catch {
-                        print("PostComposerView: Failed to upload image \(index + 1) - \(error)")
-                        postErrorMessage = "Failed to upload image"
-                        showPostError = true
-                        isPosting = false
-                        isUploadingImages = false
-                        return
-                    }
+                do {
+                    let uploaded = try await ImageUploadService.shared.upload(selectedImages)
+                    uploadedImageUrls.append(contentsOf: uploaded.map(\.url))
+                } catch {
+                    postErrorMessage = "Couldn't upload your image. Check your connection and try again."
+                    showPostError = true
+                    isPosting = false
+                    isUploadingImages = false
+                    return
                 }
                 isUploadingImages = false
             }
@@ -388,7 +382,8 @@ struct PostComposerView: View {
                     postId: postId,
                     content: content.trimmingCharacters(in: .whitespacesAndNewlines),
                     category: category,
-                    imageUrls: uploadedImageUrls.isEmpty ? nil : uploadedImageUrls
+                    // Full set, [] included, so removing every image persists.
+                    imageUrls: uploadedImageUrls
                 )
             } else {
                 success = await viewModel.createPost(
@@ -401,11 +396,9 @@ struct PostComposerView: View {
             }
 
             if success {
-                print("PostComposerView: Post \(isEditing ? "updated" : "created") successfully!")
                 await viewModel.refresh()
                 dismiss()
             } else {
-                print("PostComposerView: Post failed - \(viewModel.error ?? "unknown error")")
                 postErrorMessage = viewModel.error ?? "Failed to \(isEditing ? "update" : "create") post"
                 showPostError = true
             }

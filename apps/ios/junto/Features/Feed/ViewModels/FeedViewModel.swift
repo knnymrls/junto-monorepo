@@ -200,14 +200,15 @@ class FeedViewModel: ObservableObject {
         }
     }
 
-    /// Update a post
+    /// Update a post. `imageUrls` is the post's full image set — pass an empty
+    /// array to clear removed images (nil means "leave images untouched").
     func updatePost(postId: String, content: String, category: PostResponse.PostCategory, imageUrls: [String]? = nil, linkUrl: String? = nil) async -> Bool {
         do {
             _ = try await convex.updatePost(
                 postId: postId,
                 content: content,
                 category: category,
-                imageUrl: imageUrls?.first,
+                imageUrls: imageUrls,
                 linkUrl: linkUrl
             )
             return true

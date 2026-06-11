@@ -426,7 +426,7 @@ struct AddPortfolioItemSheet: View {
                 case .gallery:
                     var storageIds: [String] = []
                     for image in galleryImages {
-                        let storageId = try await ConvexClientManager.shared.uploadImage(image)
+                        let storageId = try await ImageUploadService.shared.uploadForStorageId(image)
                         storageIds.append(storageId)
                     }
                     _ = try await ConvexClientManager.shared.createPortfolioItem(
@@ -447,7 +447,7 @@ struct AddPortfolioItemSheet: View {
                 case .experience:
                     var storageIds: [String] = []
                     for image in expImages {
-                        let storageId = try await ConvexClientManager.shared.uploadImage(image)
+                        let storageId = try await ImageUploadService.shared.uploadForStorageId(image)
                         storageIds.append(storageId)
                     }
                     _ = try await ConvexClientManager.shared.createPortfolioItem(

@@ -290,7 +290,7 @@ struct FeedView: View {
         }
         #endif
         Task {
-            if let full = try? await ConvexClientManager.shared.fetchEvent(id: event._id) {
+            if let full = try? await ConvexClientManager.shared.fetchEvent(id: event._id, userId: currentUser.userId) {
                 await MainActor.run { selectedEvent = full }
             }
         }

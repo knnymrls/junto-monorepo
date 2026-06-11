@@ -258,7 +258,7 @@ struct NotificationsView: View {
         case "event_rsvp", "event_reminder", "new_event":
             if let eventId = notification.data?.eventId {
                 Task {
-                    if let event = try? await ConvexClientManager.shared.fetchEvent(id: eventId) {
+                    if let event = try? await ConvexClientManager.shared.fetchEvent(id: eventId, userId: currentUser.userId) {
                         selectedEvent = event
                     }
                 }

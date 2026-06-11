@@ -286,31 +286,12 @@ struct DiscoverView: View {
     private func selectEvent(_ event: EventResponse) {
         Task {
             do {
-                if let full = try await fetchFullEvent(id: event._id) {
-                    await MainActor.run { selectedEvent = full }
+                if let full = try await convex.fetchEvent(id: event._id, userId: currentUser.userId) {
+                    selectedEvent = full
                 }
             } catch {
                 print("Failed to fetch event: \(error)")
             }
-        }
-    }
-
-    private func fetchFullEvent(id: String) async throws -> EventWithRsvpResponse? {
-        try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = convex.subscribeEvent(id: id, userId: currentUser.userId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { event in
-                        continuation.resume(returning: event)
-                    }
-                )
         }
     }
 }

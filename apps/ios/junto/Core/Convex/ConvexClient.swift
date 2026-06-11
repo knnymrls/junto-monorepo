@@ -21,6 +21,63 @@ class ConvexClientManager: ObservableObject {
     }
 }
 
+// MARK: - One-shot queries
+
+/// Errors thrown by `queryOnce` when a one-shot read cannot complete.
+enum ConvexQueryError: Error, LocalizedError {
+    case timedOut
+    case noValue
+
+    var errorDescription: String? {
+        switch self {
+        case .timedOut: return "The request timed out. Check your connection and try again."
+        case .noValue: return "The server returned no data."
+        }
+    }
+}
+
+extension ConvexClientManager {
+
+    /// One-shot read of a Convex query: resolves with the first value or throws.
+    /// A publisher that completes without emitting throws instead of hanging,
+    /// and the timeout covers the offline case where the socket never errors.
+    func queryOnce<T: Decodable>(
+        _ name: String,
+        with args: [String: (any ConvexEncodable)?] = [:],
+        yielding type: T.Type = T.self,
+        timeout: TimeInterval = 15
+    ) async throws -> T {
+        let publisher = args.isEmpty
+            ? client.subscribe(to: name, yielding: T.self)
+            : client.subscribe(to: name, with: args, yielding: T.self)
+        return try await queryOnce(publisher, timeout: timeout)
+    }
+
+    /// One-shot read of an existing subscription publisher (first value or throw).
+    func queryOnce<T>(
+        _ publisher: AnyPublisher<T, ClientError>,
+        timeout: TimeInterval = 15
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T?.self) { group in
+            group.addTask {
+                for try await value in publisher.values {
+                    return value
+                }
+                return nil // publisher completed without emitting
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                throw ConvexQueryError.timedOut
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next(), let value = first else {
+                throw ConvexQueryError.noValue
+            }
+            return value
+        }
+    }
+}
+
 // MARK: - Subscriptions (Real-time queries)
 
 extension ConvexClientManager {
@@ -65,22 +122,7 @@ extension ConvexClientManager {
 
     /// Fetch this week's pre-computed matches (query, not action — instant)
     func fetchSuggestedMatchesQuery(userId: String) async throws -> [SuggestedMatchResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "weeklyMatches:getWeeklyMatches", with: ["userId": userId], yielding: [SuggestedMatchResponse].self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { matches in
-                        continuation.resume(returning: matches)
-                    }
-                )
-        }
+        return try await queryOnce("weeklyMatches:getWeeklyMatches", with: ["userId": userId], yielding: [SuggestedMatchResponse].self)
     }
 
     /// Trigger on-demand match generation for a user (first-open fallback)
@@ -400,87 +442,8 @@ extension ConvexClientManager {
         return try await client.mutation("storage:generateUploadUrl", with: [:] as [String: String])
     }
 
-    /// Compress image data while preserving quality (default 1MB max)
-    /// Returns compressed JPEG data
-    private func compressImage(_ imageData: Data, maxSizeKB: Int = 1024) -> Data? {
-        guard let image = UIImage(data: imageData) else { return nil }
-        return compressUIImage(image, maxSizeKB: maxSizeKB)
-    }
-
-    /// Compress UIImage while preserving quality (default 1MB max)
-    /// Returns compressed JPEG data
-    private func compressUIImage(_ image: UIImage, maxSizeKB: Int = 1024) -> Data? {
-        let maxBytes = maxSizeKB * 1024
-
-        // First, resize if image is very large (> 3000px on longest side)
-        var processedImage = image
-        let maxDimension: CGFloat = 3000
-        if image.size.width > maxDimension || image.size.height > maxDimension {
-            let scale = maxDimension / max(image.size.width, image.size.height)
-            let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-            UIGraphicsBeginImageContextWithOptions(newSize, false, image.scale)
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-            if let resized = UIGraphicsGetImageFromCurrentImageContext() {
-                processedImage = resized
-            }
-            UIGraphicsEndImageContext()
-        }
-
-        // Start with high quality and reduce gradually if needed
-        var compression: CGFloat = 0.9
-        var imageData = processedImage.jpegData(compressionQuality: compression)
-
-        while let data = imageData, data.count > maxBytes, compression > 0.5 {
-            compression -= 0.05
-            imageData = processedImage.jpegData(compressionQuality: compression)
-        }
-
-        // If still too large after quality reduction, resize proportionally
-        if let data = imageData, data.count > maxBytes {
-            let scale: CGFloat = 0.8
-            let newSize = CGSize(
-                width: processedImage.size.width * scale,
-                height: processedImage.size.height * scale
-            )
-            UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
-            processedImage.draw(in: CGRect(origin: .zero, size: newSize))
-            if let smaller = UIGraphicsGetImageFromCurrentImageContext() {
-                imageData = smaller.jpegData(compressionQuality: 0.85)
-            }
-            UIGraphicsEndImageContext()
-        }
-
-        return imageData
-    }
-
-    /// Upload image data with automatic compression and return the storage ID
-    /// Images are compressed to ~200KB before upload to reduce bandwidth
-    func uploadImage(_ imageData: Data) async throws -> String {
-        // Compress the image before uploading
-        guard let compressedData = compressImage(imageData) else {
-            throw ConvexUploadError.compressionFailed
-        }
-
-        let originalKB = imageData.count / 1024
-        let compressedKB = compressedData.count / 1024
-        print("ConvexClient: Compressed image from \(originalKB)KB to \(compressedKB)KB")
-
-        return try await uploadRawData(compressedData, contentType: "image/jpeg")
-    }
-
-    /// Upload a UIImage with automatic compression and return the storage ID
-    func uploadImage(_ image: UIImage) async throws -> String {
-        guard let compressedData = compressUIImage(image) else {
-            throw ConvexUploadError.compressionFailed
-        }
-
-        let compressedKB = compressedData.count / 1024
-        print("ConvexClient: Compressed image to \(compressedKB)KB")
-
-        return try await uploadRawData(compressedData, contentType: "image/jpeg")
-    }
-
-    /// Upload raw data without compression (for pre-compressed or non-image data)
+    /// Upload raw data without compression (for pre-compressed or non-image data).
+    /// Image uploads go through ImageUploadService, which compresses off-main.
     func uploadRawData(_ data: Data, contentType: String = "application/octet-stream") async throws -> String {
         // Get upload URL from Convex
         let uploadUrl = try await generateUploadUrl()
@@ -509,22 +472,7 @@ extension ConvexClientManager {
 
     /// Get a URL for a stored file
     func getFileUrl(storageId: String) async throws -> String? {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "storage:getUrl", with: ["storageId": storageId], yielding: String?.self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { url in
-                        continuation.resume(returning: url)
-                    }
-                )
-        }
+        return try await queryOnce("storage:getUrl", with: ["storageId": storageId], yielding: String?.self)
     }
 }
 
@@ -533,6 +481,7 @@ enum ConvexUploadError: Error, LocalizedError {
     case uploadFailed
     case noStorageId
     case compressionFailed
+    case urlResolutionFailed
 
     var errorDescription: String? {
         switch self {
@@ -540,6 +489,7 @@ enum ConvexUploadError: Error, LocalizedError {
         case .uploadFailed: return "Failed to upload image"
         case .noStorageId: return "No storage ID returned"
         case .compressionFailed: return "Failed to compress image"
+        case .urlResolutionFailed: return "Image uploaded but its URL couldn't be resolved"
         }
     }
 }
@@ -624,45 +574,15 @@ extension ConvexClientManager {
 
     /// Fetch vouches for a user
     func fetchVouches(userId: String) async throws -> [VouchResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "vouches:listForUser", with: ["userId": userId], yielding: [VouchResponse].self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { vouches in
-                        continuation.resume(returning: vouches)
-                    }
-                )
-        }
+        return try await queryOnce("vouches:listForUser", with: ["userId": userId], yielding: [VouchResponse].self)
     }
 
     /// Check if current user has vouched for someone
     func hasVouched(fromUserId: String, toUserId: String) async throws -> Bool {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "vouches:hasVouched", with: [
+        return try await queryOnce("vouches:hasVouched", with: [
                 "fromUserId": fromUserId,
                 "toUserId": toUserId
             ], yielding: Bool.self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { result in
-                        continuation.resume(returning: result)
-                    }
-                )
-        }
     }
 
     // MARK: Events
@@ -706,11 +626,12 @@ extension ConvexClientManager {
     }
 
     /// Update a post
-    func updatePost(postId: String, content: String? = nil, category: PostResponse.PostCategory? = nil, imageUrl: String? = nil, linkUrl: String? = nil) async throws -> String {
+    func updatePost(postId: String, content: String? = nil, category: PostResponse.PostCategory? = nil, imageUrls: [String]? = nil, linkUrl: String? = nil) async throws -> String {
         var args: [String: (any ConvexEncodable)?] = ["postId": postId]
         if let content = content { args["content"] = content }
         if let category = category { args["category"] = category.rawValue }
-        if let imageUrl = imageUrl { args["imageUrl"] = imageUrl }
+        // Always the full array — pass [] to clear removed images.
+        if let imageUrls = imageUrls { args["imageUrls"] = imageUrls.map { $0 as ConvexEncodable? } }
         if let linkUrl = linkUrl { args["linkUrl"] = linkUrl }
         return try await client.mutation("posts:update", with: args)
     }
@@ -759,22 +680,7 @@ extension ConvexClientManager {
     }
 
     func fetchNotificationPreferences(userId: String) async throws -> [String] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeNotificationPreferences(userId: userId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { categories in
-                        continuation.resume(returning: categories)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeNotificationPreferences(userId: userId))
     }
 
     func setNotificationPreferences(userId: String, mutedCategories: [String]) async throws {
@@ -995,320 +901,97 @@ extension ConvexClientManager {
 
     /// Fetch users once (takes first value from subscription)
     func fetchUsers(universityId: String? = nil, limit: Int? = nil) async throws -> [UserResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeUsers(universityId: universityId, limit: limit)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { users in
-                        continuation.resume(returning: users)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeUsers(universityId: universityId, limit: limit))
     }
 
     /// Fetch a single user by ID once
     func fetchUser(id: String) async throws -> UserResponse? {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeUser(id: id)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { user in
-                        continuation.resume(returning: user)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeUser(id: id))
     }
 
     /// Fetch the profile display context (university + major/skill names) once
     func fetchProfileContext(userId: String) async throws -> ProfileContextResponse? {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "users:getProfileContext", with: ["userId": userId], yielding: ProfileContextResponse?.self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { context in
-                        continuation.resume(returning: context)
-                    }
-                )
-        }
+        return try await queryOnce("users:getProfileContext", with: ["userId": userId], yielding: ProfileContextResponse?.self)
     }
 
     /// Fetch user by Clerk ID once
     func fetchUserByClerkId(clerkId: String) async throws -> UserResponse? {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeUserByClerkId(clerkId: clerkId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { user in
-                        continuation.resume(returning: user)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeUserByClerkId(clerkId: clerkId))
     }
 
     /// Fetch user by name (for mentions)
     func fetchUserByName(name: String) async throws -> UserResponse? {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "users:getByName", with: ["name": name], yielding: UserResponse?.self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { user in
-                        continuation.resume(returning: user)
-                    }
-                )
-        }
+        return try await queryOnce("users:getByName", with: ["name": name], yielding: UserResponse?.self)
     }
 
     /// Fast name search for cards (typing phase — no embedding, no action overhead)
     func fetchNameSearchResults(query: String, currentUserId: String) async throws -> [UserResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "users:searchForCards", with: [
+        return try await queryOnce("users:searchForCards", with: [
                 "query": query,
                 "currentUserId": currentUserId,
-                "limit": 8,
+                // Double, not Int: convex-swift encodes Int as int64, which the
+                // backend's v.number() (float64) validator rejects.
+                "limit": Double(8),
             ], yielding: [UserResponse].self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { users in
-                        continuation.resume(returning: users)
-                    }
-                )
-        }
     }
 
     /// Check if two users are connected
     func checkConnection(userId1: String, userId2: String) async throws -> Bool {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "connections:checkConnection", with: [
+        return try await queryOnce("connections:checkConnection", with: [
                 "userId1": userId1,
                 "userId2": userId2
             ], yielding: Bool.self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { isConnected in
-                        continuation.resume(returning: isConnected)
-                    }
-                )
-        }
     }
 
     // MARK: Posts
 
     /// Fetch feed once
     func fetchFeed(userId: String, limit: Int? = nil, offset: Int? = nil) async throws -> [PostResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeFeed(userId: userId, limit: limit, offset: offset)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { posts in
-                        continuation.resume(returning: posts)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeFeed(userId: userId, limit: limit, offset: offset))
     }
 
     /// Fetch the unified feed once (posts + injected events + matches as typed items)
     func fetchUnifiedFeed(userId: String, limit: Int? = nil, offset: Int? = nil) async throws -> [FeedItemResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeUnifiedFeed(userId: userId, limit: limit, offset: offset)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { items in
-                        continuation.resume(returning: items)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeUnifiedFeed(userId: userId, limit: limit, offset: offset))
     }
 
     /// Fetch a single post once
     func fetchPost(postId: String) async throws -> PostResponse? {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribePost(postId: postId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { post in
-                        continuation.resume(returning: post)
-                    }
-                )
-        }
+        return try await queryOnce(subscribePost(postId: postId))
     }
 
     /// Fetch posts by author once
     func fetchPostsByAuthor(authorId: String, limit: Int? = nil) async throws -> [PostResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribePostsByAuthor(authorId: authorId, limit: limit)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { posts in
-                        continuation.resume(returning: posts)
-                    }
-                )
-        }
+        return try await queryOnce(subscribePostsByAuthor(authorId: authorId, limit: limit))
     }
 
     // MARK: Comments
 
     /// Fetch comments for a post once
     func fetchComments(postId: String, limit: Int? = nil) async throws -> [CommentResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeComments(postId: postId, limit: limit)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { comments in
-                        continuation.resume(returning: comments)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeComments(postId: postId, limit: limit))
     }
 
     // MARK: Messages
 
     /// Fetch conversations once
     func fetchConversations(userId: String) async throws -> [ConversationResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeConversations(userId: userId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { conversations in
-                        continuation.resume(returning: conversations)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeConversations(userId: userId))
     }
 
     /// Fetch conversation between two users once
     func fetchConversationBetween(userId1: String, userId2: String) async throws -> ConversationResponse? {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "messages:getConversationBetween", with: [
+        return try await queryOnce("messages:getConversationBetween", with: [
                 "userId1": userId1,
                 "userId2": userId2
             ], yielding: ConversationResponse?.self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { conversation in
-                        continuation.resume(returning: conversation)
-                    }
-                )
-        }
     }
 
     // MARK: Mentions
 
     /// Fetch mention suggestions by text search
     func fetchMentionSuggestions(searchText: String) async throws -> [MentionSuggestion] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "mentions:getSuggestions", with: ["searchText": searchText], yielding: [MentionSuggestion].self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { suggestions in
-                        continuation.resume(returning: suggestions)
-                    }
-                )
-        }
+        return try await queryOnce("mentions:getSuggestions", with: ["searchText": searchText], yielding: [MentionSuggestion].self)
     }
 
     /// Fetch smart mention suggestions using vector search (relevance to post content)
@@ -1330,155 +1013,52 @@ extension ConvexClientManager {
 
     /// Fetch connections for a user once
     func fetchConnections(userId: String) async throws -> [UserResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeConnections(userId: userId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { users in
-                        continuation.resume(returning: users)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeConnections(userId: userId))
     }
 
     /// Get connection status between two users
     func getConnectionStatus(fromUserId: String, toUserId: String) async throws -> ConnectionStatus {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "connections:getConnectionStatus", with: [
-                "fromUserId": fromUserId,
-                "toUserId": toUserId
-            ], yielding: String.self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { status in
-                        continuation.resume(returning: ConnectionStatus(rawValue: status) ?? .none)
-                    }
-                )
-        }
+        let status = try await queryOnce("connections:getConnectionStatus", with: [
+            "fromUserId": fromUserId,
+            "toUserId": toUserId
+        ], yielding: String.self)
+        return ConnectionStatus(rawValue: status) ?? .none
     }
 
     /// Fetch IDs of users I've sent pending requests to
     func fetchPendingSentIds(userId: String) async throws -> [String] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(to: "connections:listPendingSentIds", with: [
+        return try await queryOnce("connections:listPendingSentIds", with: [
                 "userId": userId
             ], yielding: [String].self)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { ids in
-                        continuation.resume(returning: ids)
-                    }
-                )
-        }
     }
 
     // MARK: Portfolio
 
     /// Fetch portfolio items once
     func fetchPortfolioItems(userId: String) async throws -> [PortfolioItemResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribePortfolioItems(userId: userId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { items in
-                        continuation.resume(returning: items)
-                    }
-                )
-        }
+        return try await queryOnce(subscribePortfolioItems(userId: userId))
     }
 
     // MARK: Events Attended
 
     /// Fetch events attended by a user once
     func fetchEventsAttended(userId: String) async throws -> [EventResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeEventsAttended(userId: userId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { events in
-                        continuation.resume(returning: events)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeEventsAttended(userId: userId))
     }
 
     // MARK: Events
 
-    /// Fetch a single event once
-    func fetchEvent(id: String) async throws -> EventWithRsvpResponse? {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeEvent(id: id)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { event in
-                        continuation.resume(returning: event)
-                    }
-                )
-        }
+    /// Fetch a single event once. Pass `userId` so the response includes the
+    /// caller's RSVP state (`myStatus`) — omitting it renders stale RSVP UI.
+    func fetchEvent(id: String, userId: String? = nil) async throws -> EventWithRsvpResponse? {
+        return try await queryOnce(subscribeEvent(id: id, userId: userId))
     }
 
     // MARK: Event Feedback
 
     /// Fetch events needing feedback once
     func fetchEventsNeedingFeedback(userId: String) async throws -> [EventWithRsvpResponse] {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeEventsNeedingFeedback(userId: userId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { events in
-                        continuation.resume(returning: events)
-                    }
-                )
-        }
+        return try await queryOnce(subscribeEventsNeedingFeedback(userId: userId))
     }
 }
 
@@ -1570,26 +1150,7 @@ extension ConvexClientManager {
 
     /// Resolve an invite code to its university + program details
     func getInviteLinkByCode(code: String) async throws -> InviteLinkResponse? {
-        return try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(
-                to: "inviteLinks:getByCode",
-                with: ["code": code],
-                yielding: InviteLinkResponse?.self
-            )
-            .first()
-            .sink(
-                receiveCompletion: { completion in
-                    if case .failure(let error) = completion {
-                        continuation.resume(throwing: error)
-                    }
-                    cancellable?.cancel()
-                },
-                receiveValue: { result in
-                    continuation.resume(returning: result)
-                }
-            )
-        }
+        return try await queryOnce("inviteLinks:getByCode", with: ["code": code], yielding: InviteLinkResponse?.self)
     }
 
     /// Redeem an invite link for a user
