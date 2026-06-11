@@ -31,6 +31,8 @@ struct ProfileView: View {
     @State private var isActioning = false
     @State private var hasVouched = false
     @State private var showVouchSheet = false
+    @State private var showCancelConfirm = false
+    @State private var showRemoveConfirm = false
     @State private var showEditSheet = false
     @State private var showShareSheet = false
     @State private var showChat = false
@@ -85,6 +87,8 @@ struct ProfileView: View {
                         onMessage: { showChat = true },
                         onConnect: sendRequest,
                         onAccept: acceptRequest,
+                        onCancelRequest: { showCancelConfirm = true },
+                        onRemoveConnection: { showRemoveConfirm = true },
                         onTapPosts: { selectTab(.activity) },
                         onTapVouches: { selectTab(.vouches) }
                     )
@@ -101,6 +105,22 @@ struct ProfileView: View {
             .scrollEdgeFade(top: true, bottom: false)
         }
         .background(Color.appBackground)
+        .confirmationDialog(
+            "Cancel your connection request?",
+            isPresented: $showCancelConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Cancel Request", role: .destructive) { cancelRequest() }
+            Button("Keep Pending", role: .cancel) {}
+        }
+        .confirmationDialog(
+            "Remove \(user.name) from your connections?",
+            isPresented: $showRemoveConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Remove Connection", role: .destructive) { removeConnection() }
+            Button("Keep Connection", role: .cancel) {}
+        }
         .fullScreenCover(isPresented: $showEditSheet) {
             EditProfileSheet(user: user) { updated in
                 user = updated
@@ -323,10 +343,54 @@ struct ProfileView: View {
                     currentUserId: userId,
                     otherUserId: user._id
                 )
-                withAnimation(.easeInOut(duration: 0.2)) { connectionStatus = .connected }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    connectionStatus = .connected
+                    connectionCount += 1
+                }
                 ConnectionEvents.post(userId: user._id, status: .connected)
             } catch {
                 print("Accept connection request error: \(error)")
+            }
+            isActioning = false
+        }
+    }
+
+    private func cancelRequest() {
+        guard let userId = currentUser.userId else { return }
+        isActioning = true
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Task {
+            do {
+                _ = try await ConvexClientManager.shared.withdrawConnectionRequest(
+                    requesterId: userId,
+                    accepterId: user._id
+                )
+                withAnimation(.easeInOut(duration: 0.2)) { connectionStatus = .none }
+                ConnectionEvents.post(userId: user._id, status: .none)
+            } catch {
+                print("Withdraw connection request error: \(error)")
+            }
+            isActioning = false
+        }
+    }
+
+    private func removeConnection() {
+        guard let userId = currentUser.userId else { return }
+        isActioning = true
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Task {
+            do {
+                _ = try await ConvexClientManager.shared.removeConnection(
+                    userId1: userId,
+                    userId2: user._id
+                )
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    connectionStatus = .none
+                    connectionCount = max(0, connectionCount - 1)
+                }
+                ConnectionEvents.post(userId: user._id, status: .none)
+            } catch {
+                print("Remove connection error: \(error)")
             }
             isActioning = false
         }

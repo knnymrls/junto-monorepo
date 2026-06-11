@@ -27,6 +27,8 @@ struct ProfileHeaderView: View {
     var onMessage: () -> Void = {}
     var onConnect: () -> Void = {}
     var onAccept: () -> Void = {}
+    var onCancelRequest: () -> Void = {}
+    var onRemoveConnection: () -> Void = {}
     var onTapPosts: () -> Void = {}
     var onTapVouches: () -> Void = {}
 
@@ -165,8 +167,9 @@ struct ProfileHeaderView: View {
                     secondaryButton("Message", icon: "tab.envelope.fill", action: onMessage)
 
                 case .pendingSent:
-                    secondaryButton("Pending", icon: "status.waiting.fill") {}
-                        .disabled(true)
+                    // Tap to withdraw — ProfileView confirms before canceling.
+                    secondaryButton("Pending", icon: "status.waiting.fill", action: onCancelRequest)
+                        .disabled(isActioning)
                     secondaryButton("Message", icon: "tab.envelope.fill", action: onMessage)
 
                 case .pendingReceived:
@@ -182,8 +185,28 @@ struct ProfileHeaderView: View {
                     } else {
                         secondaryButton("Vouch", action: onVouch)
                     }
+                    moreMenu
                 }
             }
+        }
+    }
+
+    /// Connected-state overflow — home for the destructive action.
+    private var moreMenu: some View {
+        Menu {
+            Button(role: .destructive, action: onRemoveConnection) {
+                Label("Remove Connection", systemImage: "person.badge.minus")
+            }
+        } label: {
+            Image("nav.more")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
+                .foregroundColor(.appPrimary)
+                .frame(width: 48, height: 42)
+                .background(Color.appSurfaceSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
         }
     }
 
