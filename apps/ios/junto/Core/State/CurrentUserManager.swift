@@ -74,22 +74,12 @@ class CurrentUserManager: ObservableObject {
         guard subscribedClerkId != clerkId || subscription == nil else { return }
         subscribedClerkId = clerkId
         subscription = convex.subscribeUserByClerkId(clerkId: clerkId)
+            .resubscribeOnFailure()
             .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { [weak self] completion in
-                    // A failed subscription shouldn't wipe state; next
-                    // resolve() reattaches.
-                    if case .failure(let error) = completion {
-                        print("CurrentUserManager: user subscription ended: \(error)")
-                        self?.subscription = nil
-                        self?.subscribedClerkId = nil
-                    }
-                },
-                receiveValue: { [weak self] fresh in
-                    guard let self, let fresh else { return }
-                    self.user = fresh
-                }
-            )
+            .sink { [weak self] fresh in
+                guard let self, let fresh else { return }
+                self.user = fresh
+            }
     }
 
     func clear() {

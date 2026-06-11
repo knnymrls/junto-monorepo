@@ -23,25 +23,14 @@ class NotificationsViewModel: ObservableObject {
         isLoading = true
 
         convex.subscribeNotifications(userId: userId, limit: 50)
+            .resubscribeOnFailure()
             .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { [weak self] completion in
-                    if case .failure(let error) = completion {
-                        print("NotificationsViewModel: subscription ended: \(error)")
-                        // Drop the dead subscription so the next subscribe()
-                        // (tab revisit) reattaches instead of bailing on the
-                        // cancellables.isEmpty guard.
-                        self?.cancellables.removeAll()
-                        self?.isLoading = false
-                    }
-                },
-                receiveValue: { [weak self] notifications in
-                    self?.notifications = notifications.filter { notif in
-                        notif.type != "new_message" && notif.type != "message_request"
-                    }
-                    self?.isLoading = false
+            .sink { [weak self] notifications in
+                self?.notifications = notifications.filter { notif in
+                    notif.type != "new_message" && notif.type != "message_request"
                 }
-            )
+                self?.isLoading = false
+            }
             .store(in: &cancellables)
     }
 

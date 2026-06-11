@@ -81,11 +81,25 @@ extension EnvironmentValues {
     }
 }
 
+private extension View {
+    /// Keep-alive tab visibility: the inactive tab stays in the hierarchy
+    /// (state + subscriptions intact) but is invisible and untouchable.
+    func tabVisible(_ visible: Bool) -> some View {
+        self
+            .opacity(visible ? 1 : 0)
+            .allowsHitTesting(visible)
+            .accessibilityHidden(!visible)
+    }
+}
+
 struct TabBarView: View {
     @Environment(\.clerk) private var clerk
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var currentUser: CurrentUserManager
     @State private var selectedTab: Tab = .feed
+    /// Tabs that have been visited at least once — they mount lazily and then
+    /// stay alive so revisits don't refetch everything.
+    @State private var mountedTabs: Set<Tab> = [.feed]
     @State private var isTabBarVisible = true
     @State private var feedbackEvent: EventWithRsvpResponse?
     @State private var hasCheckedFeedback = false
@@ -147,39 +161,52 @@ struct TabBarView: View {
 
             // Main content (slides left to reveal menu)
             ZStack(alignment: .bottom) {
-                Group {
-                    switch selectedTab {
-                    case .feed:
+                // Tabs mount on first visit and stay alive after — switching
+                // back is instant with state, scroll position, and live
+                // subscriptions intact. The old `switch` tore down the entire
+                // view tree (and its view models) on every tab change, so each
+                // visit refetched everything from scratch.
+                ZStack {
+                    if mountedTabs.contains(.feed) {
                         VStack(spacing: 0) {
                             feedTopNav
                             FeedView()
                         }
-                    case .discover:
+                        .tabVisible(selectedTab == .feed)
+                    }
+                    if mountedTabs.contains(.discover) {
                         // Discover owns its own NavigationStack + header so the
                         // Events / People / Search pages push in from the right.
                         DiscoverView(
                             onAvatarTap: { showMyProfile = true },
                             profileZoomNamespace: profileZoom
                         )
-                    case .ai:
+                        .tabVisible(selectedTab == .discover)
+                    }
+                    if mountedTabs.contains(.ai) {
                         // Ask Junto owns its own header (avatar + title + history),
                         // empty state, conversation, and composer.
                         AskJuntoView(
                             onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } },
                             onOpenConversations: { withAnimation(.easeInOut(duration: 0.25)) { showAIConversations = true } }
                         )
-                    case .messages:
+                        .tabVisible(selectedTab == .ai)
+                    }
+                    if mountedTabs.contains(.messages) {
                         // Messages owns its own header (avatar + title + search),
                         // matching Discover and Ask Junto.
                         MessagesView(
                             onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
                         )
-                    case .notifications:
+                        .tabVisible(selectedTab == .messages)
+                    }
+                    if mountedTabs.contains(.notifications) {
                         // Activity owns its own header (avatar + title + preferences),
                         // matching Messages / Discover / Ask Junto.
                         NotificationsView(
                             onProfileTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } }
                         )
+                        .tabVisible(selectedTab == .notifications)
                     }
                 }
                 .environment(\.tabBarVisible, $isTabBarVisible)
@@ -202,6 +229,7 @@ struct TabBarView: View {
                                     isSelected: selectedTab == tab,
                                     hasNotification: (tab == .notifications && unreadNotificationCount > 0) || (tab == .messages && unreadMessageCount > 0),
                                     action: {
+                                        mountedTabs.insert(tab)
                                         selectedTab = tab
                                     }
                                 )
@@ -298,19 +326,17 @@ struct TabBarView: View {
             await checkForFeedbackPrompt()
 
             if let userId = currentUser.userId {
+                // Badges are always-on state: auto-resubscribe on failure
+                // (a single dropped subscription used to freeze them forever).
                 unreadNotificationCancellable = convex.subscribeUnreadCount(userId: userId)
+                    .resubscribeOnFailure()
                     .receive(on: DispatchQueue.main)
-                    .sink(
-                        receiveCompletion: { _ in },
-                        receiveValue: { count in self.unreadNotificationCount = count }
-                    )
+                    .sink { count in self.unreadNotificationCount = count }
 
                 unreadMessageCancellable = convex.subscribeUnreadMessageCount(userId: userId)
+                    .resubscribeOnFailure()
                     .receive(on: DispatchQueue.main)
-                    .sink(
-                        receiveCompletion: { _ in },
-                        receiveValue: { count in self.unreadMessageCount = count }
-                    )
+                    .sink { count in self.unreadMessageCount = count }
             }
         }
     }

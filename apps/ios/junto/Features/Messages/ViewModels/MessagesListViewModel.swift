@@ -83,27 +83,19 @@ class MessagesListViewModel: ObservableObject {
 
     func subscribe(userId: String) {
         conversationsCancellable = convex.subscribeConversations(userId: userId)
+            .resubscribeOnFailure()
             .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { completion in
-                    if case .failure(let error) = completion {
-                        print("Messages subscription error: \(error)")
-                    }
-                },
-                receiveValue: { [weak self] conversations in
-                    self?.conversations = conversations
-                    self?.isLoading = false
-                }
-            )
+            .sink { [weak self] conversations in
+                self?.conversations = conversations
+                self?.isLoading = false
+            }
 
         connectionsCancellable = convex.subscribeConnections(userId: userId)
+            .resubscribeOnFailure()
             .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { _ in },
-                receiveValue: { [weak self] connections in
-                    self?.connections = connections
-                }
-            )
+            .sink { [weak self] connections in
+                self?.connections = connections
+            }
     }
 
     func dismissSuggestion(_ userId: String) {

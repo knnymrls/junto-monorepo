@@ -70,27 +70,19 @@ class ChatViewModel: ObservableObject {
         typingCancellable?.cancel()
 
         messagesCancellable = convex.subscribeMessages(conversationId: conversationId)
+            .resubscribeOnFailure()
             .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { completion in
-                    if case .failure(let error) = completion {
-                        print("Messages subscription error: \(error)")
-                    }
-                },
-                receiveValue: { [weak self] messages in
-                    self?.messages = messages
-                    self?.isLoading = false
-                }
-            )
+            .sink { [weak self] messages in
+                self?.messages = messages
+                self?.isLoading = false
+            }
 
         typingCancellable = convex.subscribeTypingIndicator(conversationId: conversationId, userId: currentUserId)
+            .resubscribeOnFailure()
             .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { _ in },
-                receiveValue: { [weak self] isTyping in
-                    self?.isOtherTyping = isTyping
-                }
-            )
+            .sink { [weak self] isTyping in
+                self?.isOtherTyping = isTyping
+            }
     }
 
     /// Composer submit — routes to edit when an edit is in flight, else sends.
