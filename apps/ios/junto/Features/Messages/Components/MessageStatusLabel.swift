@@ -33,10 +33,10 @@ struct MessageStatusLabel: View {
 
     // MARK: - Per-kind config
 
-    private var iconName: String {
+    private var iconName: ImageResource {
         switch kind {
-        case .request:   return "feed.connect"
-        case .requested: return "feed.clock"
+        case .request:   return .feedConnect
+        case .requested: return .feedClock
         }
     }
 

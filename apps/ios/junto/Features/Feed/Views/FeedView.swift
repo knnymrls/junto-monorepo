@@ -169,7 +169,7 @@ struct FeedView: View {
                     // A failed load is not an empty feed — say so, offer retry.
                     VStack(spacing: Spacing.md) {
                         FeedMessageState(
-                            icon: "feed.empty",
+                            icon: .feedEmpty,
                             title: "Couldn't load your feed",
                             subtitle: "Check your connection and try again."
                         )

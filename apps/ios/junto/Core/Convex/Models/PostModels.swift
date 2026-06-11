@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 import ConvexMobile
 import Combine
 import UIKit
@@ -76,11 +77,11 @@ struct PostResponse: Codable, Identifiable, Hashable {
             }
         }
 
-        var customIconName: String {
+        var customIconName: ImageResource {
             switch self {
-            case .asking: return "content.asking"
-            case .sharing: return "content.sharing"
-            case .lookingFor: return "content.looking"
+            case .asking: return .contentAsking
+            case .sharing: return .contentSharing
+            case .lookingFor: return .contentLooking
             }
         }
     }

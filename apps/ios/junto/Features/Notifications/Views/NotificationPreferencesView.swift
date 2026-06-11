@@ -18,16 +18,16 @@ struct NotificationPreferencesView: View {
         let key: String
         let title: String
         let subtitle: String
-        let icon: String
+        let icon: ImageResource
         var id: String { key }
     }
 
     private let categories: [Category] = [
-        .init(key: "connections", title: "Connections", subtitle: "Requests and accepted connections", icon: "notif.connections"),
-        .init(key: "messages", title: "Messages", subtitle: "New messages and message requests", icon: "notif.messages"),
-        .init(key: "events", title: "Events", subtitle: "RSVPs, reminders, and new events", icon: "notif.events"),
-        .init(key: "comments", title: "Comments & mentions", subtitle: "Replies and @mentions on your posts", icon: "notif.comments"),
-        .init(key: "updates", title: "Updates", subtitle: "Prompts, weekly digests, and milestones", icon: "notif.updates"),
+        .init(key: "connections", title: "Connections", subtitle: "Requests and accepted connections", icon: .notifConnections),
+        .init(key: "messages", title: "Messages", subtitle: "New messages and message requests", icon: .notifMessages),
+        .init(key: "events", title: "Events", subtitle: "RSVPs, reminders, and new events", icon: .notifEvents),
+        .init(key: "comments", title: "Comments & mentions", subtitle: "Replies and @mentions on your posts", icon: .notifComments),
+        .init(key: "updates", title: "Updates", subtitle: "Prompts, weekly digests, and milestones", icon: .notifUpdates),
     ]
 
     @State private var muted: Set<String> = []

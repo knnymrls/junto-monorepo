@@ -25,7 +25,7 @@ struct WelcomeView: View {
 
                     // Logo + Brand
                     VStack(spacing: 0) {
-                        Image("junto-logo")
+                        Image(.juntoLogo)
                             .renderingMode(.template)
                             .resizable()
                             .scaledToFit()
@@ -53,7 +53,7 @@ struct WelcomeView: View {
                     VStack(spacing: Spacing.md) {
                                                 PrimaryButton(
                             title: "Continue with Apple",
-                            icon: Image("apple-icon"),
+                            icon: Image(.appleIcon),
                             isLoading: isLoading
                         ) {
                             signInWithApple()
@@ -61,7 +61,7 @@ struct WelcomeView: View {
 
                         PrimaryButton(
                             title: "Continue with Google",
-                            icon: Image("google-icon"),
+                            icon: Image(.googleIcon),
                             variant: .outlined,
                             isLoading: isLoading
                         ) {
@@ -71,7 +71,7 @@ struct WelcomeView: View {
                         // Email Sign In
                         PrimaryButton(
                             title: "Continue with Email",
-                            icon: Image("email-icon"),
+                            icon: Image(.emailIcon),
                             variant: .outlined
                         ) {
                             AnalyticsService.shared.track(.authStarted(method: .email))

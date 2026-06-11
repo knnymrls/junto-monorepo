@@ -156,7 +156,7 @@ struct AnimatedJuntoLogo: View {
     @State private var pulse = false
 
     var body: some View {
-        Image("junto-logo")
+        Image(.juntoLogo)
             .renderingMode(.template)
             .resizable()
             .scaledToFit()

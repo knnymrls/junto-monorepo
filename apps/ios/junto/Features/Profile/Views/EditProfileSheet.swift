@@ -194,16 +194,16 @@ struct EditProfileSheet: View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             sectionHeader("Links")
 
-            linkField("LinkedIn", icon: "link.linkedin", text: $linkedin)
-            linkField("Instagram", icon: "link.instagram", text: $instagram)
-            linkField("X", icon: "link.x", text: $twitter)
-            linkField("GitHub", icon: "link.github", text: $github)
-            linkField("Website", icon: "link.website", text: $website)
+            linkField("LinkedIn", icon: .linkLinkedin, text: $linkedin)
+            linkField("Instagram", icon: .linkInstagram, text: $instagram)
+            linkField("X", icon: .linkX, text: $twitter)
+            linkField("GitHub", icon: .linkGithub, text: $github)
+            linkField("Website", icon: .linkWebsite, text: $website)
         }
     }
 
     // Solid Streamline Flex brand glyphs — same set as the About tab's link row.
-    private func linkField(_ label: String, icon: String, text: Binding<String>) -> some View {
+    private func linkField(_ label: String, icon: ImageResource, text: Binding<String>) -> some View {
         JuntoTextField(
             placeholder: label,
             text: text,
@@ -225,7 +225,7 @@ struct EditProfileSheet: View {
                 WidgetLayoutEditor(userId: user._id, vocation: vocation)
             } label: {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Image("nav.grid.fill")
+                    Image(.navGridFill)
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
@@ -361,7 +361,7 @@ struct WidgetLayoutEditor: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if items.isEmpty {
                 FeedMessageState(
-                    icon: "content.sparkles.fill",
+                    icon: .contentSparklesFill,
                     title: "No widgets yet",
                     subtitle: "Add GitHub repos, images, links, or experiences"
                 )

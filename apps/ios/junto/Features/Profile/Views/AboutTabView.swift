@@ -63,7 +63,7 @@ struct AboutTabView: View {
 
         if !looking.isEmpty {
             HStack(alignment: .top, spacing: Spacing.md) {
-                Image("content.looking.fill")
+                Image(.contentLookingFill)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
@@ -87,7 +87,7 @@ struct AboutTabView: View {
         } else if isSelf, let onEdit {
             Button(action: onEdit) {
                 HStack(spacing: Spacing.md) {
-                    Image("content.looking.fill")
+                    Image(.contentLookingFill)
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
@@ -175,26 +175,26 @@ struct AboutTabView: View {
     private var socialLinksRow: some View {
         HStack(spacing: Spacing.lg) {
             if let github = user.socialLinks?.github, let url = URL(string: github) {
-                socialLinkButton(icon: "link.github", url: url, label: "GitHub")
+                socialLinkButton(icon: .linkGithub, url: url, label: "GitHub")
             }
             if let linkedin = user.socialLinks?.linkedin, let url = URL(string: linkedin) {
-                socialLinkButton(icon: "link.linkedin", url: url, label: "LinkedIn")
+                socialLinkButton(icon: .linkLinkedin, url: url, label: "LinkedIn")
             }
             if let twitter = user.socialLinks?.twitter, let url = URL(string: twitter) {
-                socialLinkButton(icon: "link.x", url: url, label: "X")
+                socialLinkButton(icon: .linkX, url: url, label: "X")
             }
             if let instagram = user.socialLinks?.instagram, let url = URL(string: instagram) {
-                socialLinkButton(icon: "link.instagram", url: url, label: "Instagram")
+                socialLinkButton(icon: .linkInstagram, url: url, label: "Instagram")
             }
             if let website = user.socialLinks?.website, let url = URL(string: website) {
-                socialLinkButton(icon: "link.website", url: url, label: "Website")
+                socialLinkButton(icon: .linkWebsite, url: url, label: "Website")
             }
         }
     }
 
     // Solid Streamline Flex brand glyphs — icons on a background container
     // are always the solid set.
-    private func socialLinkButton(icon: String, url: URL, label: String) -> some View {
+    private func socialLinkButton(icon: ImageResource, url: URL, label: String) -> some View {
         Link(destination: url) {
             VStack(spacing: Spacing.xxs) {
                 Image(icon)

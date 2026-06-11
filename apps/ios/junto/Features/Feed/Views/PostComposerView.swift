@@ -141,10 +141,10 @@ struct PostComposerView: View {
                             }
 
                             HStack(spacing: Spacing.sm) {
-                                composerChip(icon: "action.camera", label: "Add Image") {
+                                composerChip(icon: .actionCamera, label: "Add Image") {
                                     showImagePicker = true
                                 }
-                                composerChip(icon: "action.mention.fill", label: "Mention") {
+                                composerChip(icon: .actionMentionFill, label: "Mention") {
                                     mentionManager.togglePicker(text: &content)
                                 }
                             }
@@ -217,7 +217,7 @@ struct PostComposerView: View {
 
     // MARK: - Chips
 
-    private func composerChip(icon: String, label: String, action: @escaping () -> Void) -> some View {
+    private func composerChip(icon: ImageResource, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: Spacing.xxs) {
                 Image(icon)
@@ -241,11 +241,11 @@ struct PostComposerView: View {
     /// Categories offered in the composer.
     private let composerCategories: [PostResponse.PostCategory] = [.asking, .sharing]
 
-    private func categoryIcon(_ category: PostResponse.PostCategory) -> String {
+    private func categoryIcon(_ category: PostResponse.PostCategory) -> ImageResource {
         switch category {
-        case .asking:     return "feed.ask"        // open-hand
-        case .sharing:    return "content.update"  // peace-hand — "Update"
-        case .lookingFor: return "content.looking"
+        case .asking:     return .feedAsk        // open-hand
+        case .sharing:    return .contentUpdate  // peace-hand — "Update"
+        case .lookingFor: return .contentLooking
         }
     }
 

@@ -53,21 +53,21 @@ enum SkillCategory: String, CaseIterable {
     }
 
     /// Streamline Flex line icon asset (template-rendered).
-    var icon: String {
+    var icon: ImageResource {
         switch self {
-        case .software:   return "topic.code"
-        case .ai:         return "topic.ai"
-        case .design:     return "topic.design"
-        case .hardware:   return "topic.engineering"
-        case .data:       return "topic.analytics"
-        case .business:   return "topic.business"
-        case .finance:    return "topic.finance"
-        case .marketing:  return "topic.marketing"
-        case .content:    return "topic.content"
-        case .science:    return "topic.sciences"
-        case .health:     return "topic.health"
-        case .impact:     return "topic.impact"
-        case .leadership: return "topic.communication"
+        case .software:   return .topicCode
+        case .ai:         return .topicAi
+        case .design:     return .topicDesign
+        case .hardware:   return .topicEngineering
+        case .data:       return .topicAnalytics
+        case .business:   return .topicBusiness
+        case .finance:    return .topicFinance
+        case .marketing:  return .topicMarketing
+        case .content:    return .topicContent
+        case .science:    return .topicSciences
+        case .health:     return .topicHealth
+        case .impact:     return .topicImpact
+        case .leadership: return .topicCommunication
         }
     }
 

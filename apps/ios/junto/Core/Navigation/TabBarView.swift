@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import DeveloperToolsSupport
 import Clerk
 import Combine
 
@@ -17,23 +18,23 @@ enum Tab: String, CaseIterable {
     case messages
     case notifications
 
-    var iconName: String {
+    var iconName: DeveloperToolsSupport.ImageResource {
         switch self {
-        case .feed: return "tab.home"
-        case .discover: return "tab.search"
-        case .ai: return "tab.junto"
-        case .messages: return "tab.envelope"
-        case .notifications: return "tab.heart"
+        case .feed: return .tabHome
+        case .discover: return .tabSearch
+        case .ai: return .tabJunto
+        case .messages: return .tabEnvelope
+        case .notifications: return .tabHeart
         }
     }
 
-    var selectedIconName: String {
+    var selectedIconName: DeveloperToolsSupport.ImageResource {
         switch self {
-        case .feed: return "tab.home.fill"
-        case .discover: return "tab.search"
-        case .ai: return "tab.junto"
-        case .messages: return "tab.envelope.fill"
-        case .notifications: return "tab.heart.fill"
+        case .feed: return .tabHomeFill
+        case .discover: return .tabSearch
+        case .ai: return .tabJunto
+        case .messages: return .tabEnvelopeFill
+        case .notifications: return .tabHeartFill
         }
     }
 
@@ -252,7 +253,7 @@ struct TabBarView: View {
                             object: selectedTab.rawValue
                         )
                     }) {
-                        Image("action.add")
+                        Image(.actionAdd)
                             .renderingMode(.template)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
@@ -352,7 +353,7 @@ struct TabBarView: View {
             name: currentUser.user?.name ?? "?",
             center: .wordmark("Junto"),
             onAvatarTap: { showMyProfile = true },
-            trailingIcon: "nav.menu",
+            trailingIcon: .navMenu,
             onTrailingTap: { withAnimation(.easeInOut(duration: 0.25)) { showSideMenu.toggle() } },
             profileZoomID: currentUser.user.map { AnyHashable($0._id) },
             profileZoomNamespace: profileZoom

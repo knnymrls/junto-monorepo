@@ -33,11 +33,11 @@ struct FeedTypeLabel: View {
 
     // MARK: - Per-kind config
 
-    private var iconName: String {
+    private var iconName: ImageResource {
         switch kind {
-        case .ask:         return "feed.ask"
-        case .opportunity: return "feed.opportunity"
-        case .match:       return "feed.match"
+        case .ask:         return .feedAsk
+        case .opportunity: return .feedOpportunity
+        case .match:       return .feedMatch
         }
     }
 

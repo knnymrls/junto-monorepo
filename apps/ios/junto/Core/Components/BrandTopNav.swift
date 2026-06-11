@@ -25,8 +25,8 @@ struct BrandTopNav: View {
     var center: Center
     var onAvatarTap: (() -> Void)? = nil
 
-    /// Trailing icon button (asset name). Feed → "nav.menu", Discover → search.
-    var trailingIcon: String? = nil
+    /// Trailing icon button (asset name). Feed → .navMenu, Discover → search.
+    var trailingIcon: ImageResource? = nil
     var onTrailingTap: (() -> Void)? = nil
 
     /// When set, the avatar acts as the source of a zoom transition into the
@@ -101,10 +101,10 @@ struct BrandTopNav: View {
 #Preview {
     VStack(spacing: 0) {
         BrandTopNav(name: "Kenny", center: .wordmark("Junto"),
-                    onAvatarTap: {}, trailingIcon: "nav.menu", onTrailingTap: {})
+                    onAvatarTap: {}, trailingIcon: .navMenu, onTrailingTap: {})
         Divider()
         BrandTopNav(name: "Kenny", center: .title("Discover"),
-                    onAvatarTap: {}, trailingIcon: "nav.search", onTrailingTap: {})
+                    onAvatarTap: {}, trailingIcon: .navSearch, onTrailingTap: {})
         Divider()
         Spacer()
     }

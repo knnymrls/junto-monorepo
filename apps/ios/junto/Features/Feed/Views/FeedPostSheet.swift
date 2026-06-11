@@ -78,7 +78,7 @@ struct FeedPostSheet: View {
                         loadingState
                     } else if viewModel.comments.isEmpty {
                         FeedMessageState(
-                            icon: "feed.replies.empty",
+                            icon: .feedRepliesEmpty,
                             title: "No Replies",
                             subtitle: "Be the first to reply"
                         )

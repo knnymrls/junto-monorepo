@@ -116,7 +116,7 @@ struct NotificationsView: View {
             Spacer()
 
             Button { showPreferences = true } label: {
-                Image("nav.preferences")
+                Image(.navPreferences)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()

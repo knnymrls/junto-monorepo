@@ -37,8 +37,8 @@ struct AskJuntoEventCard: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                metaItem(icon: "feed.calendar", text: eventDateString(event.dateValue))
-                metaItem(icon: "event.clock", text: eventTimeString(start: event.dateValue, end: event.endDateValue))
+                metaItem(icon: .feedCalendar, text: eventDateString(event.dateValue))
+                metaItem(icon: .eventClock, text: eventTimeString(start: event.dateValue, end: event.endDateValue))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -78,7 +78,7 @@ struct AskJuntoEventCard: View {
 
     // MARK: - Meta row (icon + text)
 
-    private func metaItem(icon: String, text: String) -> some View {
+    private func metaItem(icon: ImageResource, text: String) -> some View {
         HStack(spacing: Spacing.xxs) {
             Image(icon)
                 .renderingMode(.template)

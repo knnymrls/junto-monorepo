@@ -26,11 +26,11 @@ struct CategoryPill: View {
         .clipShape(Capsule())
     }
 
-    private var iconName: String {
+    private var iconName: ImageResource {
         switch category {
-        case .sharing: return "content.sharing"
-        case .lookingFor: return "content.looking"
-        case .asking: return "content.asking"
+        case .sharing: return .contentSharing
+        case .lookingFor: return .contentLooking
+        case .asking: return .contentAsking
         }
     }
 

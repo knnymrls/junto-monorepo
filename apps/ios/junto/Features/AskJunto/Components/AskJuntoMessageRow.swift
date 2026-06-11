@@ -127,7 +127,7 @@ struct AskJuntoMessageRow: View {
                     .font(.bodyLargeMedium)
                     .foregroundColor(.appSecondary)
                     .multilineTextAlignment(.leading)
-                Image("action.arrow")
+                Image(.actionArrow)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()

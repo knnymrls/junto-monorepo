@@ -291,8 +291,8 @@ struct AskJuntoDraftIntroCard: View {
             } else {
                 // Send + Edit — two equal-width buttons (copies EventDetailView).
                 HStack(spacing: Spacing.sm) {
-                    introButton(icon: Image("action.send"), label: "Send intro", primary: true) { send() }
-                    introButton(icon: Image("action.edit"), label: "Edit", primary: false) {
+                    introButton(icon: Image(.actionSend), label: "Send intro", primary: true) { send() }
+                    introButton(icon: Image(.actionEdit), label: "Edit", primary: false) {
                         editing = true
                         messageFocused = true
                     }

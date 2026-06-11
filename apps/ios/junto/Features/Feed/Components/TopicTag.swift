@@ -18,7 +18,7 @@ struct TopicTag: View {
     /// (e.g. an event type like "Pitch" borrowing its event's primary category).
     var iconCategory: SkillCategory? = nil
 
-    private var iconAsset: String? {
+    private var iconAsset: ImageResource? {
         (iconCategory ?? SkillCategory.match(category))?.icon
     }
 
@@ -49,7 +49,7 @@ struct TopicTag: View {
 /// `nil` for strings that don't normalize to a known category — the tag then
 /// renders label-only rather than guessing an icon.
 enum TopicIcon {
-    static func assetName(for category: String) -> String? {
+    static func assetName(for category: String) -> ImageResource? {
         SkillCategory.match(category)?.icon
     }
 }

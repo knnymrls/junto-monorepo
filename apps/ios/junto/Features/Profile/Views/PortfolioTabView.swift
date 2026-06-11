@@ -50,7 +50,7 @@ struct PortfolioTabView: View {
                     .padding(.horizontal, Spacing.lg)
                 } else if !isSelf {
                     FeedMessageState(
-                        icon: "content.sparkles.fill",
+                        icon: .contentSparklesFill,
                         title: "No work yet",
                         subtitle: "This maker hasn't showcased anything"
                     )
@@ -140,7 +140,7 @@ struct PortfolioTabView: View {
 
 struct VocationSuggestion: Identifiable {
     var id: String { title }
-    let icon: String
+    let icon: ImageResource
     let title: String
     let subtitle: String
     let type: PortfolioItemResponse.PortfolioType
@@ -178,7 +178,7 @@ struct WorkSuggestionRow: View {
 
                     // Free-form fallback — the full type picker.
                     card(
-                        icon: "action.add.fill",
+                        icon: .actionAddFill,
                         title: "Something else",
                         subtitle: "Repos, photos, links, roles",
                         action: onSomethingElse
@@ -189,7 +189,7 @@ struct WorkSuggestionRow: View {
         }
     }
 
-    private func card(icon: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+    private func card(icon: ImageResource, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 Image(icon)
@@ -231,33 +231,33 @@ struct WorkSuggestionRow: View {
         switch vocation {
         case .software, .ai, .data:
             return [
-                VocationSuggestion(icon: "topic.code.fill", title: "GitHub", subtitle: "Pull in your repos", type: .github),
-                VocationSuggestion(icon: "content.update.fill", title: "Side project", subtitle: "Shipped something? Link it", type: .link, prefillTitle: "Side project"),
-                VocationSuggestion(icon: "action.image.fill", title: "Hackathon build", subtitle: "Screenshots of the demo", type: .gallery, prefillTitle: "Hackathon build"),
+                VocationSuggestion(icon: .topicCodeFill, title: "GitHub", subtitle: "Pull in your repos", type: .github),
+                VocationSuggestion(icon: .contentUpdateFill, title: "Side project", subtitle: "Shipped something? Link it", type: .link, prefillTitle: "Side project"),
+                VocationSuggestion(icon: .actionPhotoFill, title: "Hackathon build", subtitle: "Screenshots of the demo", type: .gallery, prefillTitle: "Hackathon build"),
             ]
         case .design, .content:
             return [
-                VocationSuggestion(icon: "topic.design.fill", title: "Case study", subtitle: "Show the work, not just links", type: .gallery, prefillTitle: "Case study"),
-                VocationSuggestion(icon: "action.arrow.fill", title: "Portfolio site", subtitle: "Behance, Dribbble, your own", type: .link, prefillTitle: "Portfolio"),
-                VocationSuggestion(icon: "feed.opportunity.fill", title: "Client work", subtitle: "Freelance or org projects", type: .experience, prefillTitle: "Client work"),
+                VocationSuggestion(icon: .topicDesignFill, title: "Case study", subtitle: "Show the work, not just links", type: .gallery, prefillTitle: "Case study"),
+                VocationSuggestion(icon: .actionArrowFill, title: "Portfolio site", subtitle: "Behance, Dribbble, your own", type: .link, prefillTitle: "Portfolio"),
+                VocationSuggestion(icon: .feedOpportunityFill, title: "Client work", subtitle: "Freelance or org projects", type: .experience, prefillTitle: "Client work"),
             ]
         case .business, .finance, .marketing, .leadership, .impact:
             return [
-                VocationSuggestion(icon: "topic.business.fill", title: "Pitch deck", subtitle: "Link the deck you pitched", type: .link, prefillTitle: "Pitch deck"),
-                VocationSuggestion(icon: "feed.opportunity.fill", title: "Venture", subtitle: "Startups, internships, roles", type: .experience),
-                VocationSuggestion(icon: "topic.analytics.fill", title: "Case competition", subtitle: "Slides and results", type: .gallery, prefillTitle: "Case competition"),
+                VocationSuggestion(icon: .topicBusinessFill, title: "Pitch deck", subtitle: "Link the deck you pitched", type: .link, prefillTitle: "Pitch deck"),
+                VocationSuggestion(icon: .feedOpportunityFill, title: "Venture", subtitle: "Startups, internships, roles", type: .experience),
+                VocationSuggestion(icon: .topicAnalyticsFill, title: "Case competition", subtitle: "Slides and results", type: .gallery, prefillTitle: "Case competition"),
             ]
         case .science, .health, .hardware:
             return [
-                VocationSuggestion(icon: "topic.sciences.fill", title: "Projects", subtitle: "Lab work and research", type: .experience, prefillTitle: "Project"),
-                VocationSuggestion(icon: "feed.opportunity.fill", title: "Experience", subtitle: "Title, photos, a short story", type: .experience),
-                VocationSuggestion(icon: "action.arrow.fill", title: "Publication", subtitle: "Papers and posters", type: .link, prefillTitle: "Publication"),
+                VocationSuggestion(icon: .topicSciencesFill, title: "Projects", subtitle: "Lab work and research", type: .experience, prefillTitle: "Project"),
+                VocationSuggestion(icon: .feedOpportunityFill, title: "Experience", subtitle: "Title, photos, a short story", type: .experience),
+                VocationSuggestion(icon: .actionArrowFill, title: "Publication", subtitle: "Papers and posters", type: .link, prefillTitle: "Publication"),
             ]
         default:
             return [
-                VocationSuggestion(icon: "action.arrow.fill", title: "Project link", subtitle: "Anything you've made", type: .link),
-                VocationSuggestion(icon: "feed.opportunity.fill", title: "Experience", subtitle: "Jobs, clubs, programs", type: .experience),
-                VocationSuggestion(icon: "action.image.fill", title: "Photo gallery", subtitle: "Show what you work on", type: .gallery),
+                VocationSuggestion(icon: .actionArrowFill, title: "Project link", subtitle: "Anything you've made", type: .link),
+                VocationSuggestion(icon: .feedOpportunityFill, title: "Experience", subtitle: "Jobs, clubs, programs", type: .experience),
+                VocationSuggestion(icon: .actionPhotoFill, title: "Photo gallery", subtitle: "Show what you work on", type: .gallery),
             ]
         }
     }

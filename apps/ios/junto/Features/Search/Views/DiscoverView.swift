@@ -59,7 +59,7 @@ struct DiscoverView: View {
                     name: currentUser.user?.name ?? "?",
                     center: .title("Discover"),
                     onAvatarTap: onAvatarTap,
-                    trailingIcon: "nav.search",
+                    trailingIcon: .navSearch,
                     onTrailingTap: { path.append(.search) },
                     profileZoomID: currentUser.user.map { AnyHashable($0._id) },
                     profileZoomNamespace: profileZoomNamespace

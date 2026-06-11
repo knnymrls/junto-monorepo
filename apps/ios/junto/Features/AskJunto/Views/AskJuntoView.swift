@@ -134,7 +134,7 @@ struct AskJuntoView: View {
 
             // 28pt icon in a 40pt tap target — matches BrandTopNav (Figma 140:412).
             Button { onOpenConversations() } label: {
-                Image("nav.inbox")
+                Image(.navInbox)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
@@ -156,7 +156,7 @@ struct AskJuntoView: View {
     private var emptyState: some View {
         VStack(spacing: Spacing.lg) {
             Spacer()
-            Image("tab.junto")
+            Image(.tabJunto)
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()

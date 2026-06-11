@@ -91,7 +91,7 @@ struct ChatDetailView: View {
 
     private var chatHeader: some View {
         HStack(spacing: Spacing.sm) {
-            DiscoverCircleButton(icon: "nav.back", action: { dismiss() })
+            DiscoverCircleButton(icon: .navBack, action: { dismiss() })
 
             Button(action: { showProfile = true }) {
                 HStack(spacing: Spacing.sm) {
@@ -131,7 +131,7 @@ struct ChatDetailView: View {
                     Label("Report", systemImage: "exclamationmark.triangle")
                 }
             } label: {
-                Image("nav.more")
+                Image(.navMore)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()

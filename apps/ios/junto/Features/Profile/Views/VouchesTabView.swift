@@ -23,7 +23,7 @@ struct VouchesTabView: View {
                     .padding(.top, Spacing.huge)
             } else if vouches.isEmpty {
                 FeedMessageState(
-                    icon: "feed.replies.empty",
+                    icon: .feedRepliesEmpty,
                     title: "No vouches yet",
                     subtitle: "Vouches from collaborators show up here"
                 )

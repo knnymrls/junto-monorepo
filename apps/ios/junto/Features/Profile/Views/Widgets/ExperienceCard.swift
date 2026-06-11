@@ -41,7 +41,7 @@ struct ExperienceCard: View {
 
                     Spacer()
 
-                    Image("feed.opportunity.fill")
+                    Image(.feedOpportunityFill)
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()

@@ -150,7 +150,7 @@ struct ActivityTabView: View {
 
     private var emptyState: some View {
         FeedMessageState(
-            icon: "feed.empty",
+            icon: .feedEmpty,
             title: "No activity yet",
             subtitle: isSelf
                 ? "Your posts and events will show up here"

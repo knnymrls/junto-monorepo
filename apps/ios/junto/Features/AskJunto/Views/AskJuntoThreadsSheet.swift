@@ -61,7 +61,7 @@ struct AskJuntoThreadsDrawer: View {
             // Floating "New conversation" button, on top of the list.
             Button(action: onNew) {
                 HStack(spacing: Spacing.sm) {
-                    Image("action.add")
+                    Image(.actionAdd)
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()

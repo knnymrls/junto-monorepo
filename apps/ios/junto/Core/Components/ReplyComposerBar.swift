@@ -73,7 +73,7 @@ struct ReplyComposerBar: View {
                 .frame(minHeight: 28)
 
                 Button(action: onMentionTap) {
-                    Image("action.mention.fill")
+                    Image(.actionMentionFill)
                         .renderingMode(.template)
                         .resizable()
                         .frame(width: 20, height: 20)
@@ -89,7 +89,7 @@ struct ReplyComposerBar: View {
                             if newImage != nil { selectedGifUrl = nil }
                         }
                     ),
-                    iconName: "action.camera",
+                    iconName: .actionCamera,
                     iconColor: .appSecondary
                 )
             }
