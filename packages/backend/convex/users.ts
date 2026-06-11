@@ -189,6 +189,45 @@ export const upsert = mutation({
   },
 });
 
+// Profile display context — resolves the reference IDs hanging off a user
+// (university, majors, skills) into display names so the profile page never
+// renders raw Convex IDs.
+export const getProfileContext = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return null;
+
+    let university = null;
+    if (user.universityId) {
+      const u = await ctx.db.get(user.universityId);
+      if (u) {
+        university = {
+          name: u.name,
+          shortName: u.shortName ?? null,
+          logoUrl: u.logoStorageId
+            ? await ctx.storage.getUrl(u.logoStorageId as any)
+            : u.logoUrl ?? null,
+        };
+      }
+    }
+
+    const majorNames: string[] = [];
+    for (const m of user.majors ?? []) {
+      const major = await ctx.db.get(m.majorId);
+      if (major) majorNames.push(major.name);
+    }
+
+    const skillNames: string[] = [];
+    for (const skillId of user.skills ?? []) {
+      const skill = await ctx.db.get(skillId);
+      if (skill) skillNames.push(skill.name);
+    }
+
+    return { university, majorNames, skillNames };
+  },
+});
+
 // Search users by text (basic text search)
 export const search = query({
   args: {

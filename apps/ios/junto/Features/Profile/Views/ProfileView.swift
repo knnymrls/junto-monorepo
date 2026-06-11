@@ -1,8 +1,10 @@
 //
 //  ProfileView.swift
-//  mkrs-world
+//  junto
 //
-//  Tabbed profile view — About | Work | Vouches | Activity
+//  Profile page — PostDetailTopNav (circle back + share), the hero block
+//  (ProfileHeaderView), and animated underline tabs: About · Work · Vouches ·
+//  Activity. Reads as the same surface family as the post/event detail pages.
 //
 
 import SwiftUI
@@ -16,64 +18,97 @@ enum ProfileTab: String, CaseIterable {
 }
 
 struct ProfileView: View {
-    let user: UserResponse
+    @State private var user: UserResponse
     @EnvironmentObject private var currentUser: CurrentUserManager
+    @Environment(\.dismiss) private var dismiss
+
     @State private var selectedTab: ProfileTab = .about
     @State private var connectionStatus: ConnectionStatus = .none
     @State private var isLoadingStatus = true
-    @State private var connectionCount: Int = 0
+    @State private var connectionCount = 0
+    @State private var postCount = 0
     @State private var vouches: [VouchResponse] = []
-    @State private var topPortfolioItems: [PortfolioItemResponse] = []
+    @State private var context: ProfileContextResponse?
     @State private var isActioning = false
     @State private var hasVouched = false
     @State private var showVouchSheet = false
-    @Environment(\.dismiss) private var dismiss
+    @State private var showEditSheet = false
+    @State private var showShareSheet = false
+    @State private var showChat = false
+    @State private var postsCancellable: AnyCancellable?
+
+    @Namespace private var tabNamespace
+
+    private var hairline: CGFloat { 1 / UIScreen.main.scale }
+
+    init(user: UserResponse) {
+        _user = State(initialValue: user)
+    }
 
     var isSelf: Bool {
         currentUser.userId == user._id
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
+        VStack(spacing: 0) {
+            PostDetailTopNav(
+                title: "Profile",
+                onBack: { dismiss() },
+                onShare: { showShareSheet = true }
+            )
+
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
                     ProfileHeaderView(
                         user: user,
+                        context: context,
                         connectionStatus: connectionStatus,
                         connectionCount: connectionCount,
                         vouchCount: vouches.count,
+                        postCount: postCount,
                         hasVouched: hasVouched,
                         isSelf: isSelf,
                         isLoadingStatus: isLoadingStatus,
                         isActioning: $isActioning,
-                        showVouchSheet: $showVouchSheet,
+                        onEdit: { showEditSheet = true },
+                        onShare: { showShareSheet = true },
+                        onVouch: { showVouchSheet = true },
+                        onMessage: { showChat = true },
                         onConnect: sendRequest,
-                        onAccept: acceptRequest
+                        onAccept: acceptRequest,
+                        onTapPosts: { selectTab(.activity) },
+                        onTapVouches: { selectTab(.vouches) }
                     )
 
-                    profileTabBar
-                        .padding(.top, Spacing.lg)
-
-                    Divider()
-                        .foregroundColor(.appDivider)
+                    tabBar
+                        .padding(.top, Spacing.xl)
 
                     tabContent
-                        .padding(.top, Spacing.md)
+                        .padding(.top, Spacing.lg)
+
+                    Color.clear.frame(height: Spacing.huge)
                 }
             }
-            .background(Color.appBackground)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .font(.bodyLargeMedium)
-                            .foregroundColor(.appPrimary)
-                    }
-                }
+            .scrollEdgeFade(top: true, bottom: false)
+        }
+        .background(Color.appBackground)
+        .sheet(isPresented: $showEditSheet) {
+            EditProfileSheet(user: user) { updated in
+                user = updated
             }
         }
-        .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: [shareText])
+        }
+        .sheet(isPresented: $showChat) {
+            if let userId = currentUser.userId {
+                ChatDetailView(
+                    conversationId: nil,
+                    otherParticipant: user,
+                    currentUserId: userId
+                )
+            }
+        }
         .sheet(isPresented: $showVouchSheet) {
             VouchSheet(
                 userName: user.name,
@@ -89,30 +124,61 @@ struct ProfileView: View {
             AnalyticsService.shared.track(.profileViewed(userId: user._id))
             await loadConnectionData()
             await loadVouches()
-            await loadPortfolioPreview()
+            await loadContext()
+            subscribePostCount()
         }
+        .onDisappear { postsCancellable?.cancel() }
+    }
+
+    // MARK: - Share
+
+    private var shareText: String {
+        isSelf
+            ? "Check out my profile on Junto! https://onjunto.com"
+            : "Check out \(user.name) on Junto! https://onjunto.com"
     }
 
     // MARK: - Tab Bar
 
-    private var profileTabBar: some View {
-        HStack(spacing: 0) {
-            ForEach(ProfileTab.allCases, id: \.self) { tab in
-                Button(action: { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = tab } }) {
-                    VStack(spacing: Spacing.sm) {
-                        Text(tab.rawValue)
-                            .font(selectedTab == tab ? .bodySemibold : .body14)
-                            .foregroundColor(selectedTab == tab ? .appPrimary : .appSecondary)
+    private func selectTab(_ tab: ProfileTab) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            selectedTab = tab
+        }
+    }
 
-                        Rectangle()
-                            .fill(selectedTab == tab ? Color.appPrimary : Color.clear)
-                            .frame(height: 2)
+    private var tabBar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(ProfileTab.allCases, id: \.self) { tab in
+                    tabButton(tab)
+                }
+            }
+            .padding(.horizontal, Spacing.lg)
+
+            Rectangle()
+                .fill(Color.appDivider)
+                .frame(height: hairline)
+        }
+    }
+
+    private func tabButton(_ tab: ProfileTab) -> some View {
+        Button(action: { selectTab(tab) }) {
+            Text(tab.rawValue)
+                .font(selectedTab == tab ? .bodySemibold : .body14)
+                .foregroundColor(selectedTab == tab ? .appPrimary : .appSecondary)
+                .padding(.vertical, Spacing.md)
+                .frame(maxWidth: .infinity)
+                .overlay(alignment: .bottom) {
+                    if selectedTab == tab {
+                        Capsule()
+                            .fill(Color.appPrimary)
+                            .frame(width: 28, height: 3)
+                            .matchedGeometryEffect(id: "profile.tab.underline", in: tabNamespace)
                     }
                 }
-                .frame(maxWidth: .infinity)
-            }
+                .contentShape(Rectangle())
         }
-        .padding(.horizontal, Spacing.lg)
+        .buttonStyle(.plain)
     }
 
     // MARK: - Tab Content
@@ -121,13 +187,7 @@ struct ProfileView: View {
     private var tabContent: some View {
         switch selectedTab {
         case .about:
-            AboutTabView(
-                user: user,
-                topVouches: Array(vouches.prefix(2)),
-                topPortfolioItems: topPortfolioItems,
-                onSeeAllVouches: { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .vouches } },
-                onSeeAllWork: { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = .work } }
-            )
+            AboutTabView(user: user, context: context)
         case .work:
             PortfolioTabView(userId: user._id, isSelf: isSelf)
         case .vouches:
@@ -143,6 +203,25 @@ struct ProfileView: View {
     }
 
     // MARK: - Data Loading
+
+    private func loadContext() async {
+        do {
+            context = try await ConvexClientManager.shared.fetchProfileContext(userId: user._id)
+        } catch {
+            print("ProfileView: Failed to fetch profile context: \(error)")
+        }
+    }
+
+    private func subscribePostCount() {
+        postsCancellable = ConvexClientManager.shared.subscribePostsByAuthor(authorId: user._id)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { posts in
+                    withAnimation(.easeOut(duration: 0.2)) { postCount = posts.count }
+                }
+            )
+    }
 
     private func loadConnectionData() async {
         // Load connection count
@@ -189,25 +268,17 @@ struct ProfileView: View {
         }
     }
 
-    private func loadPortfolioPreview() async {
-        do {
-            let items = try await ConvexClientManager.shared.fetchPortfolioItems(userId: user._id)
-            topPortfolioItems = Array(items.prefix(2))
-        } catch {
-            print("ProfileView: Failed to fetch portfolio preview: \(error)")
-        }
-    }
-
     private func sendRequest() {
         guard let userId = currentUser.userId else { return }
         isActioning = true
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         Task {
             do {
                 _ = try await ConvexClientManager.shared.sendConnectionRequest(
                     requesterId: userId,
                     accepterId: user._id
                 )
-                connectionStatus = .pendingSent
+                withAnimation(.easeInOut(duration: 0.2)) { connectionStatus = .pendingSent }
                 ConnectionEvents.post(userId: user._id, status: .pendingSent)
             } catch {
                 print("Send connection request error: \(error)")
@@ -219,13 +290,14 @@ struct ProfileView: View {
     private func acceptRequest() {
         guard let userId = currentUser.userId else { return }
         isActioning = true
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         Task {
             do {
                 _ = try await ConvexClientManager.shared.acceptConnectionRequestByUsers(
                     currentUserId: userId,
                     otherUserId: user._id
                 )
-                connectionStatus = .connected
+                withAnimation(.easeInOut(duration: 0.2)) { connectionStatus = .connected }
                 ConnectionEvents.post(userId: user._id, status: .connected)
             } catch {
                 print("Accept connection request error: \(error)")

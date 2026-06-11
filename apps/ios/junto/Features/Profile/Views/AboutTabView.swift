@@ -1,58 +1,26 @@
 //
 //  AboutTabView.swift
-//  mkrs-world
+//  junto
 //
-//  About tab — bio, current project, looking for, can help with, interests, social links,
-//  top vouches preview, pinned work preview
+//  About tab — campus details (resolved names, never raw IDs), skills,
+//  programs, social links, and member-since. The story fields (building /
+//  can help with / looking for) live in the profile hero's maker card.
 //
 
 import SwiftUI
 
 struct AboutTabView: View {
     let user: UserResponse
-    var topVouches: [VouchResponse] = []
-    var topPortfolioItems: [PortfolioItemResponse] = []
-    var onSeeAllVouches: (() -> Void)? = nil
-    var onSeeAllWork: (() -> Void)? = nil
+    var context: ProfileContextResponse? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.xl) {
-            if let currentProject = user.currentProject, !currentProject.isEmpty {
-                infoSection(title: "Currently Working On", icon: "hammer.fill") {
-                    Text(currentProject)
-                        .font(.body14)
-                        .foregroundColor(.appPrimary)
-                }
+        VStack(alignment: .leading, spacing: Spacing.xxl) {
+            if hasCampusInfo {
+                campusSection
             }
 
-            if let lookingFor = user.lookingFor, !lookingFor.isEmpty {
-                infoSection(title: "Looking For", icon: "magnifyingglass") {
-                    Text(lookingFor)
-                        .font(.body14)
-                        .foregroundColor(.appPrimary)
-                }
-            }
-
-            if let canHelpWith = user.canHelpWith, !canHelpWith.isEmpty {
-                infoSection(title: "Can Help With", icon: "hand.raised.fill") {
-                    Text(canHelpWith)
-                        .font(.body14)
-                        .foregroundColor(.appPrimary)
-                }
-            }
-
-            if let programs = user.programs, !programs.isEmpty {
-                infoSection(title: "Programs", icon: "building.columns.fill") {
-                    FlowLayout(spacing: Spacing.sm) {
-                        ForEach(programs, id: \.self) { program in
-                            pillView(program)
-                        }
-                    }
-                }
-            }
-
-            if let skills = user.skills, !skills.isEmpty {
-                infoSection(title: "Skills", icon: "wrench.and.screwdriver.fill") {
+            if let skills = context?.skillNames, !skills.isEmpty {
+                infoSection(title: "Skills") {
                     FlowLayout(spacing: Spacing.sm) {
                         ForEach(skills, id: \.self) { skill in
                             pillView(skill)
@@ -61,11 +29,11 @@ struct AboutTabView: View {
                 }
             }
 
-            if let interests = user.interests, !interests.isEmpty {
-                infoSection(title: "Interests") {
+            if let programs = user.programs, !programs.isEmpty {
+                infoSection(title: "Programs") {
                     FlowLayout(spacing: Spacing.sm) {
-                        ForEach(interests, id: \.self) { interest in
-                            pillView(interest)
+                        ForEach(programs, id: \.self) { program in
+                            pillView(program)
                         }
                     }
                 }
@@ -77,15 +45,7 @@ struct AboutTabView: View {
                 }
             }
 
-            // Top Vouches Preview
-            if !topVouches.isEmpty {
-                vouchesPreview
-            }
-
-            // Pinned Work Preview
-            if !topPortfolioItems.isEmpty {
-                workPreview
-            }
+            memberSince
 
             if isEmpty {
                 emptyState
@@ -95,26 +55,85 @@ struct AboutTabView: View {
         .padding(.bottom, Spacing.xxxl)
     }
 
-    // MARK: - Section Builder
+    // MARK: - Campus
 
-    private func infoSection<Content: View>(title: String, icon: String? = nil, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.xs) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.caption12)
-                        .foregroundColor(.appSecondary)
+    private var hasCampusInfo: Bool {
+        context?.university != nil
+            || !(context?.majorNames.isEmpty ?? true)
+            || !(user.graduationSemester ?? "").isEmpty
+            || !(user.role ?? "").isEmpty
+    }
+
+    private var campusSection: some View {
+        infoSection(title: "Campus") {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                if let university = context?.university {
+                    campusRow(logoUrl: university.logoUrl) {
+                        Text(university.name)
+                            .font(.bodySemibold)
+                            .foregroundColor(.appPrimary)
+                    }
                 }
-                Text(title)
-                    .font(.bodySmallSemibold)
-                    .foregroundColor(.appSecondary)
-                    .textCase(.uppercase)
+
+                if let majors = context?.majorNames, !majors.isEmpty {
+                    detailRow(label: roleLabel, value: majors.joined(separator: ", "))
+                }
+
+                if let grad = user.graduationSemester, !grad.isEmpty {
+                    detailRow(label: "Graduates", value: grad)
+                }
+            }
+        }
+    }
+
+    private var roleLabel: String {
+        switch user.role?.lowercased() {
+        case "alumni": return "Studied"
+        case "faculty": return "Teaches"
+        default: return "Studying"
+        }
+    }
+
+    private func campusRow<Content: View>(logoUrl: String?, @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: Spacing.sm) {
+            if let logoUrl, let url = URL(string: logoUrl) {
+                CachedAsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } placeholder: {
+                    Color.clear
+                }
+                .frame(width: 20, height: 20)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.xs, style: .continuous))
             }
             content()
         }
     }
 
-    // MARK: - Pill View
+    private func detailRow(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+            Text(label)
+                .font(.body14)
+                .foregroundColor(.appSecondary)
+
+            Text(value)
+                .font(.body14)
+                .foregroundColor(.appPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - Section Builder
+
+    private func infoSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text(title.uppercased())
+                .font(.captionSmallSemibold)
+                .foregroundColor(.appSecondary)
+            content()
+        }
+    }
 
     private func pillView(_ text: String) -> some View {
         Text(text)
@@ -169,120 +188,28 @@ struct AboutTabView: View {
         }
     }
 
-    // MARK: - Vouches Preview
+    // MARK: - Member Since
 
-    private var vouchesPreview: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Text("VOUCHES")
-                    .font(.bodySmallSemibold)
-                    .foregroundColor(.appSecondary)
-
-                Spacer()
-
-                if let onSeeAllVouches {
-                    Button(action: onSeeAllVouches) {
-                        Text("See all")
-                            .font(.bodySmall)
-                            .foregroundColor(.appAccent)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            ForEach(topVouches) { vouch in
-                HStack(spacing: Spacing.md) {
-                    AvatarView(
-                        avatarUrl: vouch.fromUser?.avatarUrl,
-                        name: vouch.fromUser?.name ?? "?",
-                        size: 32
-                    )
-
-                    VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                        Text(vouch.fromUser?.name ?? "Someone")
-                            .font(.bodySemibold)
-                            .foregroundColor(.appPrimary)
-
-                        Text("\"\(vouch.reason)\"")
-                            .font(.body14)
-                            .foregroundColor(.appSecondary)
-                            .italic()
-                            .lineLimit(2)
-                    }
-                }
-            }
-        }
+    private var memberSince: some View {
+        Text("On Junto since \(joinedText)")
+            .font(.bodySmall)
+            .foregroundColor(.appSecondary)
     }
 
-    // MARK: - Work Preview
-
-    private var workPreview: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Text("WORK")
-                    .font(.bodySmallSemibold)
-                    .foregroundColor(.appSecondary)
-
-                Spacer()
-
-                if let onSeeAllWork {
-                    Button(action: onSeeAllWork) {
-                        Text("See all")
-                            .font(.bodySmall)
-                            .foregroundColor(.appAccent)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            ForEach(topPortfolioItems) { item in
-                HStack(spacing: Spacing.md) {
-                    Image(systemName: portfolioIcon(for: item.portfolioType))
-                        .font(.system(size: 16))
-                        .foregroundColor(.appSecondary)
-                        .frame(width: 32, height: 32)
-                        .background(Color.appSurfaceSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-
-                    VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                        Text(item.title ?? "Untitled")
-                            .font(.bodySemibold)
-                            .foregroundColor(.appPrimary)
-                            .lineLimit(1)
-
-                        if let desc = item.description, !desc.isEmpty {
-                            Text(desc)
-                                .font(.caption12)
-                                .foregroundColor(.appSecondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func portfolioIcon(for type: PortfolioItemResponse.PortfolioType) -> String {
-        switch type {
-        case .github: return "chevron.left.forwardslash.chevron.right"
-        case .gallery: return "photo"
-        case .link: return "link"
-        case .experience: return "briefcase"
-        }
+    private var joinedText: String {
+        let date = Date(timeIntervalSince1970: user.createdAt / 1000)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: date)
     }
 
     // MARK: - Empty State
 
     private var isEmpty: Bool {
-        user.currentProject == nil &&
-        user.lookingFor == nil &&
-        user.canHelpWith == nil &&
+        !hasCampusInfo &&
+        (context?.skillNames ?? []).isEmpty &&
         (user.programs ?? []).isEmpty &&
-        (user.skills ?? []).isEmpty &&
-        (user.interests ?? []).isEmpty &&
-        !hasSocialLinks &&
-        topVouches.isEmpty &&
-        topPortfolioItems.isEmpty
+        !hasSocialLinks
     }
 
     private var emptyState: some View {
@@ -290,7 +217,7 @@ struct AboutTabView: View {
             Text("No info yet")
                 .font(.bodyLargeMedium)
                 .foregroundColor(.appSecondary)
-            Text("This user hasn't added their details.")
+            Text("This maker hasn't added their details.")
                 .font(.body14)
                 .foregroundColor(.appSecondary)
         }

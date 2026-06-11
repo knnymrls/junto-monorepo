@@ -1032,6 +1032,26 @@ extension ConvexClientManager {
         }
     }
 
+    /// Fetch the profile display context (university + major/skill names) once
+    func fetchProfileContext(userId: String) async throws -> ProfileContextResponse? {
+        return try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = client.subscribe(to: "users:getProfileContext", with: ["userId": userId], yielding: ProfileContextResponse?.self)
+                .first()
+                .sink(
+                    receiveCompletion: { completion in
+                        if case .failure(let error) = completion {
+                            continuation.resume(throwing: error)
+                        }
+                        cancellable?.cancel()
+                    },
+                    receiveValue: { context in
+                        continuation.resume(returning: context)
+                    }
+                )
+        }
+    }
+
     /// Fetch user by Clerk ID once
     func fetchUserByClerkId(clerkId: String) async throws -> UserResponse? {
         return try await withCheckedThrowingContinuation { continuation in
@@ -1621,6 +1641,21 @@ struct UserResponse: Codable, Identifiable, Hashable {
         let twitter: String?
         let github: String?
         let website: String?
+    }
+}
+
+// MARK: - Profile Context Response
+
+/// Display names for the reference IDs on a user (users:getProfileContext).
+struct ProfileContextResponse: Codable, Hashable {
+    let university: University?
+    let majorNames: [String]
+    let skillNames: [String]
+
+    struct University: Codable, Hashable {
+        let name: String
+        let shortName: String?
+        let logoUrl: String?
     }
 }
 
@@ -2216,6 +2251,15 @@ struct UserInput {
                 ] as ConvexEncodable?
             }
             args["majors"] = arr
+        }
+        if let socialLinks = socialLinks {
+            var links: [String: ConvexEncodable?] = [:]
+            if let linkedin = socialLinks.linkedin { links["linkedin"] = linkedin }
+            if let instagram = socialLinks.instagram { links["instagram"] = instagram }
+            if let twitter = socialLinks.twitter { links["twitter"] = twitter }
+            if let github = socialLinks.github { links["github"] = github }
+            if let website = socialLinks.website { links["website"] = website }
+            args["socialLinks"] = links as ConvexEncodable?
         }
         return args
     }
