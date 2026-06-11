@@ -391,7 +391,7 @@ struct WidgetLayoutEditor: View {
                 .buttonStyle(.pressableScale(0.97))
             }
         }
-        .sheet(isPresented: $showAddSheet) {
+        .fullScreenCover(isPresented: $showAddSheet) {
             AddPortfolioItemSheet(userId: userId)
         }
         .task { await loadItems() }

@@ -82,7 +82,7 @@ struct ActivityTabView: View {
             }
         }
         .padding(.bottom, Spacing.xxxl)
-        .sheet(item: $selectedPost) { post in
+        .fullScreenCover(item: $selectedPost) { post in
             FeedPostSheet(
                 post: post,
                 currentUserId: currentUser.userId,
@@ -122,8 +122,9 @@ struct ActivityTabView: View {
             )
 
         case .event(let event):
-            DiscoverEventCard(
+            FeedEventCard(
                 event: event,
+                tags: event.displayTags,
                 onCardTap: { openEvent(event) }
             )
         }

@@ -101,15 +101,17 @@ struct ProfileView: View {
             .scrollEdgeFade(top: true, bottom: false)
         }
         .background(Color.appBackground)
-        .sheet(isPresented: $showEditSheet) {
+        .fullScreenCover(isPresented: $showEditSheet) {
             EditProfileSheet(user: user) { updated in
                 user = updated
             }
         }
+        // The system share sheet stays a sheet — it's a UIKit activity panel,
+        // not a page.
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: [shareText])
         }
-        .sheet(isPresented: $showChat) {
+        .fullScreenCover(isPresented: $showChat) {
             if let userId = currentUser.userId {
                 ChatDetailView(
                     conversationId: nil,
@@ -118,7 +120,7 @@ struct ProfileView: View {
                 )
             }
         }
-        .sheet(isPresented: $showVouchSheet) {
+        .fullScreenCover(isPresented: $showVouchSheet) {
             VouchSheet(
                 userName: user.name,
                 fromUserId: currentUser.userId ?? "",

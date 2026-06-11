@@ -62,10 +62,10 @@ struct PortfolioTabView: View {
             }
         }
         .padding(.bottom, Spacing.xxxl)
-        .sheet(isPresented: $showAddSheet) {
+        .fullScreenCover(isPresented: $showAddSheet) {
             AddPortfolioItemSheet(userId: userId)
         }
-        .sheet(item: $activeSuggestion) { suggestion in
+        .fullScreenCover(item: $activeSuggestion) { suggestion in
             AddPortfolioItemSheet(
                 userId: userId,
                 initialType: suggestion.type,
