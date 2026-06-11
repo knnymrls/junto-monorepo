@@ -61,7 +61,7 @@ struct ProfileHeaderView: View {
                     .foregroundColor(.appPrimary)
                     .lineLimit(1)
 
-                HStack(spacing: Spacing.lg) {
+                HStack(spacing: Spacing.sm) {
                     statColumn(postCount, postCount == 1 ? "Post" : "Posts", action: onTapPosts)
                     statColumn(connectionCount, connectionCount == 1 ? "Connection" : "Connections")
                     statColumn(vouchCount, vouchCount == 1 ? "Vouch" : "Vouches", action: onTapVouches)
@@ -75,6 +75,7 @@ struct ProfileHeaderView: View {
     // auto-dims its label, which made the stats render in mismatched colors.
     @ViewBuilder
     private func statColumn(_ count: Int, _ label: String, action: (() -> Void)? = nil) -> some View {
+        // Each column flexes to an equal share of the row's width.
         let column = VStack(alignment: .leading, spacing: Spacing.xxxs) {
             Text("\(count)")
                 .font(.bodyLargeBold)
@@ -84,6 +85,7 @@ struct ProfileHeaderView: View {
                 .font(.caption12)
                 .foregroundColor(.appSecondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
 
         if let action {
             Button(action: action) {
