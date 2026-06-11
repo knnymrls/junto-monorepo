@@ -69,7 +69,6 @@ struct ProfileView: View {
                         isSelf: isSelf,
                         isActioning: $isActioning,
                         onEdit: { showEditSheet = true },
-                        onShare: { showShareSheet = true },
                         onVouch: { showVouchSheet = true },
                         onMessage: { showChat = true },
                         onConnect: sendRequest,

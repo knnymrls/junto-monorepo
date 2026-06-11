@@ -23,7 +23,6 @@ struct ProfileHeaderView: View {
     @Binding var isActioning: Bool
 
     var onEdit: () -> Void = {}
-    var onShare: () -> Void = {}
     var onVouch: () -> Void = {}
     var onMessage: () -> Void = {}
     var onConnect: () -> Void = {}
@@ -59,6 +58,7 @@ struct ProfileHeaderView: View {
         .overlay(alignment: .bottomLeading) {
             thoughtBubble
                 .padding(.leading, avatarSize + Spacing.lg)
+                .offset(y: 6)
         }
     }
 
@@ -107,17 +107,18 @@ struct ProfileHeaderView: View {
                 Circle()
                     .fill(Color.appSurfaceSecondary)
                     .frame(width: 7, height: 7)
-                    .offset(x: -8, y: 4)
+                    .offset(x: -8, y: 2)
             }
             .overlay(alignment: .leading) {
                 Circle()
                     .fill(Color.appSurfaceSecondary)
                     .frame(width: 4, height: 4)
-                    .offset(x: -14, y: -4)
+                    .offset(x: -15, y: -2)
             }
     }
 
-    // MARK: - Name / Headline / Campus
+    // MARK: - Name / Headline
+    // Campus details live in the About tab — the header stays minimal.
 
     private var nameBlock: some View {
         VStack(alignment: .leading, spacing: Spacing.xxs) {
@@ -131,44 +132,7 @@ struct ProfileHeaderView: View {
                     .foregroundColor(.appPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
-            if let campus = campusLine {
-                HStack(spacing: Spacing.xs) {
-                    if let logoUrl = context?.university?.logoUrl, let url = URL(string: logoUrl) {
-                        CachedAsyncImage(url: url) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                        } placeholder: {
-                            Color.clear
-                        }
-                        .frame(width: 14, height: 14)
-                        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-                    }
-
-                    Text(campus)
-                        .font(.bodySmall)
-                        .foregroundColor(.appSecondary)
-                        .lineLimit(1)
-                }
-                .padding(.top, Spacing.xxxs)
-            }
         }
-    }
-
-    /// "UNL · Computer Science · Fall 2026"
-    private var campusLine: String? {
-        var parts: [String] = []
-        if let university = context?.university {
-            parts.append(university.shortName ?? university.name)
-        }
-        if let major = context?.majorNames.first {
-            parts.append(major)
-        }
-        if let grad = user.graduationSemester, !grad.isEmpty {
-            parts.append(grad)
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     // MARK: - Stat Line
@@ -207,10 +171,8 @@ struct ProfileHeaderView: View {
     @ViewBuilder
     private var actionRow: some View {
         if isSelf {
-            HStack(spacing: Spacing.sm) {
-                solidButton("Edit Profile", action: onEdit)
-                secondaryButton("Share Profile", action: onShare)
-            }
+            // Share lives in the top-right nav circle — one button is enough.
+            solidButton("Edit Profile", action: onEdit)
         } else {
             HStack(spacing: Spacing.sm) {
                 switch connectionStatus {
