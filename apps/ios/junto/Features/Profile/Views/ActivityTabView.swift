@@ -140,7 +140,7 @@ struct ActivityTabView: View {
 
     private func openEvent(_ event: EventResponse) {
         Task {
-            if let full = try? await ConvexClientManager.shared.fetchEvent(id: event._id) {
+            if let full = try? await ConvexClientManager.shared.fetchEvent(id: event._id, userId: currentUser.userId) {
                 await MainActor.run { selectedEvent = full }
             }
         }
@@ -150,7 +150,7 @@ struct ActivityTabView: View {
 
     private var emptyState: some View {
         FeedMessageState(
-            icon: "feed.empty",
+            icon: .feedEmpty,
             title: "No activity yet",
             subtitle: isSelf
                 ? "Your posts and events will show up here"

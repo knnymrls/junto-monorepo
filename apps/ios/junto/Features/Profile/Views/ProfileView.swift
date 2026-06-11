@@ -308,82 +308,50 @@ struct ProfileView: View {
     }
 
     private func sendRequest() {
-        guard let userId = currentUser.userId else { return }
         isActioning = true
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         Task {
-            do {
-                _ = try await ConvexClientManager.shared.sendConnectionRequest(
-                    requesterId: userId,
-                    accepterId: user._id
-                )
+            if await ConnectionStore.shared.sendRequest(to: user._id, source: .profile) {
                 withAnimation(.easeInOut(duration: 0.2)) { connectionStatus = .pendingSent }
-                ConnectionEvents.post(userId: user._id, status: .pendingSent)
-            } catch {
-                print("Send connection request error: \(error)")
             }
             isActioning = false
         }
     }
 
     private func acceptRequest() {
-        guard let userId = currentUser.userId else { return }
         isActioning = true
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         Task {
-            do {
-                _ = try await ConvexClientManager.shared.acceptConnectionRequestByUsers(
-                    currentUserId: userId,
-                    otherUserId: user._id
-                )
+            if await ConnectionStore.shared.acceptRequest(from: user._id) {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     connectionStatus = .connected
                     connectionCount += 1
                 }
-                ConnectionEvents.post(userId: user._id, status: .connected)
-            } catch {
-                print("Accept connection request error: \(error)")
             }
             isActioning = false
         }
     }
 
     private func cancelRequest() {
-        guard let userId = currentUser.userId else { return }
         isActioning = true
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         Task {
-            do {
-                _ = try await ConvexClientManager.shared.withdrawConnectionRequest(
-                    requesterId: userId,
-                    accepterId: user._id
-                )
+            if await ConnectionStore.shared.withdrawRequest(to: user._id) {
                 withAnimation(.easeInOut(duration: 0.2)) { connectionStatus = .none }
-                ConnectionEvents.post(userId: user._id, status: .none)
-            } catch {
-                print("Withdraw connection request error: \(error)")
             }
             isActioning = false
         }
     }
 
     private func removeConnection() {
-        guard let userId = currentUser.userId else { return }
         isActioning = true
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         Task {
-            do {
-                _ = try await ConvexClientManager.shared.removeConnection(
-                    userId1: userId,
-                    userId2: user._id
-                )
+            if await ConnectionStore.shared.removeConnection(with: user._id) {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     connectionStatus = .none
                     connectionCount = max(0, connectionCount - 1)
                 }
-                ConnectionEvents.post(userId: user._id, status: .none)
-            } catch {
-                print("Remove connection error: \(error)")
             }
             isActioning = false
         }

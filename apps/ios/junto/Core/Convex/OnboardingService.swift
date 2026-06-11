@@ -99,32 +99,12 @@ class OnboardingService {
         client = ConvexClientManager.shared.client
     }
 
-    /// Generic helper that wraps `client.subscribe` + Combine into a single async call.
-    /// Eliminates repeated `withCheckedThrowingContinuation` / `sink` / `cancellable` boilerplate.
+    /// One-shot Convex query via the shared `queryOnce` helper (timeout, no hangs).
     private func query<T: Decodable>(
         _ functionName: String,
         args: [String: (any ConvexEncodable)?] = [:]
     ) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = client.subscribe(
-                to: functionName,
-                with: args,
-                yielding: T.self
-            )
-            .first()
-            .sink(
-                receiveCompletion: { completion in
-                    if case .failure(let error) = completion {
-                        continuation.resume(throwing: error)
-                    }
-                    cancellable?.cancel()
-                },
-                receiveValue: { result in
-                    continuation.resume(returning: result)
-                }
-            )
-        }
+        try await ConvexClientManager.shared.queryOnce(functionName, with: args, yielding: T.self)
     }
 
     // MARK: - Universities

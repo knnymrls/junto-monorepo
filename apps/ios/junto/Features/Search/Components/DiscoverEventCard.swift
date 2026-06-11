@@ -58,8 +58,8 @@ struct DiscoverEventCard: View {
                 // Meta: date/time row + category tags
                 VStack(alignment: .leading, spacing: Spacing.xxs) {
                     HStack(spacing: Spacing.sm) {
-                        metaItem(icon: "feed.calendar", text: eventDateString(event.dateValue))
-                        metaItem(icon: "event.clock", text: eventTimeString(start: event.dateValue, end: event.endDateValue))
+                        metaItem(icon: .feedCalendar, text: eventDateString(event.dateValue))
+                        metaItem(icon: .eventClock, text: eventTimeString(start: event.dateValue, end: event.endDateValue))
                     }
 
                     if !makerCategories.isEmpty || !(event.category ?? "").isEmpty {
@@ -127,7 +127,7 @@ struct DiscoverEventCard: View {
 
     // MARK: - Meta item (icon + text) — secondary color, per design
 
-    private func metaItem(icon: String, text: String) -> some View {
+    private func metaItem(icon: ImageResource, text: String) -> some View {
         HStack(spacing: Spacing.xxs) {
             Image(icon)
                 .renderingMode(.template)

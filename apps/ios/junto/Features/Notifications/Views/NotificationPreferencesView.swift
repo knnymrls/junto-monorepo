@@ -18,20 +18,21 @@ struct NotificationPreferencesView: View {
         let key: String
         let title: String
         let subtitle: String
-        let icon: String
+        let icon: ImageResource
         var id: String { key }
     }
 
     private let categories: [Category] = [
-        .init(key: "connections", title: "Connections", subtitle: "Requests and accepted connections", icon: "notif.connections"),
-        .init(key: "messages", title: "Messages", subtitle: "New messages and message requests", icon: "notif.messages"),
-        .init(key: "events", title: "Events", subtitle: "RSVPs, reminders, and new events", icon: "notif.events"),
-        .init(key: "comments", title: "Comments & mentions", subtitle: "Replies and @mentions on your posts", icon: "notif.comments"),
-        .init(key: "updates", title: "Updates", subtitle: "Prompts, weekly digests, and milestones", icon: "notif.updates"),
+        .init(key: "connections", title: "Connections", subtitle: "Requests and accepted connections", icon: .notifConnections),
+        .init(key: "messages", title: "Messages", subtitle: "New messages and message requests", icon: .notifMessages),
+        .init(key: "events", title: "Events", subtitle: "RSVPs, reminders, and new events", icon: .notifEvents),
+        .init(key: "comments", title: "Comments & mentions", subtitle: "Replies and @mentions on your posts", icon: .notifComments),
+        .init(key: "updates", title: "Updates", subtitle: "Prompts, weekly digests, and milestones", icon: .notifUpdates),
     ]
 
     @State private var muted: Set<String> = []
     @State private var loaded = false
+    @State private var saveError: String?
 
     private var hairline: CGFloat { 1 / UIScreen.main.scale }
 
@@ -64,11 +65,16 @@ struct NotificationPreferencesView: View {
         .background(Color.appBackground)
         .task {
             guard !loaded, let userId = currentUser.userId else { return }
-            if let prefs = try? await ConvexClientManager.shared.fetchNotificationPreferences(userId: userId) {
-                muted = Set(prefs)
+            do {
+                muted = Set(try await ConvexClientManager.shared.fetchNotificationPreferences(userId: userId))
+                loaded = true
+            } catch {
+                // Don't render default-ON toggles over unknown real state.
+                saveError = "Couldn't load your notification settings. Try again."
+                dismiss()
             }
-            loaded = true
         }
+        .errorAlert($saveError)
     }
 
     // MARK: - Header
@@ -142,10 +148,18 @@ struct NotificationPreferencesView: View {
         guard let userId = currentUser.userId else { return }
         let categoriesToMute = Array(muted)
         Task {
-            try? await ConvexClientManager.shared.setNotificationPreferences(
-                userId: userId,
-                mutedCategories: categoriesToMute
-            )
+            do {
+                try await ConvexClientManager.shared.setNotificationPreferences(
+                    userId: userId,
+                    mutedCategories: categoriesToMute
+                )
+            } catch {
+                // The toggle animated but nothing persisted — reload truth.
+                saveError = "Couldn't save that change. Try again."
+                if let prefs = try? await ConvexClientManager.shared.fetchNotificationPreferences(userId: userId) {
+                    muted = Set(prefs)
+                }
+            }
         }
     }
 }

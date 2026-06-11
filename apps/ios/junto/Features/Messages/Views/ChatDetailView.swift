@@ -84,13 +84,14 @@ struct ChatDetailView: View {
         } message: {
             Text("This will flag the conversation for review.")
         }
+        .errorAlert($viewModel.sendError)
     }
 
     // MARK: - Chat Header
 
     private var chatHeader: some View {
         HStack(spacing: Spacing.sm) {
-            DiscoverCircleButton(icon: "nav.back", action: { dismiss() })
+            DiscoverCircleButton(icon: .navBack, action: { dismiss() })
 
             Button(action: { showProfile = true }) {
                 HStack(spacing: Spacing.sm) {
@@ -130,7 +131,7 @@ struct ChatDetailView: View {
                     Label("Report", systemImage: "exclamationmark.triangle")
                 }
             } label: {
-                Image("nav.more")
+                Image(.navMore)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
@@ -180,7 +181,7 @@ struct ChatDetailView: View {
                             onDelete: { viewModel.deleteMessage(message) },
                             onReact: { viewModel.toggleReaction(message, emoji: $0) }
                         )
-                        .id("\(message._id)_\(message.readAt ?? 0)")
+                        .id(rowId(for: message))
                     }
                 }
                 .padding(.horizontal, Spacing.md)
@@ -190,17 +191,23 @@ struct ChatDetailView: View {
             .onChange(of: viewModel.messages.count) { _, _ in
                 if let lastMessage = viewModel.messages.last {
                     withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo(lastMessage._id, anchor: .bottom)
+                        proxy.scrollTo(rowId(for: lastMessage), anchor: .bottom)
                     }
                 }
                 viewModel.markAsRead()
             }
             .onAppear {
                 if let lastMessage = viewModel.messages.last {
-                    proxy.scrollTo(lastMessage._id, anchor: .bottom)
+                    proxy.scrollTo(rowId(for: lastMessage), anchor: .bottom)
                 }
             }
         }
+    }
+
+    /// Stable scroll-target id per row. Includes readAt so the bubble
+    /// refreshes when a read receipt lands; scrollTo must use the same value.
+    private func rowId(for message: MessageResponse) -> String {
+        "\(message._id)_\(message.readAt ?? 0)"
     }
 
     // MARK: - Typing Indicator

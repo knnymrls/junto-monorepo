@@ -142,19 +142,19 @@ struct NotificationRow: View {
 
     /// Streamline Flex SOLID icons — one per notification type so each reads
     /// distinctly (icons on a filled circle are solid).
-    private func iconForType(_ type: String) -> String {
+    private func iconForType(_ type: String) -> ImageResource {
         switch type {
-        case "comment": return "notif.comments"
-        case "mention": return "action.mention.fill"
-        case "connection_request", "connection_accepted", "pending_connection_reminder": return "notif.connections"
-        case "event_rsvp", "event_reminder", "new_event": return "notif.events"
-        case "new_message", "message_request": return "notif.messages"
-        case "content_prompt": return "notif.content"
-        case "meet_nudge": return "notif.meet"
-        case "weekly_digest": return "notif.updates"
-        case "inactivity_nudge": return "notif.flame"
-        case "milestone": return "notif.milestone"
-        default: return "notif.bell"
+        case "comment": return .notifComments
+        case "mention": return .actionMentionFill
+        case "connection_request", "connection_accepted", "pending_connection_reminder": return .notifConnections
+        case "event_rsvp", "event_reminder", "new_event": return .notifEvents
+        case "new_message", "message_request": return .notifMessages
+        case "content_prompt": return .notifContent
+        case "meet_nudge": return .notifMeet
+        case "weekly_digest": return .notifUpdates
+        case "inactivity_nudge": return .notifFlame
+        case "milestone": return .notifMilestone
+        default: return .notifBell
         }
     }
 

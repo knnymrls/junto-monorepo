@@ -59,7 +59,7 @@ struct DiscoverView: View {
                     name: currentUser.user?.name ?? "?",
                     center: .title("Discover"),
                     onAvatarTap: onAvatarTap,
-                    trailingIcon: "nav.search",
+                    trailingIcon: .navSearch,
                     onTrailingTap: { path.append(.search) },
                     profileZoomID: currentUser.user.map { AnyHashable($0._id) },
                     profileZoomNamespace: profileZoomNamespace
@@ -286,71 +286,14 @@ struct DiscoverView: View {
     private func selectEvent(_ event: EventResponse) {
         Task {
             do {
-                if let full = try await fetchFullEvent(id: event._id) {
-                    await MainActor.run { selectedEvent = full }
+                if let full = try await convex.fetchEvent(id: event._id, userId: currentUser.userId) {
+                    selectedEvent = full
                 }
             } catch {
                 print("Failed to fetch event: \(error)")
             }
         }
     }
-
-    private func fetchFullEvent(id: String) async throws -> EventWithRsvpResponse? {
-        try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = convex.subscribeEvent(id: id, userId: currentUser.userId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { event in
-                        continuation.resume(returning: event)
-                    }
-                )
-        }
-    }
 }
 
-// MARK: - Section Header
 
-/// Section title (SF Pro semibold 20) with an optional disclosure chevron.
-struct SectionHeader: View {
-    let title: String
-    var showsChevron: Bool = false
-    var onTap: (() -> Void)? = nil
-
-    var body: some View {
-        Group {
-            if let onTap {
-                Button(action: onTap) { label }
-                    .buttonStyle(.plain)
-            } else {
-                // No action → render plain so the title keeps full color
-                // (a disabled Button would dim it relative to the others).
-                label
-            }
-        }
-        .padding(.horizontal, Spacing.lg)
-    }
-
-    private var label: some View {
-        HStack(spacing: Spacing.xxs) {
-            Text(title)
-                .font(.heading2)
-                .foregroundColor(.appPrimary)
-
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.appSecondary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .contentShape(Rectangle())
-    }
-}

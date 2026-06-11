@@ -51,8 +51,10 @@ final class AskJuntoViewModel: ObservableObject {
     @Published var events: [String: EventWithRsvpResponse] = [:]
 
     /// Connection state for the person-card connect badge.
-    @Published var connectedUserIds: Set<String> = []
-    @Published var pendingConnectionIds: Set<String> = []
+    /// Shared source of truth for connection state.
+    let connections = ConnectionStore.shared
+    /// User-facing failure from send/intro/RSVP — the view alerts on it.
+    @Published var sendError: String?
 
     var currentUserId: String?
 
@@ -83,12 +85,18 @@ final class AskJuntoViewModel: ObservableObject {
     private let convex = ConvexClientManager.shared
     private var messagesCancellable: AnyCancellable?
     private var eventCancellables: [String: AnyCancellable] = [:]
+    private var connectionsRelay: AnyCancellable?
 
     // MARK: - Lifecycle
 
     func bootstrap(userId: String) async {
         currentUserId = userId
-        await loadConnections(userId: userId)
+        connections.start(userId: userId)
+        // Re-render person cards when shared connection state changes.
+        if connectionsRelay == nil {
+            connectionsRelay = connections.objectWillChange
+                .sink { [weak self] _ in self?.objectWillChange.send() }
+        }
     }
 
     // MARK: - Send
@@ -120,7 +128,14 @@ final class AskJuntoViewModel: ObservableObject {
                 }
                 try await convex.runAskJunto(threadId: tid, message: text, currentUserId: userId)
             } catch {
+                // isSending is otherwise only reset by an assistant row arriving
+                // — which never happens on failure, so the composer locked
+                // forever with an eternal loader and the typed message lost.
                 print("AskJuntoViewModel: send error: \(error)")
+                optimisticUser = nil
+                isSending = false
+                draft = text
+                sendError = "Couldn't send your message. Check your connection and try again."
             }
         }
     }
@@ -253,6 +268,7 @@ final class AskJuntoViewModel: ObservableObject {
             return true
         } catch {
             print("AskJuntoViewModel: sendIntro error: \(error)")
+            sendError = "Couldn't send your intro. Check your connection and try again."
             return false
         }
     }
@@ -286,34 +302,19 @@ final class AskJuntoViewModel: ObservableObject {
     // MARK: - Connections
 
     func loadConnections(userId: String) async {
-        do {
-            let connections = try await convex.fetchConnections(userId: userId)
-            connectedUserIds = Set(connections.map { $0._id })
-            let pendingIds = try await convex.fetchPendingSentIds(userId: userId)
-            pendingConnectionIds = Set(pendingIds)
-        } catch {
-            print("AskJuntoViewModel: load connections error: \(error)")
-        }
+        connections.start(userId: userId)
     }
 
     func connectionStatus(for userId: String) -> ConnectionStatus {
-        if connectedUserIds.contains(userId) { return .connected }
-        if pendingConnectionIds.contains(userId) { return .pendingSent }
-        return .none
+        switch connections.displayStatus(for: userId) {
+        case .connected: return .connected
+        case .pending: return .pendingSent
+        case .none: return .none
+        }
     }
 
     func sendConnectionRequest(toUserId: String) {
         guard let myUserId = currentUserId, toUserId != myUserId else { return }
-        pendingConnectionIds.insert(toUserId)
-        Task {
-            do {
-                _ = try await convex.sendConnectionRequest(requesterId: myUserId, accepterId: toUserId)
-                AnalyticsService.shared.track(.connectionSent(toUserId: toUserId, source: .search))
-                await loadConnections(userId: myUserId)
-            } catch {
-                pendingConnectionIds.remove(toUserId)
-                print("AskJuntoViewModel: send connection error: \(error)")
-            }
-        }
+        Task { await connections.sendRequest(to: toUserId, source: .search) }
     }
 }

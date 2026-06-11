@@ -33,6 +33,10 @@ struct ContentView: View {
                 WelcomeView()
             } else if currentUser.isLoading {
                 LoadingView()
+            } else if currentUser.loadFailed {
+                // Fetch failed ≠ no profile. Routing into onboarding here made
+                // one flaky launch request overwrite an existing profile.
+                ProfileLoadErrorView()
             } else if forceOnboarding {
                 OnboardingView()
             } else if currentUser.user == nil || !currentUser.user!.isOnboarded {
@@ -47,6 +51,8 @@ struct ContentView: View {
             } else if currentUser.isLoading {
                 // Checking if user has profile
                 LoadingView()
+            } else if currentUser.loadFailed {
+                ProfileLoadErrorView()
             } else if currentUser.user == nil || !currentUser.user!.isOnboarded {
                 OnboardingView()
             } else {
@@ -68,6 +74,7 @@ struct ContentView: View {
             } else {
                 Task { await PushNotificationManager.shared.unregister() }
                 currentUser.clear()
+                ConnectionStore.shared.stop()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .onboardingComplete)) { _ in
@@ -111,6 +118,35 @@ struct LoadingView: View {
     }
 }
 
+/// Shown when the signed-in user's profile fetch fails (offline, server error).
+/// Mirrors LoadingView's layout; retry re-runs the resolve.
+struct ProfileLoadErrorView: View {
+    @Environment(\.clerk) private var clerk
+    @EnvironmentObject private var currentUser: CurrentUserManager
+
+    var body: some View {
+        ZStack {
+            Color.appBackground.ignoresSafeArea()
+            VStack(spacing: Spacing.lg) {
+                AnimatedJuntoLogo(size: 88)
+                Text("Couldn't load your profile")
+                    .font(.bodyMedium)
+                    .foregroundColor(.appPrimary)
+                Text("Check your connection and try again.")
+                    .font(.body14)
+                    .foregroundColor(.appSecondary)
+                PrimaryButton(title: "Try Again") {
+                    if let clerkId = clerk.user?.id {
+                        Task { await currentUser.resolve(clerkId: clerkId) }
+                    }
+                }
+                .padding(.horizontal, Spacing.xxl)
+                .padding(.top, Spacing.md)
+            }
+        }
+    }
+}
+
 /// The Junto mark with a simple breathing pulse — gently scales in and out.
 /// No spin, no fading.
 struct AnimatedJuntoLogo: View {
@@ -120,7 +156,7 @@ struct AnimatedJuntoLogo: View {
     @State private var pulse = false
 
     var body: some View {
-        Image("junto-logo")
+        Image(.juntoLogo)
             .renderingMode(.template)
             .resizable()
             .scaledToFit()

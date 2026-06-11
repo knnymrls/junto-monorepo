@@ -17,13 +17,13 @@ struct DiscoverListTopBar<Center: View>: View {
 
     var body: some View {
         HStack(spacing: Spacing.sm) {
-            DiscoverCircleButton(icon: "nav.back", action: onBack)
+            DiscoverCircleButton(icon: .navBack, action: onBack)
 
             Spacer(minLength: Spacing.sm)
             center()
             Spacer(minLength: Spacing.sm)
 
-            DiscoverCircleButton(icon: "action.filter", action: { onFilter?() })
+            DiscoverCircleButton(icon: .actionFilter, action: { onFilter?() })
                 .opacity(onFilter == nil ? 0 : 1)
                 .disabled(onFilter == nil)
         }
@@ -37,7 +37,7 @@ struct DiscoverListTopBar<Center: View>: View {
 
 /// 40pt circular icon button on a subtle fill — the back / filter affordance.
 struct DiscoverCircleButton: View {
-    let icon: String
+    let icon: ImageResource
     var action: () -> Void
 
     var body: some View {
@@ -94,7 +94,7 @@ struct DiscoverSearchPill: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: Spacing.sm) {
-                Image("tab.search")
+                Image(.tabSearch)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()

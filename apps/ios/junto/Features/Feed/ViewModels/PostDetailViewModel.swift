@@ -144,10 +144,13 @@ class PostDetailViewModel: ObservableObject {
             if let image {
                 isUploadingCommentImage = true
                 do {
-                    let storageId = try await convex.uploadImage(image)
-                    uploadedImageUrl = try await convex.getFileUrl(storageId: storageId)
+                    uploadedImageUrl = try await ImageUploadService.shared.upload(image).url
                 } catch {
-                    print("PostDetailViewModel: Failed to upload comment image - \(error)")
+                    // Abort: posting the comment without the photo the user
+                    // attached is worse than failing visibly.
+                    self.error = "Couldn't upload your image. Check your connection and try again."
+                    isUploadingCommentImage = false
+                    return
                 }
                 isUploadingCommentImage = false
             }

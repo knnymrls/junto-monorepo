@@ -452,58 +452,72 @@ export const streamEnhanceWithLLM = action({
 
     let lastThinkingLength = 0;
     let lastResultCount = 0;
+    // Track the latest full partial locally — throttled session writes can
+    // skip the final chunks of the stream, so the session is not a reliable
+    // source for the completed results.
+    let latestThinking = "";
+    let latestResults: { userId: string; explanation: string; relevanceScore: number }[] = [];
 
-    for await (const partial of partialObjectStream) {
-      const thinkingText = partial.thinking ?? "";
-      const results = (partial.results ?? []).filter((r): r is { userId: string; explanation: string; relevanceScore: number } =>
-        r !== undefined && r.userId !== undefined && r.explanation !== undefined && r.relevanceScore !== undefined && userIdSet.has(r.userId)
+    try {
+      for await (const partial of partialObjectStream) {
+        const thinkingText = partial.thinking ?? "";
+        const results = (partial.results ?? []).filter((r): r is { userId: string; explanation: string; relevanceScore: number } =>
+          r !== undefined && r.userId !== undefined && r.explanation !== undefined && r.relevanceScore !== undefined && userIdSet.has(r.userId)
+        );
+        latestThinking = thinkingText;
+        latestResults = results;
+
+        // Throttle writes: only update when thinking grows by 50+ chars or new result appears
+        const thinkingGrew = thinkingText.length - lastThinkingLength >= 50;
+        const newResults = results.length > lastResultCount;
+
+        if (thinkingGrew || newResults) {
+          lastThinkingLength = thinkingText.length;
+          lastResultCount = results.length;
+
+          await ctx.runMutation(internal.searchSessions.updateSession, {
+            sessionId: args.sessionId,
+            thinkingText,
+            results: JSON.stringify(results),
+            resultCount: results.length,
+          });
+        }
+      }
+
+      const enrichedResults = await Promise.all(
+        latestResults.map(async (result) => {
+          const mutual = await ctx.runQuery(internal.connections.internalGetMutualConnections, {
+            userIdA: args.currentUserId,
+            userIdB: result.userId as any,
+          });
+          return {
+            ...result,
+            isAIEnhanced: true,
+            mutualConnectionCount: mutual.count,
+            mutualConnectionNames: mutual.names,
+            connectionStatus: mutual.connectionStatus,
+          };
+        })
       );
 
-      // Throttle writes: only update when thinking grows by 50+ chars or new result appears
-      const thinkingGrew = thinkingText.length - lastThinkingLength >= 50;
-      const newResults = results.length > lastResultCount;
-
-      if (thinkingGrew || newResults) {
-        lastThinkingLength = thinkingText.length;
-        lastResultCount = results.length;
-
-        await ctx.runMutation(internal.searchSessions.updateSession, {
-          sessionId: args.sessionId,
-          thinkingText,
-          results: JSON.stringify(results),
-          resultCount: results.length,
-        });
-      }
+      // Final update: mark complete with enriched results
+      await ctx.runMutation(internal.searchSessions.updateSession, {
+        sessionId: args.sessionId,
+        status: "complete",
+        thinkingText: latestThinking,
+        results: JSON.stringify(enrichedResults),
+        resultCount: enrichedResults.length,
+      });
+    } catch (error) {
+      // The client only exits the streaming phase on "complete" or "error" —
+      // a session stuck at "streaming" is an infinite spinner.
+      await ctx.runMutation(internal.searchSessions.updateSession, {
+        sessionId: args.sessionId,
+        status: "error",
+        thinkingText: "Search failed. Please try again.",
+      });
+      throw error;
     }
-
-    // Final pass: get the complete results from the last partial, enrich with mutual connections
-    // Re-read the session to get the latest results
-    const session = await ctx.runQuery(api.searchSessions.getSession, { sessionId: args.sessionId });
-    const finalResults: { userId: string; explanation: string; relevanceScore: number }[] = session?.results ? JSON.parse(session.results) : [];
-
-    const enrichedResults = await Promise.all(
-      finalResults.map(async (result) => {
-        const mutual = await ctx.runQuery(internal.connections.internalGetMutualConnections, {
-          userIdA: args.currentUserId,
-          userIdB: result.userId as any,
-        });
-        return {
-          ...result,
-          isAIEnhanced: true,
-          mutualConnectionCount: mutual.count,
-          mutualConnectionNames: mutual.names,
-          connectionStatus: mutual.connectionStatus,
-        };
-      })
-    );
-
-    // Final update: mark complete with enriched results
-    await ctx.runMutation(internal.searchSessions.updateSession, {
-      sessionId: args.sessionId,
-      status: "complete",
-      results: JSON.stringify(enrichedResults),
-      resultCount: enrichedResults.length,
-    });
   },
 });
 

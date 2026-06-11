@@ -149,7 +149,7 @@ struct MultiImagePickerWithCameraButton: View {
                 Label("Take Photo", systemImage: "camera")
             }
         } label: {
-            Image("action.image")
+            Image(.actionPhoto)
                 .renderingMode(.template)
                 .resizable()
                 .frame(width: 20, height: 20)
@@ -228,7 +228,7 @@ struct MultiCameraView: UIViewControllerRepresentable {
 
 struct CompactImagePickerButton: View {
     @Binding var selectedImage: UIImage?
-    var iconName: String = "action.image"
+    var iconName: ImageResource = .actionPhoto
     var iconColor: Color = .appSecondary
 
     @State private var showPicker = false

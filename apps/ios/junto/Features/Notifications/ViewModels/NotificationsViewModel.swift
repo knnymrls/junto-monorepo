@@ -12,6 +12,8 @@ import Combine
 class NotificationsViewModel: ObservableObject {
     @Published var notifications: [NotificationResponse] = []
     @Published var isLoading = false
+    /// User-facing failure from an action on a notification — the view alerts.
+    @Published var actionError: String?
 
     private let convex = ConvexClientManager.shared
     private var cancellables = Set<AnyCancellable>()
@@ -21,16 +23,14 @@ class NotificationsViewModel: ObservableObject {
         isLoading = true
 
         convex.subscribeNotifications(userId: userId, limit: 50)
+            .resubscribeOnFailure()
             .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { _ in },
-                receiveValue: { [weak self] notifications in
-                    self?.notifications = notifications.filter { notif in
-                        notif.type != "new_message" && notif.type != "message_request"
-                    }
-                    self?.isLoading = false
+            .sink { [weak self] notifications in
+                self?.notifications = notifications.filter { notif in
+                    notif.type != "new_message" && notif.type != "message_request"
                 }
-            )
+                self?.isLoading = false
+            }
             .store(in: &cancellables)
     }
 
@@ -40,16 +40,32 @@ class NotificationsViewModel: ObservableObject {
     }
 
     func markAllAsRead(userId: String) async {
-        try? await convex.markAllNotificationsRead(userId: userId)
+        do {
+            try await convex.markAllNotificationsRead(userId: userId)
+        } catch {
+            actionError = "Couldn't mark notifications as read. Try again."
+        }
     }
 
     func remove(_ notification: NotificationResponse) async {
-        try? await convex.removeNotification(notificationId: notification._id)
+        do {
+            try await convex.removeNotification(notificationId: notification._id)
+        } catch {
+            actionError = "Couldn't remove the notification. Try again."
+        }
     }
 
     func acceptConnection(_ notification: NotificationResponse) async {
         guard let connectionId = notification.data?.connectionId else { return }
-        try? await convex.acceptConnectionRequest(connectionId: connectionId)
+        do {
+            // The accept must succeed before the notification is rewritten —
+            // the old try? chain recorded "You accepted..." even when the
+            // mutation failed and the connection never happened.
+            try await convex.acceptConnectionRequest(connectionId: connectionId)
+        } catch {
+            actionError = "Couldn't accept the connection request. Try again."
+            return
+        }
         let name = notification.sender?.name ?? "their"
         try? await convex.updateNotificationTitle(
             notificationId: notification._id,
@@ -60,7 +76,12 @@ class NotificationsViewModel: ObservableObject {
 
     func rejectConnection(_ notification: NotificationResponse) async {
         guard let connectionId = notification.data?.connectionId else { return }
-        try? await convex.rejectConnectionRequest(connectionId: connectionId)
+        do {
+            try await convex.rejectConnectionRequest(connectionId: connectionId)
+        } catch {
+            actionError = "Couldn't decline the connection request. Try again."
+            return
+        }
         try? await convex.removeNotification(notificationId: notification._id)
     }
 

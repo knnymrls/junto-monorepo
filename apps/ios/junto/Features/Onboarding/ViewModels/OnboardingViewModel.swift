@@ -853,11 +853,11 @@ class OnboardingViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            // Upload avatar if user picked one
+            // Upload avatar if user picked one. Must persist the resolved HTTP
+            // URL — a raw storage ID in users.avatarUrl renders nowhere.
             var avatarUrl: String?
             if let image = profileImage {
-                let storageId = try await ConvexClientManager.shared.uploadImage(image)
-                avatarUrl = storageId
+                avatarUrl = try await ImageUploadService.shared.upload(image).url
             }
 
             // Build major inputs from selected IDs

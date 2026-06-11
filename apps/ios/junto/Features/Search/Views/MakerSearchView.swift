@@ -57,10 +57,10 @@ struct MakerSearchView: View {
 
     private var header: some View {
         HStack(spacing: Spacing.sm) {
-            DiscoverCircleButton(icon: "nav.back", action: { dismiss() })
+            DiscoverCircleButton(icon: .navBack, action: { dismiss() })
 
             HStack(spacing: Spacing.sm) {
-                Image("nav.search")
+                Image(.navSearch)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()

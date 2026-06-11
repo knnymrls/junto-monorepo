@@ -165,6 +165,19 @@ struct FeedView: View {
                             .padding(.vertical, Spacing.lg)
                         Spacer()
                     }
+                } else if viewModel.feedItems.isEmpty, viewModel.error != nil {
+                    // A failed load is not an empty feed — say so, offer retry.
+                    VStack(spacing: Spacing.md) {
+                        FeedMessageState(
+                            icon: .feedEmpty,
+                            title: "Couldn't load your feed",
+                            subtitle: "Check your connection and try again."
+                        )
+                        PrimaryButton(title: "Try Again") {
+                            Task { await viewModel.refresh() }
+                        }
+                        .padding(.horizontal, Spacing.xxl)
+                    }
                 } else if viewModel.feedItems.isEmpty || !viewModel.hasMorePosts {
                     // End of feed — also serves as the empty state when there are no items
                     FeedEndState()
@@ -290,7 +303,7 @@ struct FeedView: View {
         }
         #endif
         Task {
-            if let full = try? await ConvexClientManager.shared.fetchEvent(id: event._id) {
+            if let full = try? await ConvexClientManager.shared.fetchEvent(id: event._id, userId: currentUser.userId) {
                 await MainActor.run { selectedEvent = full }
             }
         }

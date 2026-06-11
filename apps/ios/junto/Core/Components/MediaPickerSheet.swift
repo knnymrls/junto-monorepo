@@ -73,7 +73,7 @@ struct MediaPickerSheet: View {
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
                     VStack(spacing: Spacing.xs) {
-                        Image("action.camera")
+                        Image(.actionCamera)
                             .renderingMode(.template)
                             .resizable()
                             .scaledToFit()

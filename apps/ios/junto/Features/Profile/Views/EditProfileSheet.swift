@@ -194,16 +194,16 @@ struct EditProfileSheet: View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             sectionHeader("Links")
 
-            linkField("LinkedIn", icon: "link.linkedin", text: $linkedin)
-            linkField("Instagram", icon: "link.instagram", text: $instagram)
-            linkField("X", icon: "link.x", text: $twitter)
-            linkField("GitHub", icon: "link.github", text: $github)
-            linkField("Website", icon: "link.website", text: $website)
+            linkField("LinkedIn", icon: .linkLinkedin, text: $linkedin)
+            linkField("Instagram", icon: .linkInstagram, text: $instagram)
+            linkField("X", icon: .linkX, text: $twitter)
+            linkField("GitHub", icon: .linkGithub, text: $github)
+            linkField("Website", icon: .linkWebsite, text: $website)
         }
     }
 
     // Solid Streamline Flex brand glyphs — same set as the About tab's link row.
-    private func linkField(_ label: String, icon: String, text: Binding<String>) -> some View {
+    private func linkField(_ label: String, icon: ImageResource, text: Binding<String>) -> some View {
         JuntoTextField(
             placeholder: label,
             text: text,
@@ -225,7 +225,7 @@ struct EditProfileSheet: View {
                 WidgetLayoutEditor(userId: user._id, vocation: vocation)
             } label: {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Image("nav.grid.fill")
+                    Image(.navGridFill)
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
@@ -287,11 +287,12 @@ struct EditProfileSheet: View {
 
         Task {
             do {
-                // Upload the new photo first (if picked) and resolve a real URL.
+                // Upload the new photo first (if picked). ImageUploadService
+                // resolves a real HTTP URL or throws — a raw storage ID must
+                // never reach users.avatarUrl (it renders nowhere).
                 var avatarUrl: String?
                 if let newAvatar {
-                    let storageId = try await ConvexClientManager.shared.uploadImage(newAvatar)
-                    avatarUrl = try await ConvexClientManager.shared.getFileUrl(storageId: storageId) ?? storageId
+                    avatarUrl = try await ImageUploadService.shared.upload(newAvatar).url
                 }
 
                 // users:upsert patches only the keys we send — academic fields,
@@ -316,13 +317,12 @@ struct EditProfileSheet: View {
 
                 _ = try await ConvexClientManager.shared.upsertUser(input)
 
+                // CurrentUserManager's live subscription picks up the change;
+                // fetch once here only for the caller's onSaved payload.
                 let fresh = try await ConvexClientManager.shared.fetchUser(id: user._id)
 
                 await MainActor.run {
                     if let fresh {
-                        if CurrentUserManager.shared.userId == fresh._id {
-                            CurrentUserManager.shared.user = fresh
-                        }
                         onSaved?(fresh)
                     }
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -350,6 +350,7 @@ struct WidgetLayoutEditor: View {
     @State private var items: [PortfolioItemResponse] = []
     @State private var isLoading = true
     @State private var isSaving = false
+    @State private var saveError: String?
     @State private var showAddSheet = false
     @State private var activeSuggestion: VocationSuggestion?
 
@@ -360,7 +361,7 @@ struct WidgetLayoutEditor: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if items.isEmpty {
                 FeedMessageState(
-                    icon: "content.sparkles.fill",
+                    icon: .contentSparklesFill,
                     title: "No widgets yet",
                     subtitle: "Add GitHub repos, images, links, or experiences"
                 )
@@ -407,6 +408,7 @@ struct WidgetLayoutEditor: View {
             )
         }
         .task { await loadItems() }
+        .errorAlert($saveError)
     }
 
     private func loadItems() async {
@@ -415,6 +417,7 @@ struct WidgetLayoutEditor: View {
             isLoading = false
         } catch {
             print("WidgetLayoutEditor: load error: \(error)")
+            saveError = "Couldn't load your widgets. Check your connection and try again."
             isLoading = false
         }
     }
@@ -430,6 +433,7 @@ struct WidgetLayoutEditor: View {
                 await MainActor.run { dismiss() }
             } catch {
                 print("WidgetLayoutEditor: save error: \(error)")
+                saveError = "Couldn't save your layout. Check your connection and try again."
                 isSaving = false
             }
         }

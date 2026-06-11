@@ -35,8 +35,8 @@ struct FeedEventCard: View {
 
                     // Date / time — primary color (per Figma)
                     HStack(spacing: Spacing.sm) {
-                        metaItem(icon: "feed.calendar", text: eventDateString(event.dateValue))
-                        metaItem(icon: "event.clock", text: eventTimeString(start: event.dateValue, end: event.endDateValue))
+                        metaItem(icon: .feedCalendar, text: eventDateString(event.dateValue))
+                        metaItem(icon: .eventClock, text: eventTimeString(start: event.dateValue, end: event.endDateValue))
                     }
 
                     // Topic tags — secondary color
@@ -92,7 +92,7 @@ struct FeedEventCard: View {
 
     // MARK: - Meta item (icon + text)
 
-    private func metaItem(icon: String, text: String) -> some View {
+    private func metaItem(icon: ImageResource, text: String) -> some View {
         HStack(spacing: Spacing.xxs) {
             Image(icon)
                 .renderingMode(.template)

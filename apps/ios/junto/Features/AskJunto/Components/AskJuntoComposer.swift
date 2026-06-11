@@ -101,7 +101,7 @@ struct AskJuntoComposer: View {
     private var mark: some View {
         ZStack {
             Circle().fill(markFrameFill)
-            Image("tab.junto")
+            Image(.tabJunto)
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()

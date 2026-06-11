@@ -98,15 +98,18 @@ export const getMessages = query({
   handler: async (ctx, args) => {
     const limit = args.limit ?? 100;
 
+    // Newest `limit` messages, returned oldest-first for display. Taking
+    // ascending returned the OLDEST window, so threads past the limit never
+    // showed new messages at all.
     const messages = await ctx.db
       .query("messages")
       .withIndex("by_conversation", (q) =>
         q.eq("conversationId", args.conversationId)
       )
-      .order("asc")
+      .order("desc")
       .take(limit);
 
-    return messages;
+    return messages.reverse();
   },
 });
 

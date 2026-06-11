@@ -91,6 +91,7 @@ struct NotificationsView: View {
             }
             AnalyticsService.shared.track(.notificationsViewed)
         }
+        .errorAlert($viewModel.actionError)
     }
 
     // MARK: - Header
@@ -115,7 +116,7 @@ struct NotificationsView: View {
             Spacer()
 
             Button { showPreferences = true } label: {
-                Image("nav.preferences")
+                Image(.navPreferences)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
@@ -165,7 +166,10 @@ struct NotificationsView: View {
                         .onTapGesture {
                             handleTap(notification)
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        // swipeActions only works inside a List — in this
+                        // LazyVStack it rendered nothing, so delete was
+                        // unreachable. Long-press is the system alternative.
+                        .contextMenu {
                             Button(role: .destructive) {
                                 Task { await viewModel.remove(notification) }
                             } label: {
@@ -258,7 +262,7 @@ struct NotificationsView: View {
         case "event_rsvp", "event_reminder", "new_event":
             if let eventId = notification.data?.eventId {
                 Task {
-                    if let event = try? await ConvexClientManager.shared.fetchEvent(id: eventId) {
+                    if let event = try? await ConvexClientManager.shared.fetchEvent(id: eventId, userId: currentUser.userId) {
                         selectedEvent = event
                     }
                 }

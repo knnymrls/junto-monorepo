@@ -162,9 +162,9 @@ struct ProfileHeaderView: View {
             HStack(spacing: Spacing.sm) {
                 switch connectionStatus {
                 case .none:
-                    solidButton("Connect", icon: "status.add.fill", action: onConnect)
+                    solidButton("Connect", icon: .statusAddFill, action: onConnect)
                         .disabled(isActioning)
-                    secondaryButton("Message", icon: "tab.envelope.fill", action: onMessage)
+                    secondaryButton("Message", icon: .tabEnvelopeFill, action: onMessage)
 
                 case .pendingSent:
                     // Anchored menu — the cancel action pops right off the button.
@@ -173,7 +173,7 @@ struct ProfileHeaderView: View {
                             Label("Cancel Request", systemImage: "xmark")
                         }
                     } label: {
-                        buttonLabel("Pending", icon: "status.waiting.fill")
+                        buttonLabel("Pending", icon: .statusWaitingFill)
                             .foregroundColor(.appPrimary)
                             .frame(maxWidth: .infinity)
                             .frame(height: 42)
@@ -181,15 +181,15 @@ struct ProfileHeaderView: View {
                             .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
                     }
                     .disabled(isActioning)
-                    secondaryButton("Message", icon: "tab.envelope.fill", action: onMessage)
+                    secondaryButton("Message", icon: .tabEnvelopeFill, action: onMessage)
 
                 case .pendingReceived:
-                    solidButton("Accept", icon: "status.connection.fill", action: onAccept)
+                    solidButton("Accept", icon: .statusConnectionFill, action: onAccept)
                         .disabled(isActioning)
-                    secondaryButton("Message", icon: "tab.envelope.fill", action: onMessage)
+                    secondaryButton("Message", icon: .tabEnvelopeFill, action: onMessage)
 
                 case .connected:
-                    solidButton("Message", icon: "tab.envelope.fill", action: onMessage)
+                    solidButton("Message", icon: .tabEnvelopeFill, action: onMessage)
                     if hasVouched {
                         secondaryButton("Vouched") {}
                             .disabled(true)
@@ -209,7 +209,7 @@ struct ProfileHeaderView: View {
                 Label("Remove Connection", systemImage: "person.badge.minus")
             }
         } label: {
-            Image("nav.more")
+            Image(.navMore)
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
@@ -223,7 +223,7 @@ struct ProfileHeaderView: View {
 
     // MARK: - Button Styles
 
-    private func solidButton(_ label: String, icon: String? = nil, action: @escaping () -> Void) -> some View {
+    private func solidButton(_ label: String, icon: ImageResource? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             buttonLabel(label, icon: icon)
                 .foregroundColor(.appOnAccent)
@@ -235,7 +235,7 @@ struct ProfileHeaderView: View {
         .buttonStyle(.pressableScale(0.97))
     }
 
-    private func secondaryButton(_ label: String, icon: String? = nil, action: @escaping () -> Void) -> some View {
+    private func secondaryButton(_ label: String, icon: ImageResource? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             buttonLabel(label, icon: icon)
                 .foregroundColor(.appPrimary)
@@ -247,7 +247,7 @@ struct ProfileHeaderView: View {
         .buttonStyle(.pressableScale(0.97))
     }
 
-    private func buttonLabel(_ label: String, icon: String?) -> some View {
+    private func buttonLabel(_ label: String, icon: ImageResource?) -> some View {
         HStack(spacing: Spacing.xs) {
             if let icon {
                 Image(icon)

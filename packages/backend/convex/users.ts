@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, internalQuery, action } from "./_generated/server";
+import { query, mutation, internalQuery, internalMutation, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 
@@ -8,6 +8,28 @@ function stripEmbeddings(user: Doc<"users">) {
   const { profileEmbedding, needsEmbedding, ...rest } = user;
   return rest;
 }
+
+// One-time repair: onboarding used to store raw storage IDs in avatarUrl,
+// which render nowhere. Resolve them to real serving URLs.
+// Run with: npx convex run users:backfillAvatarUrls
+export const backfillAvatarUrls = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    let patched = 0;
+    for (const user of users) {
+      const url = user.avatarUrl;
+      if (url && !url.startsWith("http")) {
+        const resolved = await ctx.storage.getUrl(url as any);
+        if (resolved) {
+          await ctx.db.patch(user._id, { avatarUrl: resolved, updatedAt: Date.now() });
+          patched++;
+        }
+      }
+    }
+    return patched;
+  },
+});
 
 // Get all users (with optional filters)
 export const list = query({

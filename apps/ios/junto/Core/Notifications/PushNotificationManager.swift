@@ -50,21 +50,39 @@ class PushNotificationManager: NSObject, ObservableObject {
         }
     }
 
-    func registerWithBackend(userId: String) async {
+    func registerWithBackend(userId: String, attempt: Int = 0) async {
         guard let token = deviceToken else { return }
         let device = UIDevice.current
-        try? await convex.registerDeviceToken(
-            userId: userId,
-            token: token,
-            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
-            deviceModel: device.model,
-            osVersion: device.systemVersion
-        )
+        do {
+            try await convex.registerDeviceToken(
+                userId: userId,
+                token: token,
+                appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+                deviceModel: device.model,
+                osVersion: device.systemVersion
+            )
+        } catch {
+            // One transient failure used to mean this install never received a
+            // push again — retry with backoff (3 attempts total).
+            print("PushNotificationManager: register failed (attempt \(attempt + 1)): \(error)")
+            guard attempt < 2 else { return }
+            try? await Task.sleep(nanoseconds: UInt64(5 * (attempt + 1)) * 1_000_000_000)
+            await registerWithBackend(userId: userId, attempt: attempt + 1)
+        }
     }
 
     func unregister() async {
         guard let token = deviceToken else { return }
-        try? await convex.removeDeviceToken(token: token)
+        do {
+            try await convex.removeDeviceToken(token: token)
+        } catch {
+            // The backend still holds this token: the device would keep
+            // getting the signed-out account's pushes. Retry once before
+            // giving up, but always clear local state so sign-out completes.
+            print("PushNotificationManager: unregister failed, retrying: \(error)")
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            try? await convex.removeDeviceToken(token: token)
+        }
         deviceToken = nil
         pendingUserId = nil
         isRegistered = false

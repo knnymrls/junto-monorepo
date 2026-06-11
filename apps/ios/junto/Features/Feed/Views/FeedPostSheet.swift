@@ -31,6 +31,7 @@ struct FeedPostSheet: View {
     @State private var commentImage: UIImage?
     @State private var showGifPicker = false
     @State private var selectedGifUrl: URL?
+    @State private var showReplyError = false
 
     // Zoom transition namespace: author/commenter avatar → profile
     @Namespace private var profileZoom
@@ -77,7 +78,7 @@ struct FeedPostSheet: View {
                         loadingState
                     } else if viewModel.comments.isEmpty {
                         FeedMessageState(
-                            icon: "feed.replies.empty",
+                            icon: .feedRepliesEmpty,
                             title: "No Replies",
                             subtitle: "Be the first to reply"
                         )
@@ -104,6 +105,11 @@ struct FeedPostSheet: View {
         }
         .animation(.easeInOut(duration: 0.2), value: mentionManager.showPicker)
         .presentationDragIndicator(.visible)
+        .alert("Couldn't Post Reply", isPresented: $showReplyError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel.error ?? "Something went wrong. Please try again.")
+        }
         .fullScreenCover(item: $selectedMentionUser) { user in
             ProfileView(user: user)
                 .zoomDestination(id: user._id, in: profileZoom)
@@ -313,7 +319,7 @@ struct FeedPostSheet: View {
         let gifUrlToSend = selectedGifUrl?.absoluteString
         let mentionIds = mentionManager.selectedMentionIds
 
-        // Reset local UI state immediately
+        // Reset local UI state immediately (restored below if the submit fails)
         replyText = ""
         isReplyFocused = false
         editingCommentId = nil
@@ -322,6 +328,7 @@ struct FeedPostSheet: View {
         mentionManager.reset()
 
         Task {
+            viewModel.error = nil
             await viewModel.submitReply(
                 authorId: authorId,
                 content: content,
@@ -330,6 +337,14 @@ struct FeedPostSheet: View {
                 image: imageToUpload,
                 gifUrl: gifUrlToSend
             )
+            if viewModel.error != nil {
+                // Put the user's work back so a retry is one tap away.
+                replyText = content
+                editingCommentId = commentIdToEdit
+                commentImage = imageToUpload
+                if let gifUrlToSend { selectedGifUrl = URL(string: gifUrlToSend) }
+                showReplyError = true
+            }
         }
     }
 

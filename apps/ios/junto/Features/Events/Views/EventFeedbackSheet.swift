@@ -21,9 +21,9 @@ struct EventFeedbackSheet: View {
     @State private var additionalFeedback: String = ""
     @State private var selectedAttendees: Set<String> = []
     @State private var attendees: [EventAttendee] = []
-    @State private var connectedIds: Set<String> = []
-    @State private var pendingConnectionIds: Set<String> = []
+    @ObservedObject private var connections = ConnectionStore.shared
     @State private var isSubmitting = false
+    @State private var submitError: String?
     @State private var cancellables = Set<AnyCancellable>()
 
     private let convex = ConvexClientManager.shared
@@ -80,6 +80,7 @@ struct EventFeedbackSheet: View {
             }
         }
         .interactiveDismissDisabled()
+        .errorAlert($submitError, title: "Couldn't Submit Feedback")
         .task {
             await loadAttendees()
         }
@@ -209,7 +210,7 @@ struct EventFeedbackSheet: View {
 
                         Spacer()
 
-                        if connectedIds.contains(attendee.id) {
+                        if connections.isConnected(attendee.id) {
                             Text("Connected")
                                 .font(.bodySmallMedium)
                                 .foregroundColor(.appSecondary)
@@ -217,7 +218,7 @@ struct EventFeedbackSheet: View {
                                 .padding(.vertical, Spacing.xs)
                                 .background(Color.appSurfaceSecondary)
                                 .clipShape(Capsule())
-                        } else if pendingConnectionIds.contains(attendee.id) || selectedAttendees.contains(attendee.id) {
+                        } else if connections.isPending(attendee.id) || selectedAttendees.contains(attendee.id) {
                             Text("Pending")
                                 .font(.bodySmallMedium)
                                 .foregroundColor(.appSecondary)
@@ -295,15 +296,8 @@ struct EventFeedbackSheet: View {
             )
             .store(in: &cancellables)
 
-        guard let userId = currentUser.userId else { return }
-        do {
-            let connections = try await convex.fetchConnections(userId: userId)
-            connectedIds = Set(connections.map { $0._id })
-
-            let pending = try await convex.fetchPendingSentIds(userId: userId)
-            pendingConnectionIds = Set(pending)
-        } catch {
-            print("Failed to load connection state: \(error)")
+        if let userId = currentUser.userId {
+            connections.start(userId: userId)
         }
     }
 
@@ -329,12 +323,7 @@ struct EventFeedbackSheet: View {
                 )
 
                 for attendeeId in selectedAttendees {
-                    do {
-                        _ = try await convex.sendConnectionRequest(requesterId: userId, accepterId: attendeeId)
-                        AnalyticsService.shared.track(.connectionSent(toUserId: attendeeId, source: .eventAttendees))
-                    } catch {
-                        print("Connection request to \(attendeeId) failed: \(error)")
-                    }
+                    await ConnectionStore.shared.sendRequest(to: attendeeId, source: .eventAttendees)
                 }
 
                 AnalyticsService.shared.track(.feedbackSubmitted(eventId: event._id, rating: selectedRating))
@@ -347,6 +336,7 @@ struct EventFeedbackSheet: View {
             } catch {
                 print("Feedback submission failed: \(error)")
                 await MainActor.run {
+                    submitError = "Couldn't submit your feedback. Check your connection and try again."
                     isSubmitting = false
                 }
             }

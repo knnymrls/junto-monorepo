@@ -428,12 +428,12 @@ struct EventDetailView: View {
                 }
             }
 
-            metaRow(icon: "feed.calendar", text: dateText)
-            metaRow(icon: "event.clock", text: timeText)
+            metaRow(icon: .feedCalendar, text: dateText)
+            metaRow(icon: .eventClock, text: timeText)
         }
     }
 
-    private func metaRow(icon: String, text: String) -> some View {
+    private func metaRow(icon: ImageResource, text: String) -> some View {
         HStack(spacing: Spacing.sm) {
             Image(icon)
                 .renderingMode(.template)
@@ -454,13 +454,13 @@ struct EventDetailView: View {
     private var actionButtons: some View {
         HStack(spacing: Spacing.sm) {
             actionButton(
-                icon: "event.ticket",
+                icon: .eventTicket,
                 label: isGoing ? "Going" : "Register",
                 primary: !isGoing
             ) {
                 if isGoing { showCancelConfirm = true } else { setRsvp("going") }
             }
-            actionButton(icon: "feed.calendar", label: "Add to Calendar", primary: false) {
+            actionButton(icon: .feedCalendar, label: "Add to Calendar", primary: false) {
                 addToCalendar()
             }
         }
@@ -489,7 +489,7 @@ struct EventDetailView: View {
         }
     }
 
-    private func actionButton(icon: String, label: String, primary: Bool, action: @escaping () -> Void) -> some View {
+    private func actionButton(icon: ImageResource, label: String, primary: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: Spacing.xxs) {
                 Image(icon)

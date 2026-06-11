@@ -51,25 +51,6 @@ extension ConvexClientManager {
         )
     }
 
-    /// One-shot event fetch including the current user's RSVP status (`myStatus`),
-    /// so an Ask Junto event card can show "Going" if they're already in.
-    func fetchAskJuntoEvent(id: String, userId: String?) async throws -> EventWithRsvpResponse? {
-        try await withCheckedThrowingContinuation { continuation in
-            var cancellable: AnyCancellable?
-            cancellable = subscribeEvent(id: id, userId: userId)
-                .first()
-                .sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                        cancellable?.cancel()
-                    },
-                    receiveValue: { event in continuation.resume(returning: event) }
-                )
-        }
-    }
-
     /// Past conversations for a user, most recent first.
     func subscribeAskJuntoThreads(userId: String, limit: Int? = nil) -> AnyPublisher<[AskJuntoThreadResponse], ClientError> {
         var args: [String: (any ConvexEncodable)?] = ["userId": userId]

@@ -270,7 +270,7 @@ struct CreateEventSheet: View {
         do {
             var imageUrl: String?
             if let coverImage {
-                imageUrl = try await ConvexClientManager.shared.uploadImage(coverImage)
+                imageUrl = try await ImageUploadService.shared.uploadForStorageId(coverImage)
             }
 
             try await ConvexClientManager.shared.createEvent(

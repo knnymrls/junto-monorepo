@@ -45,12 +45,18 @@ export const listForUser = query({
       .order("desc")
       .take(limit);
 
-    // Fetch sender info for each notification
+    // Fetch sender info for each notification, dropping the 1536-dim
+    // embeddings — raw user docs here pushed ~50-100KB per sender over the
+    // wire on every subscription update.
     const notificationsWithSenders = await Promise.all(
       notifications.map(async (notification) => {
         let sender = null;
         if (notification.data?.senderId) {
-          sender = await ctx.db.get(notification.data.senderId);
+          const senderDoc = await ctx.db.get(notification.data.senderId);
+          if (senderDoc) {
+            const { profileEmbedding, needsEmbedding, ...rest } = senderDoc;
+            sender = rest;
+          }
         }
         return {
           ...notification,

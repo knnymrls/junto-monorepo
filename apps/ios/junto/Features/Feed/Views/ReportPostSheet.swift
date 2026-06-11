@@ -16,6 +16,7 @@ struct ReportPostSheet: View {
     @State private var details: String = ""
     @State private var isSubmitting = false
     @State private var isSubmitted = false
+    @State private var submitError: String?
 
     enum ReportReason: String, CaseIterable {
         case spam = "spam"
@@ -69,6 +70,7 @@ struct ReportPostSheet: View {
             }
         }
         .presentationDragIndicator(.visible)
+        .errorAlert($submitError, title: "Couldn't Submit Report")
     }
 
     // MARK: - Report Form
@@ -224,6 +226,7 @@ struct ReportPostSheet: View {
                 }
             } catch {
                 print("ReportPostSheet: Failed to submit report: \(error)")
+                submitError = "Couldn't submit your report. Check your connection and try again."
                 isSubmitting = false
             }
         }

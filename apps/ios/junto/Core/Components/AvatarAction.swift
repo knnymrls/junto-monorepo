@@ -43,16 +43,16 @@ struct AvatarAction: View {
         .buttonStyle(.pressableScale(0.9))
     }
 
-    private var badgeIconName: String {
+    private var badgeIconName: ImageResource {
         switch connectionStatus {
-        case .connected: return "feed.connected"
-        case .pending:   return "feed.clock"
-        case .none:      return "feed.connect"
+        case .connected: return .feedConnected
+        case .pending:   return .feedClock
+        case .none:      return .feedConnect
         }
     }
 
     // Connect badge — Figma: 22px ring (surface) → 18px dark disc → 10px Flex line icon.
-    private func badgeIcon(_ lineIcon: String) -> some View {
+    private func badgeIcon(_ lineIcon: ImageResource) -> some View {
         ZStack {
             Circle()
                 .fill(Color.appSurface)

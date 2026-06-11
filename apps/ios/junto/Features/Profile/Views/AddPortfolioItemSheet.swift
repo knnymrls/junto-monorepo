@@ -16,6 +16,7 @@ struct AddPortfolioItemSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedType: PortfolioItemResponse.PortfolioType?
     @State private var isSaving = false
+    @State private var saveError: String?
 
     init(userId: String, initialType: PortfolioItemResponse.PortfolioType? = nil, suggestedTitle: String? = nil) {
         self.userId = userId
@@ -95,6 +96,7 @@ struct AddPortfolioItemSheet: View {
             }
         }
         .presentationDragIndicator(.visible)
+        .errorAlert($saveError, title: "Couldn't Save")
     }
 
     // MARK: - Type Picker
@@ -426,7 +428,7 @@ struct AddPortfolioItemSheet: View {
                 case .gallery:
                     var storageIds: [String] = []
                     for image in galleryImages {
-                        let storageId = try await ConvexClientManager.shared.uploadImage(image)
+                        let storageId = try await ImageUploadService.shared.uploadForStorageId(image)
                         storageIds.append(storageId)
                     }
                     _ = try await ConvexClientManager.shared.createPortfolioItem(
@@ -447,7 +449,7 @@ struct AddPortfolioItemSheet: View {
                 case .experience:
                     var storageIds: [String] = []
                     for image in expImages {
-                        let storageId = try await ConvexClientManager.shared.uploadImage(image)
+                        let storageId = try await ImageUploadService.shared.uploadForStorageId(image)
                         storageIds.append(storageId)
                     }
                     _ = try await ConvexClientManager.shared.createPortfolioItem(
@@ -465,6 +467,7 @@ struct AddPortfolioItemSheet: View {
                 dismiss()
             } catch {
                 print("AddPortfolioItemSheet: save error: \(error)")
+                saveError = "Couldn't save your widget. Check your connection and try again."
                 isSaving = false
             }
         }

@@ -9,7 +9,7 @@
 import SwiftUI
 
 struct FeedMessageState: View {
-    let icon: String
+    let icon: ImageResource
     let title: String
     let subtitle: String
 
@@ -42,7 +42,7 @@ struct FeedMessageState: View {
 struct FeedEndState: View {
     var body: some View {
         FeedMessageState(
-            icon: "feed.empty",
+            icon: .feedEmpty,
             title: "You've reached the end",
             subtitle: "That's all the posts we have for now!"
         )
@@ -52,7 +52,7 @@ struct FeedEndState: View {
 #Preview {
     VStack(spacing: 0) {
         FeedEndState()
-        FeedMessageState(icon: "feed.replies.empty", title: "No Replies", subtitle: "Be the first to reply")
+        FeedMessageState(icon: .feedRepliesEmpty, title: "No Replies", subtitle: "Be the first to reply")
     }
     .background(Color.appBackground)
 }

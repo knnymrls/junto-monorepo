@@ -291,8 +291,8 @@ struct AskJuntoDraftIntroCard: View {
             } else {
                 // Send + Edit — two equal-width buttons (copies EventDetailView).
                 HStack(spacing: Spacing.sm) {
-                    introButton(icon: Image("action.send"), label: "Send intro", primary: true) { send() }
-                    introButton(icon: Image("action.edit"), label: "Edit", primary: false) {
+                    introButton(icon: Image(.actionSend), label: "Send intro", primary: true) { send() }
+                    introButton(icon: Image(.actionEdit), label: "Edit", primary: false) {
                         editing = true
                         messageFocused = true
                     }
@@ -306,10 +306,17 @@ struct AskJuntoDraftIntroCard: View {
 
     private func send() {
         guard !sent else { return }
-        // Optimistic: flip to "sent" immediately (no loading), send in background.
+        // Optimistic: flip to "sent" immediately (no loading) — but revert if
+        // the send actually fails, or the card permanently claims a delivery
+        // that never happened.
         messageFocused = false
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { sent = true; editing = false }
-        Task { _ = await onSend(editedMessage) }
+        Task {
+            let succeeded = await onSend(editedMessage)
+            if !succeeded {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { sent = false }
+            }
+        }
     }
 
     // Two equal-width buttons, icon stacked above a 12pt label — copies

@@ -27,7 +27,7 @@ struct PostDetailTopNav: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            circleButton(icon: "nav.back", action: { onBack?() })
+            circleButton(icon: .navBack, action: { onBack?() })
 
             Spacer(minLength: 0)
 
@@ -37,7 +37,7 @@ struct PostDetailTopNav: View {
 
             Spacer(minLength: 0)
 
-            circleButton(icon: "nav.share", action: { onShare?() })
+            circleButton(icon: .navShare, action: { onShare?() })
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.top, style == .overlay ? Spacing.xs : 0)
@@ -67,7 +67,7 @@ struct PostDetailTopNav: View {
         style == .overlay ? Color(red: 0.176, green: 0.176, blue: 0.176) : .appPrimary
     }
 
-    private func circleButton(icon: String, action: @escaping () -> Void) -> some View {
+    private func circleButton(icon: ImageResource, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(icon)
                 .renderingMode(.template)

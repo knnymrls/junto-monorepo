@@ -140,7 +140,7 @@ struct MessagesView: View {
             Spacer()
 
             HStack(spacing: Spacing.xxs) {
-                headerIcon("nav.search", tint: showSearch ? .appAccent : .appPrimary) {
+                headerIcon(.navSearch, tint: showSearch ? .appAccent : .appPrimary) {
                     withAnimation(.easeInOut(duration: 0.2)) { showSearch.toggle() }
                     if showSearch {
                         searchFocused = true
@@ -156,14 +156,14 @@ struct MessagesView: View {
         .background(Color.appSurface.ignoresSafeArea(edges: .top))
     }
 
-    private func headerIcon(_ name: String, tint: Color = .appPrimary, action: @escaping () -> Void) -> some View {
+    private func headerIcon(_ name: DeveloperToolsSupport.ImageResource, tint: Color = .appPrimary, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             headerIconImage(name, tint: tint)
         }
         .buttonStyle(.pressableScale(0.9))
     }
 
-    private func headerIconImage(_ name: String, tint: Color) -> some View {
+    private func headerIconImage(_ name: DeveloperToolsSupport.ImageResource, tint: Color) -> some View {
         Image(name)
             .renderingMode(.template)
             .resizable()
@@ -185,7 +185,7 @@ struct MessagesView: View {
                 }
             }
         } label: {
-            headerIconImage("nav.filter", tint: viewModel.filter == .all ? .appPrimary : .appAccent)
+            headerIconImage(.navFilter, tint: viewModel.filter == .all ? .appPrimary : .appAccent)
         }
         .buttonStyle(.pressableScale(0.9))
     }
@@ -194,7 +194,7 @@ struct MessagesView: View {
 
     private var searchBar: some View {
         HStack(spacing: Spacing.sm) {
-            Image("nav.search")
+            Image(.navSearch)
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
