@@ -1,71 +1,39 @@
 //
 //  AboutTabView.swift
-//  mkrs-world
+//  junto
 //
-//  About tab — bio, current project, looking for, can help with, interests, social links,
-//  top vouches preview, pinned work preview
+//  About tab — minimal: what they're looking for, skills, programs, social
+//  links, member-since. "Can help with" is implied by skills; work lives in
+//  the Work tab.
 //
 
 import SwiftUI
 
 struct AboutTabView: View {
     let user: UserResponse
-    var topVouches: [VouchResponse] = []
-    var topPortfolioItems: [PortfolioItemResponse] = []
-    var onSeeAllVouches: (() -> Void)? = nil
-    var onSeeAllWork: (() -> Void)? = nil
+    var context: ProfileContextResponse? = nil
+    var isSelf: Bool = false
+    var onEdit: (() -> Void)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.xl) {
-            if let currentProject = user.currentProject, !currentProject.isEmpty {
-                infoSection(title: "Currently Working On", icon: "hammer.fill") {
-                    Text(currentProject)
-                        .font(.body14)
-                        .foregroundColor(.appPrimary)
-                }
-            }
+        VStack(alignment: .leading, spacing: Spacing.xxl) {
+            lookingForSection
 
-            if let lookingFor = user.lookingFor, !lookingFor.isEmpty {
-                infoSection(title: "Looking For", icon: "magnifyingglass") {
-                    Text(lookingFor)
-                        .font(.body14)
-                        .foregroundColor(.appPrimary)
-                }
-            }
-
-            if let canHelpWith = user.canHelpWith, !canHelpWith.isEmpty {
-                infoSection(title: "Can Help With", icon: "hand.raised.fill") {
-                    Text(canHelpWith)
-                        .font(.body14)
-                        .foregroundColor(.appPrimary)
+            if let skills = context?.skillNames, !skills.isEmpty {
+                infoSection(title: "Skills") {
+                    FlowLayout(spacing: Spacing.sm) {
+                        ForEach(skills, id: \.self) { skill in
+                            skillPill(skill)
+                        }
+                    }
                 }
             }
 
             if let programs = user.programs, !programs.isEmpty {
-                infoSection(title: "Programs", icon: "building.columns.fill") {
+                infoSection(title: "Programs") {
                     FlowLayout(spacing: Spacing.sm) {
                         ForEach(programs, id: \.self) { program in
                             pillView(program)
-                        }
-                    }
-                }
-            }
-
-            if let skills = user.skills, !skills.isEmpty {
-                infoSection(title: "Skills", icon: "wrench.and.screwdriver.fill") {
-                    FlowLayout(spacing: Spacing.sm) {
-                        ForEach(skills, id: \.self) { skill in
-                            pillView(skill)
-                        }
-                    }
-                }
-            }
-
-            if let interests = user.interests, !interests.isEmpty {
-                infoSection(title: "Interests") {
-                    FlowLayout(spacing: Spacing.sm) {
-                        ForEach(interests, id: \.self) { interest in
-                            pillView(interest)
                         }
                     }
                 }
@@ -77,17 +45,9 @@ struct AboutTabView: View {
                 }
             }
 
-            // Top Vouches Preview
-            if !topVouches.isEmpty {
-                vouchesPreview
-            }
+            memberSince
 
-            // Pinned Work Preview
-            if !topPortfolioItems.isEmpty {
-                workPreview
-            }
-
-            if isEmpty {
+            if isEmpty && !isSelf {
                 emptyState
             }
         }
@@ -95,35 +55,114 @@ struct AboutTabView: View {
         .padding(.bottom, Spacing.xxxl)
     }
 
-    // MARK: - Section Builder
+    // MARK: - Looking For
 
-    private func infoSection<Content: View>(title: String, icon: String? = nil, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.xs) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.caption12)
+    @ViewBuilder
+    private var lookingForSection: some View {
+        let looking = (user.lookingFor ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !looking.isEmpty {
+            HStack(alignment: .top, spacing: Spacing.md) {
+                Image("content.looking.fill")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+                    .foregroundColor(.appPrimary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.appSurfaceSecondary)
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: Spacing.xxxs) {
+                    Text("Looking for")
+                        .font(.bodySemibold)
+                        .foregroundColor(.appPrimary)
+
+                    Text(looking)
+                        .font(.body14)
+                        .foregroundColor(.appSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        } else if isSelf, let onEdit {
+            Button(action: onEdit) {
+                HStack(spacing: Spacing.md) {
+                    Image("content.looking.fill")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+                        .foregroundColor(.appSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(Color.appSurfaceSecondary)
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: Spacing.xxxs) {
+                        Text("What are you looking for?")
+                            .font(.bodySemibold)
+                            .foregroundColor(.appPrimary)
+                        Text("Junto matches you with people who can help")
+                            .font(.bodySmall)
+                            .foregroundColor(.appSecondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.appSecondary)
                 }
-                Text(title)
-                    .font(.bodySmallSemibold)
-                    .foregroundColor(.appSecondary)
-                    .textCase(.uppercase)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.pressableScale(0.98))
+        }
+    }
+
+    // MARK: - Section Builder
+
+    private func infoSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text(title.uppercased())
+                .font(.captionSmallSemibold)
+                .foregroundColor(.appSecondary)
             content()
         }
     }
 
-    // MARK: - Pill View
-
+    // Tag treatment matches the event detail page's tag pills — Radius.md
+    // continuous corners, md/sm padding.
     private func pillView(_ text: String) -> some View {
         Text(text)
-            .font(.bodySmall)
+            .font(.bodyMedium)
             .foregroundColor(.appPrimary)
             .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.xs)
+            .padding(.vertical, Spacing.sm)
             .background(Color.appSurfaceSecondary)
-            .clipShape(Capsule())
+            .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+    }
+
+    /// Skill pill — the skill's maker category drives the icon and its brand
+    /// color, same vocabulary as Discover's category chips.
+    private func skillPill(_ skill: String) -> some View {
+        let category = SkillCategory.match(skill)
+        return HStack(spacing: Spacing.xxs) {
+            if let category {
+                Image(category.icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
+                    .foregroundColor(category.color)
+            }
+
+            Text(skill)
+                .font(.bodyMedium)
+                .foregroundColor(.appPrimary)
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(Color.appSurfaceSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
     }
 
     // MARK: - Social Links
@@ -136,28 +175,33 @@ struct AboutTabView: View {
     private var socialLinksRow: some View {
         HStack(spacing: Spacing.lg) {
             if let github = user.socialLinks?.github, let url = URL(string: github) {
-                socialLinkButton(icon: "chevron.left.forwardslash.chevron.right", url: url, label: "GitHub")
+                socialLinkButton(icon: "link.github", url: url, label: "GitHub")
             }
             if let linkedin = user.socialLinks?.linkedin, let url = URL(string: linkedin) {
-                socialLinkButton(icon: "link", url: url, label: "LinkedIn")
+                socialLinkButton(icon: "link.linkedin", url: url, label: "LinkedIn")
             }
             if let twitter = user.socialLinks?.twitter, let url = URL(string: twitter) {
-                socialLinkButton(icon: "at", url: url, label: "X")
+                socialLinkButton(icon: "link.x", url: url, label: "X")
             }
             if let instagram = user.socialLinks?.instagram, let url = URL(string: instagram) {
-                socialLinkButton(icon: "camera", url: url, label: "Instagram")
+                socialLinkButton(icon: "link.instagram", url: url, label: "Instagram")
             }
             if let website = user.socialLinks?.website, let url = URL(string: website) {
-                socialLinkButton(icon: "globe", url: url, label: "Website")
+                socialLinkButton(icon: "link.website", url: url, label: "Website")
             }
         }
     }
 
+    // Solid Streamline Flex brand glyphs — icons on a background container
+    // are always the solid set.
     private func socialLinkButton(icon: String, url: URL, label: String) -> some View {
         Link(destination: url) {
             VStack(spacing: Spacing.xxs) {
-                Image(systemName: icon)
-                    .font(.system(size: 18))
+                Image(icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
                     .foregroundColor(.appPrimary)
                     .frame(width: 40, height: 40)
                     .background(Color.appSurfaceSecondary)
@@ -169,120 +213,28 @@ struct AboutTabView: View {
         }
     }
 
-    // MARK: - Vouches Preview
+    // MARK: - Member Since
 
-    private var vouchesPreview: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Text("VOUCHES")
-                    .font(.bodySmallSemibold)
-                    .foregroundColor(.appSecondary)
-
-                Spacer()
-
-                if let onSeeAllVouches {
-                    Button(action: onSeeAllVouches) {
-                        Text("See all")
-                            .font(.bodySmall)
-                            .foregroundColor(.appAccent)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            ForEach(topVouches) { vouch in
-                HStack(spacing: Spacing.md) {
-                    AvatarView(
-                        avatarUrl: vouch.fromUser?.avatarUrl,
-                        name: vouch.fromUser?.name ?? "?",
-                        size: 32
-                    )
-
-                    VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                        Text(vouch.fromUser?.name ?? "Someone")
-                            .font(.bodySemibold)
-                            .foregroundColor(.appPrimary)
-
-                        Text("\"\(vouch.reason)\"")
-                            .font(.body14)
-                            .foregroundColor(.appSecondary)
-                            .italic()
-                            .lineLimit(2)
-                    }
-                }
-            }
-        }
+    private var memberSince: some View {
+        Text("On Junto since \(joinedText)")
+            .font(.bodySmall)
+            .foregroundColor(.appSecondary)
     }
 
-    // MARK: - Work Preview
-
-    private var workPreview: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Text("WORK")
-                    .font(.bodySmallSemibold)
-                    .foregroundColor(.appSecondary)
-
-                Spacer()
-
-                if let onSeeAllWork {
-                    Button(action: onSeeAllWork) {
-                        Text("See all")
-                            .font(.bodySmall)
-                            .foregroundColor(.appAccent)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            ForEach(topPortfolioItems) { item in
-                HStack(spacing: Spacing.md) {
-                    Image(systemName: portfolioIcon(for: item.portfolioType))
-                        .font(.system(size: 16))
-                        .foregroundColor(.appSecondary)
-                        .frame(width: 32, height: 32)
-                        .background(Color.appSurfaceSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
-
-                    VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                        Text(item.title ?? "Untitled")
-                            .font(.bodySemibold)
-                            .foregroundColor(.appPrimary)
-                            .lineLimit(1)
-
-                        if let desc = item.description, !desc.isEmpty {
-                            Text(desc)
-                                .font(.caption12)
-                                .foregroundColor(.appSecondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func portfolioIcon(for type: PortfolioItemResponse.PortfolioType) -> String {
-        switch type {
-        case .github: return "chevron.left.forwardslash.chevron.right"
-        case .gallery: return "photo"
-        case .link: return "link"
-        case .experience: return "briefcase"
-        }
+    private var joinedText: String {
+        let date = Date(timeIntervalSince1970: user.createdAt / 1000)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: date)
     }
 
     // MARK: - Empty State
 
     private var isEmpty: Bool {
-        user.currentProject == nil &&
-        user.lookingFor == nil &&
-        user.canHelpWith == nil &&
+        (user.lookingFor ?? "").isEmpty &&
+        (context?.skillNames ?? []).isEmpty &&
         (user.programs ?? []).isEmpty &&
-        (user.skills ?? []).isEmpty &&
-        (user.interests ?? []).isEmpty &&
-        !hasSocialLinks &&
-        topVouches.isEmpty &&
-        topPortfolioItems.isEmpty
+        !hasSocialLinks
     }
 
     private var emptyState: some View {
@@ -290,7 +242,7 @@ struct AboutTabView: View {
             Text("No info yet")
                 .font(.bodyLargeMedium)
                 .foregroundColor(.appSecondary)
-            Text("This user hasn't added their details.")
+            Text("This maker hasn't added their details.")
                 .font(.body14)
                 .foregroundColor(.appSecondary)
         }

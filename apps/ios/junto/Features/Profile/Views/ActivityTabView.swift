@@ -1,8 +1,11 @@
 //
 //  ActivityTabView.swift
-//  mkrs-world
+//  junto
 //
-//  Activity tab — posts, events attended, connection stats
+//  Activity tab — one recency-ordered timeline of the maker's posts and
+//  events, rendered with the app's REAL components: the feed's FeedCard for
+//  posts and Discover's DiscoverEventCard for events, separated by the same
+//  hairline rows as the feed. Taps open the real post sheet / event detail.
 //
 
 import SwiftUI
@@ -13,47 +16,88 @@ struct ActivityTabView: View {
     let userName: String
     let isSelf: Bool
     let connectionCount: Int
+    /// Viewer ↔ profile connection state, mirrored onto each post card's
+    /// avatar badge (same as the feed).
+    var connectionStatus: ConnectionDisplayStatus = .none
+    var onConnect: () -> Void = {}
+
+    @EnvironmentObject private var currentUser: CurrentUserManager
     @State private var posts: [PostResponse] = []
-    @State private var events: [AttendedEventResponse] = []
+    @State private var events: [EventResponse] = []
     @State private var isLoadingPosts = true
     @State private var isLoadingEvents = true
+    @State private var selectedPost: PostResponse?
+    @State private var selectedEvent: EventWithRsvpResponse?
     @State private var postsCancellable: AnyCancellable?
     @State private var eventsCancellable: AnyCancellable?
+
+    // Zoom transitions: tapped card grows into its detail page (iOS 18).
+    @Namespace private var postZoom
+    @Namespace private var eventZoom
+
+    private var hairline: CGFloat { 1 / UIScreen.main.scale }
+
+    /// Posts and events merged into one timeline, newest first.
+    private enum ActivityEntry: Identifiable {
+        case post(PostResponse)
+        case event(EventResponse)
+
+        var id: String {
+            switch self {
+            case .post(let post): return "post-\(post._id)"
+            case .event(let event): return "event-\(event._id)"
+            }
+        }
+
+        var date: Date {
+            switch self {
+            case .post(let post): return post.createdDate
+            case .event(let event): return event.dateValue
+            }
+        }
+    }
+
+    private var timeline: [ActivityEntry] {
+        let entries = posts.map(ActivityEntry.post) + events.map(ActivityEntry.event)
+        return entries.sorted { $0.date > $1.date }
+    }
 
     private var isFullyLoaded: Bool {
         !isLoadingPosts && !isLoadingEvents
     }
 
-    private var hasNoActivity: Bool {
-        isFullyLoaded && posts.isEmpty && events.isEmpty && connectionCount == 0
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.xl) {
+        LazyVStack(spacing: 0) {
             if !isFullyLoaded {
                 ProgressView()
+                    .tint(.appSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, Spacing.huge)
-            } else if hasNoActivity {
+            } else if timeline.isEmpty {
                 emptyState
             } else {
-                // Posts (most relevant, show first)
-                if !posts.isEmpty {
-                    postsSection
-                }
+                ForEach(timeline) { entry in
+                    entryRow(entry)
 
-                // Events Attended
-                if !events.isEmpty {
-                    eventsSection
-                }
-
-                // Connection Stats
-                if connectionCount > 0 {
-                    statsSection
+                    Rectangle()
+                        .fill(Color.appDivider)
+                        .frame(height: hairline)
                 }
             }
         }
         .padding(.bottom, Spacing.xxxl)
+        .fullScreenCover(item: $selectedPost) { post in
+            FeedPostSheet(
+                post: post,
+                currentUserId: currentUser.userId,
+                connectedUserIds: []
+            )
+            .zoomDestination(id: post._id, in: postZoom)
+        }
+        .fullScreenCover(item: $selectedEvent) { event in
+            EventDetailView(event: event)
+                .zoomDestination(id: event._id, in: eventZoom)
+        }
         .onAppear {
             startPostsSubscription()
             startEventsSubscription()
@@ -64,86 +108,40 @@ struct ActivityTabView: View {
         }
     }
 
-    // MARK: - Stats Section
+    // MARK: - Rows (the feed's post card / Discover's event card)
 
-    private var statsSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            sectionHeader("Connections")
+    @ViewBuilder
+    private func entryRow(_ entry: ActivityEntry) -> some View {
+        switch entry {
+        case .post(let post):
+            FeedCard(
+                item: FeedItemResponse(
+                    kind: "post",
+                    key: post._id,
+                    tags: post.topics,
+                    post: post
+                ),
+                connectionStatus: connectionStatus,
+                isOwnItem: post.authorId == currentUser.userId,
+                onConnectTap: onConnect,
+                onCardTap: { selectedPost = post }
+            )
+            .zoomSource(id: post._id, in: postZoom)
 
-            HStack(spacing: Spacing.md) {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(.appAccent)
-
-                Text("\(connectionCount) connection\(connectionCount == 1 ? "" : "s")")
-                    .font(.body14)
-                    .foregroundColor(.appPrimary)
-            }
-            .padding(.horizontal, Spacing.lg)
+        case .event(let event):
+            FeedEventCard(
+                event: event,
+                tags: event.displayTags,
+                onCardTap: { openEvent(event) }
+            )
+            .zoomSource(id: event._id, in: eventZoom)
         }
     }
 
-    // MARK: - Events Section
-
-    private var eventsSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            sectionHeader("Events Attended")
-
-            LazyVStack(spacing: 0) {
-                ForEach(events) { event in
-                    eventRow(event)
-                }
-            }
-        }
-    }
-
-    private func eventRow(_ event: AttendedEventResponse) -> some View {
-        HStack(spacing: Spacing.md) {
-            Image(systemName: "calendar")
-                .font(.system(size: 14))
-                .foregroundColor(.appSecondary)
-                .frame(width: 28, height: 28)
-
-            VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                Text(event.title)
-                    .font(.bodySemibold)
-                    .foregroundColor(.appPrimary)
-                    .lineLimit(1)
-
-                HStack(spacing: Spacing.xs) {
-                    Text(event.eventDate.formatted(date: .abbreviated, time: .omitted))
-                        .font(.caption12)
-                        .foregroundColor(.appSecondary)
-
-                    if let location = event.location {
-                        Text("·")
-                            .foregroundColor(.appSecondary)
-                        Text(location)
-                            .font(.caption12)
-                            .foregroundColor(.appSecondary)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.sm)
-    }
-
-    // MARK: - Posts Section
-
-    private var postsSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            sectionHeader("Posts")
-
-            LazyVStack(spacing: 0) {
-                ForEach(posts) { post in
-                    postRow(post)
-                    Divider()
-                        .foregroundColor(.appDivider)
-                }
+    private func openEvent(_ event: EventResponse) {
+        Task {
+            if let full = try? await ConvexClientManager.shared.fetchEvent(id: event._id) {
+                await MainActor.run { selectedEvent = full }
             }
         }
     }
@@ -151,67 +149,13 @@ struct ActivityTabView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: Spacing.sm) {
-            Image(systemName: "clock")
-                .font(.system(size: 32))
-                .foregroundColor(.appSecondary)
-
-            Text("No activity yet")
-                .font(.bodyLargeMedium)
-                .foregroundColor(.appSecondary)
-
-            Text("Posts, events, and connections will show up here.")
-                .font(.body14)
-                .foregroundColor(.appSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Spacing.huge)
-    }
-
-    private func postRow(_ post: PostResponse) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.xs) {
-                Text(post.categoryType.displayName)
-                    .font(.captionSemibold)
-                    .foregroundColor(.appSecondary)
-
-                Text("·")
-                    .foregroundColor(.appSecondary)
-
-                Text(post.createdDate.timeAgoDisplay())
-                    .font(.caption12)
-                    .foregroundColor(.appSecondary)
-            }
-
-            Text(post.content)
-                .font(.body14)
-                .foregroundColor(.appPrimary)
-                .lineLimit(4)
-
-            if !post.allImageUrls.isEmpty {
-                ImageCarousel(imageUrls: post.allImageUrls)
-                    .frame(height: 160)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-            }
-
-            if let commentCount = post.commentCount, commentCount > 0 {
-                Text("\(commentCount) comment\(commentCount == 1 ? "" : "s")")
-                    .font(.caption12)
-                    .foregroundColor(.appSecondary)
-            }
-        }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.md)
-    }
-
-    // MARK: - Section Header
-
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title.uppercased())
-            .font(.bodySmallSemibold)
-            .foregroundColor(.appSecondary)
-            .padding(.horizontal, Spacing.lg)
+        FeedMessageState(
+            icon: "feed.empty",
+            title: "No activity yet",
+            subtitle: isSelf
+                ? "Your posts and events will show up here"
+                : "\(userName.components(separatedBy: " ").first ?? userName)'s posts and events will show up here"
+        )
     }
 
     // MARK: - Subscriptions

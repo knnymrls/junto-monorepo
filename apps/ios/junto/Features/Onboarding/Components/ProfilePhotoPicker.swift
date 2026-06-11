@@ -9,6 +9,10 @@ import SwiftUI
 
 struct ProfilePhotoPicker: View {
     @Binding var image: UIImage?
+    /// Existing remote avatar shown until a new photo is picked (Edit Profile).
+    var existingAvatarUrl: String? = nil
+    var existingName: String = "?"
+    var size: CGFloat = 100
     @State private var showPicker = false
 
     var body: some View {
@@ -18,14 +22,20 @@ struct ProfilePhotoPicker: View {
                     Image(uiImage: img)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 100, height: 100)
+                        .frame(width: size, height: size)
                         .clipShape(Circle())
+                } else if existingAvatarUrl != nil {
+                    AvatarView(
+                        avatarUrl: existingAvatarUrl,
+                        name: existingName,
+                        size: size
+                    )
                 } else {
                     Image(systemName: "person.crop.circle.fill")
                         .resizable()
                         .symbolRenderingMode(.palette)
                         .foregroundStyle(Color.appSecondary, Color.appInputFill)
-                        .frame(width: 100, height: 100)
+                        .frame(width: size, height: size)
                         .clipShape(Circle())
                 }
 

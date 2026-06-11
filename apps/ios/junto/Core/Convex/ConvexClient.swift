@@ -365,9 +365,10 @@ extension ConvexClientManager {
 
     // MARK: Events Attended
 
-    /// Subscribe to events a user has attended
-    func subscribeEventsAttended(userId: String) -> AnyPublisher<[AttendedEventResponse], ClientError> {
-        return client.subscribe(to: "events:listAttendedByUser", with: ["userId": userId], yielding: [AttendedEventResponse].self)
+    /// Subscribe to events a user has attended (full event shape — renders
+    /// with the Discover event card)
+    func subscribeEventsAttended(userId: String) -> AnyPublisher<[EventResponse], ClientError> {
+        return client.subscribe(to: "events:listAttendedByUser", with: ["userId": userId], yielding: [EventResponse].self)
     }
 
     // MARK: Notifications
@@ -1032,6 +1033,26 @@ extension ConvexClientManager {
         }
     }
 
+    /// Fetch the profile display context (university + major/skill names) once
+    func fetchProfileContext(userId: String) async throws -> ProfileContextResponse? {
+        return try await withCheckedThrowingContinuation { continuation in
+            var cancellable: AnyCancellable?
+            cancellable = client.subscribe(to: "users:getProfileContext", with: ["userId": userId], yielding: ProfileContextResponse?.self)
+                .first()
+                .sink(
+                    receiveCompletion: { completion in
+                        if case .failure(let error) = completion {
+                            continuation.resume(throwing: error)
+                        }
+                        cancellable?.cancel()
+                    },
+                    receiveValue: { context in
+                        continuation.resume(returning: context)
+                    }
+                )
+        }
+    }
+
     /// Fetch user by Clerk ID once
     func fetchUserByClerkId(clerkId: String) async throws -> UserResponse? {
         return try await withCheckedThrowingContinuation { continuation in
@@ -1397,7 +1418,7 @@ extension ConvexClientManager {
     // MARK: Events Attended
 
     /// Fetch events attended by a user once
-    func fetchEventsAttended(userId: String) async throws -> [AttendedEventResponse] {
+    func fetchEventsAttended(userId: String) async throws -> [EventResponse] {
         return try await withCheckedThrowingContinuation { continuation in
             var cancellable: AnyCancellable?
             cancellable = subscribeEventsAttended(userId: userId)
@@ -1621,6 +1642,21 @@ struct UserResponse: Codable, Identifiable, Hashable {
         let twitter: String?
         let github: String?
         let website: String?
+    }
+}
+
+// MARK: - Profile Context Response
+
+/// Display names for the reference IDs on a user (users:getProfileContext).
+struct ProfileContextResponse: Codable, Hashable {
+    let university: University?
+    let majorNames: [String]
+    let skillNames: [String]
+
+    struct University: Codable, Hashable {
+        let name: String
+        let shortName: String?
+        let logoUrl: String?
     }
 }
 
@@ -2129,22 +2165,6 @@ struct EventFeedbackResponse: Codable {
     let createdAt: Double
 }
 
-// MARK: - Attended Event Response
-
-struct AttendedEventResponse: Codable, Identifiable {
-    let _id: String
-    let title: String
-    let date: Double
-    let location: String?
-    let type: String
-
-    var id: String { _id }
-
-    var eventDate: Date {
-        Date(timeIntervalSince1970: date / 1000)
-    }
-}
-
 // MARK: - Input Types
 
 struct MajorInput {
@@ -2216,6 +2236,15 @@ struct UserInput {
                 ] as ConvexEncodable?
             }
             args["majors"] = arr
+        }
+        if let socialLinks = socialLinks {
+            var links: [String: ConvexEncodable?] = [:]
+            if let linkedin = socialLinks.linkedin { links["linkedin"] = linkedin }
+            if let instagram = socialLinks.instagram { links["instagram"] = instagram }
+            if let twitter = socialLinks.twitter { links["twitter"] = twitter }
+            if let github = socialLinks.github { links["github"] = github }
+            if let website = socialLinks.website { links["website"] = website }
+            args["socialLinks"] = links as ConvexEncodable?
         }
         return args
     }

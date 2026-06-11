@@ -492,16 +492,17 @@ export const listAttendedByUser = query({
       .filter((q) => q.eq(q.field("status"), "going"))
       .collect();
 
+    // Full event shape (like listUpcoming) so the Discover event card can
+    // render these directly on the profile's Activity tab.
     const events = await Promise.all(
       rsvps.map(async (rsvp) => {
         const event = await ctx.db.get(rsvp.eventId);
         if (!event) return null;
+        const host = await ctx.db.get(event.createdBy);
         return {
-          _id: event._id,
-          title: event.title,
-          date: event.date,
-          location: event.location ?? null,
-          type: event.type,
+          ...event,
+          imageUrl: await resolveImageUrl(ctx, event.imageUrl),
+          host: host ? { id: host._id, name: host.name, avatarUrl: host.avatarUrl } : null,
         };
       })
     );
