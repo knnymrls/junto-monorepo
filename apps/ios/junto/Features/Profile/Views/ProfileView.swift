@@ -214,8 +214,19 @@ struct ProfileView: View {
                 userId: user._id,
                 userName: user.name,
                 isSelf: isSelf,
-                connectionCount: connectionCount
+                connectionCount: connectionCount,
+                connectionStatus: displayConnectionStatus,
+                onConnect: sendRequest
             )
+        }
+    }
+
+    /// Viewer ↔ profile connection state in the feed's badge vocabulary.
+    private var displayConnectionStatus: ConnectionDisplayStatus {
+        switch connectionStatus {
+        case .connected: return .connected
+        case .pendingSent, .pendingReceived: return .pending
+        case .none: return .none
         }
     }
 

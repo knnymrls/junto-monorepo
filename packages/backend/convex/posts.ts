@@ -122,15 +122,18 @@ export const getByAuthor = query({
       .order("desc")
       .take(limit);
 
-    // Fetch comment counts
+    // Fetch author + comment counts (same shape as posts:list, so the feed's
+    // post card can render these directly on the profile's Activity tab)
     const postsWithCounts = await Promise.all(
       posts.map(async (post) => {
+        const author = await ctx.db.get(post.authorId);
         const comments = await ctx.db
           .query("comments")
           .withIndex("by_post", (q) => q.eq("postId", post._id))
           .collect();
         return {
           ...stripEmbedding(post),
+          author,
           commentCount: comments.length,
         };
       })

@@ -214,8 +214,11 @@ struct EditProfileSheet: View {
                 WidgetLayoutEditor(userId: user._id)
             } label: {
                 HStack(spacing: Spacing.md) {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.system(size: 16))
+                    Image("nav.grid.fill")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
                         .foregroundColor(.appPrimary)
                         .frame(width: 32, height: 32)
                         .background(Color.appSurfaceSecondary)

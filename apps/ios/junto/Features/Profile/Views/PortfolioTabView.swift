@@ -110,7 +110,7 @@ struct PortfolioTabView: View {
                     // Free-form fallback — the full type picker.
                     Button(action: { showAddSheet = true }) {
                         VStack(alignment: .leading, spacing: Spacing.sm) {
-                            Image("action.add")
+                            Image("action.add.fill")
                                 .renderingMode(.template)
                                 .resizable()
                                 .scaledToFit()
@@ -188,33 +188,33 @@ struct PortfolioTabView: View {
         switch vocation {
         case .software, .ai, .data:
             return [
-                VocationSuggestion(icon: "topic.code", title: "GitHub", subtitle: "Pull in your repos", type: .github),
-                VocationSuggestion(icon: "content.update", title: "Side project", subtitle: "Shipped something? Link it", type: .link, prefillTitle: "Side project"),
-                VocationSuggestion(icon: "action.image", title: "Hackathon build", subtitle: "Screenshots of the demo", type: .gallery, prefillTitle: "Hackathon build"),
+                VocationSuggestion(icon: "topic.code.fill", title: "GitHub", subtitle: "Pull in your repos", type: .github),
+                VocationSuggestion(icon: "content.update.fill", title: "Side project", subtitle: "Shipped something? Link it", type: .link, prefillTitle: "Side project"),
+                VocationSuggestion(icon: "action.image.fill", title: "Hackathon build", subtitle: "Screenshots of the demo", type: .gallery, prefillTitle: "Hackathon build"),
             ]
         case .design, .content:
             return [
-                VocationSuggestion(icon: "topic.design", title: "Case study", subtitle: "Show the work, not just links", type: .gallery, prefillTitle: "Case study"),
-                VocationSuggestion(icon: "action.arrow", title: "Portfolio site", subtitle: "Behance, Dribbble, your own", type: .link, prefillTitle: "Portfolio"),
-                VocationSuggestion(icon: "feed.opportunity", title: "Client work", subtitle: "Freelance or org projects", type: .experience, prefillTitle: "Client work"),
+                VocationSuggestion(icon: "topic.design.fill", title: "Case study", subtitle: "Show the work, not just links", type: .gallery, prefillTitle: "Case study"),
+                VocationSuggestion(icon: "action.arrow.fill", title: "Portfolio site", subtitle: "Behance, Dribbble, your own", type: .link, prefillTitle: "Portfolio"),
+                VocationSuggestion(icon: "feed.opportunity.fill", title: "Client work", subtitle: "Freelance or org projects", type: .experience, prefillTitle: "Client work"),
             ]
         case .business, .finance, .marketing, .leadership, .impact:
             return [
-                VocationSuggestion(icon: "topic.business", title: "Pitch deck", subtitle: "Link the deck you pitched", type: .link, prefillTitle: "Pitch deck"),
-                VocationSuggestion(icon: "feed.opportunity", title: "Venture", subtitle: "Startups, internships, roles", type: .experience),
-                VocationSuggestion(icon: "topic.analytics", title: "Case competition", subtitle: "Slides and results", type: .gallery, prefillTitle: "Case competition"),
+                VocationSuggestion(icon: "topic.business.fill", title: "Pitch deck", subtitle: "Link the deck you pitched", type: .link, prefillTitle: "Pitch deck"),
+                VocationSuggestion(icon: "feed.opportunity.fill", title: "Venture", subtitle: "Startups, internships, roles", type: .experience),
+                VocationSuggestion(icon: "topic.analytics.fill", title: "Case competition", subtitle: "Slides and results", type: .gallery, prefillTitle: "Case competition"),
             ]
         case .science, .health, .hardware:
             return [
-                VocationSuggestion(icon: "topic.sciences", title: "Projects", subtitle: "Lab work and research", type: .experience, prefillTitle: "Project"),
-                VocationSuggestion(icon: "feed.opportunity", title: "Experience", subtitle: "Title, photos, a short story", type: .experience),
-                VocationSuggestion(icon: "action.arrow", title: "Publication", subtitle: "Papers and posters", type: .link, prefillTitle: "Publication"),
+                VocationSuggestion(icon: "topic.sciences.fill", title: "Projects", subtitle: "Lab work and research", type: .experience, prefillTitle: "Project"),
+                VocationSuggestion(icon: "feed.opportunity.fill", title: "Experience", subtitle: "Title, photos, a short story", type: .experience),
+                VocationSuggestion(icon: "action.arrow.fill", title: "Publication", subtitle: "Papers and posters", type: .link, prefillTitle: "Publication"),
             ]
         default:
             return [
-                VocationSuggestion(icon: "action.arrow", title: "Project link", subtitle: "Anything you've made", type: .link),
-                VocationSuggestion(icon: "feed.opportunity", title: "Experience", subtitle: "Jobs, clubs, programs", type: .experience),
-                VocationSuggestion(icon: "action.image", title: "Photo gallery", subtitle: "Show what you work on", type: .gallery),
+                VocationSuggestion(icon: "action.arrow.fill", title: "Project link", subtitle: "Anything you've made", type: .link),
+                VocationSuggestion(icon: "feed.opportunity.fill", title: "Experience", subtitle: "Jobs, clubs, programs", type: .experience),
+                VocationSuggestion(icon: "action.image.fill", title: "Photo gallery", subtitle: "Show what you work on", type: .gallery),
             ]
         }
     }

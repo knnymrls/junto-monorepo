@@ -365,9 +365,10 @@ extension ConvexClientManager {
 
     // MARK: Events Attended
 
-    /// Subscribe to events a user has attended
-    func subscribeEventsAttended(userId: String) -> AnyPublisher<[AttendedEventResponse], ClientError> {
-        return client.subscribe(to: "events:listAttendedByUser", with: ["userId": userId], yielding: [AttendedEventResponse].self)
+    /// Subscribe to events a user has attended (full event shape — renders
+    /// with the Discover event card)
+    func subscribeEventsAttended(userId: String) -> AnyPublisher<[EventResponse], ClientError> {
+        return client.subscribe(to: "events:listAttendedByUser", with: ["userId": userId], yielding: [EventResponse].self)
     }
 
     // MARK: Notifications
@@ -1417,7 +1418,7 @@ extension ConvexClientManager {
     // MARK: Events Attended
 
     /// Fetch events attended by a user once
-    func fetchEventsAttended(userId: String) async throws -> [AttendedEventResponse] {
+    func fetchEventsAttended(userId: String) async throws -> [EventResponse] {
         return try await withCheckedThrowingContinuation { continuation in
             var cancellable: AnyCancellable?
             cancellable = subscribeEventsAttended(userId: userId)
@@ -2162,22 +2163,6 @@ struct EventFeedbackResponse: Codable {
     let improvements: [String]
     let wantToConnectWith: [String]
     let createdAt: Double
-}
-
-// MARK: - Attended Event Response
-
-struct AttendedEventResponse: Codable, Identifiable {
-    let _id: String
-    let title: String
-    let date: Double
-    let location: String?
-    let type: String
-
-    var id: String { _id }
-
-    var eventDate: Date {
-        Date(timeIntervalSince1970: date / 1000)
-    }
 }
 
 // MARK: - Input Types

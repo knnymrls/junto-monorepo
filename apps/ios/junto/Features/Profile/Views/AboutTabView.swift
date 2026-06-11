@@ -63,7 +63,7 @@ struct AboutTabView: View {
 
         if !looking.isEmpty {
             HStack(alignment: .top, spacing: Spacing.md) {
-                Image("content.looking")
+                Image("content.looking.fill")
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
@@ -87,7 +87,7 @@ struct AboutTabView: View {
         } else if isSelf, let onEdit {
             Button(action: onEdit) {
                 HStack(spacing: Spacing.md) {
-                    Image("content.looking")
+                    Image("content.looking.fill")
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
