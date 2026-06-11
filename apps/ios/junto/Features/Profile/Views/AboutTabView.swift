@@ -17,10 +17,6 @@ struct AboutTabView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xxl) {
-            if campusLine != nil {
-                campusRow
-            }
-
             storySections
 
             if let skills = context?.skillNames, !skills.isEmpty {
@@ -59,50 +55,12 @@ struct AboutTabView: View {
         .padding(.bottom, Spacing.xxxl)
     }
 
-    // MARK: - Campus
-    // "UNL · Computer Science · Fall 2026" — moved out of the hero.
-
-    private var campusLine: String? {
-        var parts: [String] = []
-        if let university = context?.university {
-            parts.append(university.shortName ?? university.name)
-        }
-        if let major = context?.majorNames.first {
-            parts.append(major)
-        }
-        if let grad = user.graduationSemester, !grad.isEmpty {
-            parts.append(grad)
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    private var campusRow: some View {
-        HStack(spacing: Spacing.sm) {
-            if let logoUrl = context?.university?.logoUrl, let url = URL(string: logoUrl) {
-                CachedAsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } placeholder: {
-                    Color.clear
-                }
-                .frame(width: 18, height: 18)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.xs, style: .continuous))
-            }
-
-            Text(campusLine ?? "")
-                .font(.bodyMedium)
-                .foregroundColor(.appPrimary)
-                .lineLimit(1)
-        }
-    }
-
-    // MARK: - Story (Building / Can help with — looking-for lives in the
-    // hero's thought bubble, so it never repeats here)
+    // MARK: - Story (Building / Can help with / Looking for)
 
     private var hasStory: Bool {
         !(user.currentProject ?? "").isEmpty
             || !(user.canHelpWith ?? "").isEmpty
+            || !(user.lookingFor ?? "").isEmpty
     }
 
     @ViewBuilder
@@ -113,6 +71,9 @@ struct AboutTabView: View {
             }
             if let help = user.canHelpWith, !help.isEmpty {
                 storySection(icon: "content.sharing", title: "Can help with", text: help)
+            }
+            if let looking = user.lookingFor, !looking.isEmpty {
+                storySection(icon: "content.looking", title: "Looking for", text: looking)
             }
         } else if isSelf, let onEdit {
             Button(action: onEdit) {
@@ -257,7 +218,6 @@ struct AboutTabView: View {
     // MARK: - Empty State
 
     private var isEmpty: Bool {
-        campusLine == nil &&
         !hasStory &&
         (context?.skillNames ?? []).isEmpty &&
         (user.programs ?? []).isEmpty &&

@@ -38,87 +38,58 @@ struct ProfileHeaderView: View {
 
             nameBlock
 
-            statLine
-
             actionRow
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.top, Spacing.md)
     }
 
-    // MARK: - Avatar + Thought Bubble
+    // MARK: - Avatar + Stats
 
     private var avatarBubbleRow: some View {
-        HStack(spacing: 0) {
-            avatarWithBadge
-            Spacer(minLength: 0)
-        }
-        // The bubble is absolutely placed (overlay, never layout) so its
-        // presence or size can't shift the hero.
-        .overlay(alignment: .bottomLeading) {
-            thoughtBubble
-                .padding(.leading, avatarSize + Spacing.lg)
-                .offset(y: 6)
-        }
-    }
-
-    private var avatarWithBadge: some View {
-        AvatarView(
-            avatarUrl: user.avatarUrl,
-            name: user.name,
-            size: avatarSize
-        )
-    }
-
-    @ViewBuilder
-    private var thoughtBubble: some View {
-        let looking = (user.lookingFor ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if !looking.isEmpty {
-            bubble {
-                Text(looking)
-                    .font(.bodySmall)
-                    .foregroundColor(.appPrimary)
-                    .lineLimit(2)
-            }
-        } else if isSelf {
-            Button(action: onEdit) {
-                bubble {
-                    Text("What are you looking for?")
-                        .font(.bodySmall)
-                        .foregroundColor(.appSecondary)
-                }
-            }
-            .buttonStyle(.pressableScale(0.97))
-        }
-    }
-
-    /// Compact thought bubble — rounded cloud with two thought dots flipped
-    /// above the bubble's leading edge, nudged toward the middle.
-    private func bubble<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content()
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(
-                Color.appSurfaceSecondary,
-                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        HStack(alignment: .center, spacing: Spacing.lg) {
+            AvatarView(
+                avatarUrl: user.avatarUrl,
+                name: user.name,
+                size: avatarSize
             )
-            .overlay(alignment: .leading) {
-                Circle()
-                    .fill(Color.appSurfaceSecondary)
-                    .frame(width: 7, height: 7)
-                    .offset(x: -8, y: 2)
+
+            Spacer(minLength: Spacing.lg)
+
+            HStack(spacing: 0) {
+                statColumn(postCount, postCount == 1 ? "Post" : "Posts", action: onTapPosts)
+                statColumn(connectionCount, connectionCount == 1 ? "Connection" : "Connections")
+                statColumn(vouchCount, vouchCount == 1 ? "Vouch" : "Vouches", action: onTapVouches)
             }
-            .overlay(alignment: .leading) {
-                Circle()
-                    .fill(Color.appSurfaceSecondary)
-                    .frame(width: 4, height: 4)
-                    .offset(x: -15, y: -2)
-            }
+        }
     }
 
-    // MARK: - Name / Headline
-    // Campus details live in the About tab — the header stays minimal.
+    // Plain views wrapped in a Button only when tappable — a disabled Button
+    // auto-dims its label, which made the stats render in mismatched colors.
+    @ViewBuilder
+    private func statColumn(_ count: Int, _ label: String, action: (() -> Void)? = nil) -> some View {
+        let column = VStack(spacing: Spacing.xxxs) {
+            Text("\(count)")
+                .font(.bodyLargeBold)
+                .foregroundColor(.appPrimary)
+
+            Text(label)
+                .font(.caption12)
+                .foregroundColor(.appSecondary)
+        }
+        .frame(minWidth: 64)
+
+        if let action {
+            Button(action: action) {
+                column.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            column
+        }
+    }
+
+    // MARK: - Name / Headline / Campus
 
     private var nameBlock: some View {
         VStack(alignment: .leading, spacing: Spacing.xxs) {
@@ -132,37 +103,44 @@ struct ProfileHeaderView: View {
                     .foregroundColor(.appPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-        }
-    }
 
-    // MARK: - Stat Line
-    // One text style for all three — same font, same color, no opacity games.
+            if let campus = campusLine {
+                HStack(spacing: Spacing.xs) {
+                    if let logoUrl = context?.university?.logoUrl, let url = URL(string: logoUrl) {
+                        CachedAsyncImage(url: url) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                        } placeholder: {
+                            Color.clear
+                        }
+                        .frame(width: 14, height: 14)
+                        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                    }
 
-    private var statLine: some View {
-        HStack(spacing: Spacing.lg) {
-            statText(postCount, postCount == 1 ? "post" : "posts", action: onTapPosts)
-            statText(connectionCount, connectionCount == 1 ? "connection" : "connections")
-            statText(vouchCount, vouchCount == 1 ? "vouch" : "vouches", action: onTapVouches)
-        }
-    }
-
-    // A disabled SwiftUI Button auto-dims its label — which is why the
-    // connections stat kept rendering at lower opacity. Non-tappable stats
-    // are plain Text, never a disabled button.
-    @ViewBuilder
-    private func statText(_ count: Int, _ label: String, action: (() -> Void)? = nil) -> some View {
-        let text = Text("\(count) \(label)")
-            .font(.bodySmall)
-            .foregroundColor(.appPrimary)
-
-        if let action {
-            Button(action: action) {
-                text.contentShape(Rectangle())
+                    Text(campus)
+                        .font(.bodySmall)
+                        .foregroundColor(.appSecondary)
+                        .lineLimit(1)
+                }
+                .padding(.top, Spacing.xxxs)
             }
-            .buttonStyle(.plain)
-        } else {
-            text
         }
+    }
+
+    /// "UNL · Computer Science · Fall 2026"
+    private var campusLine: String? {
+        var parts: [String] = []
+        if let university = context?.university {
+            parts.append(university.shortName ?? university.name)
+        }
+        if let major = context?.majorNames.first {
+            parts.append(major)
+        }
+        if let grad = user.graduationSemester, !grad.isEmpty {
+            parts.append(grad)
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     // MARK: - Action Row
