@@ -134,6 +134,7 @@ struct PortfolioTabView: View {
                 receiveCompletion: { completion in
                     if case .failure(let error) = completion {
                         print("PortfolioTabView: subscription error: \(error)")
+                        isLoading = false
                     }
                 },
                 receiveValue: { newItems in

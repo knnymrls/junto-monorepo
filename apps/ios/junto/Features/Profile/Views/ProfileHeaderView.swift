@@ -39,7 +39,7 @@ struct ProfileHeaderView: View {
 
             statLine
 
-            if !categoryChips.isEmpty {
+            if !categoryChips.isEmpty || !(user.programs ?? []).isEmpty {
                 chipRow
             }
 
@@ -54,16 +54,21 @@ struct ProfileHeaderView: View {
     // MARK: - Avatar + Looking-For Bubble
 
     private var avatarBubbleRow: some View {
-        HStack(alignment: .bottom, spacing: Spacing.md) {
+        HStack(spacing: 0) {
             avatarWithBadge
-
-            lookingForBubble
-                .padding(.bottom, 44) // bubble rises off the avatar's shoulder
-
             Spacer(minLength: 0)
         }
-        // The raised bubble extends above the avatar; reserve the headroom.
-        .padding(.top, Spacing.xl)
+        // Headroom for a tall bubble — it grows upward from the anchor without
+        // ever moving the avatar or the rest of the hero.
+        .padding(.top, Spacing.lg)
+        // The bubble is absolutely placed off the avatar (overlay, not layout):
+        // anchored low on the avatar's shoulder, spreading right.
+        .overlay(alignment: .bottomLeading) {
+            lookingForBubble
+                .padding(.leading, 84 + Spacing.md)
+                .padding(.bottom, Spacing.sm)
+                .allowsHitTesting(true)
+        }
     }
 
     private var avatarWithBadge: some View {
@@ -137,8 +142,7 @@ struct ProfileHeaderView: View {
                     Text(looking)
                         .font(.body14)
                         .foregroundColor(.appPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .lineLimit(4)
+                        .lineLimit(3)
                 }
             }
         } else if isSelf {
@@ -236,17 +240,13 @@ struct ProfileHeaderView: View {
         }
     }
 
+    // One text style across all three stats — same font, same color.
     private func statText(_ count: Int, _ label: String, action: (() -> Void)? = nil) -> some View {
         Button(action: { action?() }) {
-            (
-                Text("\(count) ")
-                    .font(.bodySmallSemibold)
-                    .foregroundColor(.appPrimary)
-                + Text(label)
-                    .font(.bodySmall)
-                    .foregroundColor(.appSecondary)
-            )
-            .contentShape(Rectangle())
+            Text("\(count) \(label)")
+                .font(.bodySmall)
+                .foregroundColor(.appSecondary)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(action == nil)
@@ -271,28 +271,40 @@ struct ProfileHeaderView: View {
     private var chipRow: some View {
         FlowLayout(spacing: Spacing.xs) {
             ForEach(categoryChips, id: \.self) { category in
-                HStack(spacing: Spacing.xxs) {
-                    Image(category.icon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 14, height: 14)
-                        .foregroundColor(category.color)
+                chip(label: category.label, icon: category.icon, iconColor: category.color)
+            }
 
-                    Text(category.label)
-                        .font(.bodySmallMedium)
-                        .foregroundColor(.appPrimary)
-                }
-                .padding(.horizontal, Spacing.sm + Spacing.xxs)
-                .padding(.vertical, Spacing.xs)
-                .background(Color.appSurface)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
-                        .strokeBorder(Color.appBorder, lineWidth: 1)
-                )
+            // Programs (Raikes School, Accelerator, …) ride alongside the
+            // maker categories as plain chips.
+            ForEach(user.programs ?? [], id: \.self) { program in
+                chip(label: program)
             }
         }
+    }
+
+    private func chip(label: String, icon: String? = nil, iconColor: Color = .appPrimary) -> some View {
+        HStack(spacing: Spacing.xxs) {
+            if let icon {
+                Image(icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
+                    .foregroundColor(iconColor)
+            }
+
+            Text(label)
+                .font(.bodySmallMedium)
+                .foregroundColor(.appPrimary)
+        }
+        .padding(.horizontal, Spacing.sm + Spacing.xxs)
+        .padding(.vertical, Spacing.xs)
+        .background(Color.appSurface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                .strokeBorder(Color.appBorder, lineWidth: 1)
+        )
     }
 
     // MARK: - Action Row
@@ -307,9 +319,24 @@ struct ProfileHeaderView: View {
             }
         } else {
             HStack(spacing: Spacing.sm) {
-                solidButton("Message", icon: "tab.envelope.fill", action: onMessage)
+                switch connectionStatus {
+                case .none:
+                    solidButton("Connect", icon: "status.add.fill", action: onConnect)
+                        .disabled(isActioning)
+                    secondaryButton("Message", icon: "tab.envelope.fill", action: onMessage)
 
-                if connectionStatus == .connected {
+                case .pendingSent:
+                    secondaryButton("Pending", icon: "status.waiting.fill") {}
+                        .disabled(true)
+                    secondaryButton("Message", icon: "tab.envelope.fill", action: onMessage)
+
+                case .pendingReceived:
+                    solidButton("Accept", icon: "status.connection.fill", action: onAccept)
+                        .disabled(isActioning)
+                    secondaryButton("Message", icon: "tab.envelope.fill", action: onMessage)
+
+                case .connected:
+                    solidButton("Message", icon: "tab.envelope.fill", action: onMessage)
                     if hasVouched {
                         secondaryButton("Vouched") {}
                             .disabled(true)

@@ -90,7 +90,6 @@ struct ActivityTabView: View {
             Text(post.content)
                 .font(.body14)
                 .foregroundColor(.appPrimary)
-                .lineLimit(5)
                 .fixedSize(horizontal: false, vertical: true)
 
             if !post.allImageUrls.isEmpty {
