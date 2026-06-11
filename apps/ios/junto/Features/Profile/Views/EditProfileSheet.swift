@@ -56,6 +56,14 @@ struct EditProfileSheet: View {
         !trimmedName.isEmpty && !isSaving
     }
 
+    /// Vocation bucket for the widget editor's starter ideas.
+    private var vocation: SkillCategory? {
+        for category in user.skillCategories ?? [] {
+            if let match = SkillCategory.match(category) { return match }
+        }
+        return nil
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
@@ -207,14 +215,16 @@ struct EditProfileSheet: View {
 
     // MARK: - Portfolio
 
+    // Same card treatment as the Work tab's vocation suggestion cards
+    // (Projects / Experience) — icon circle, title, subtitle, 150pt wide.
     private var portfolioSection: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             sectionHeader("Work")
 
             NavigationLink {
-                WidgetLayoutEditor(userId: user._id)
+                WidgetLayoutEditor(userId: user._id, vocation: vocation)
             } label: {
-                HStack(spacing: Spacing.md) {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
                     Image("nav.grid.fill")
                         .renderingMode(.template)
                         .resizable()
@@ -225,21 +235,18 @@ struct EditProfileSheet: View {
                         .background(Color.appSurfaceSecondary)
                         .clipShape(Circle())
 
-                    VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                        Text("Edit work")
-                            .font(.bodySemibold)
-                            .foregroundColor(.appPrimary)
-                        Text("Add, remove, and rearrange your work")
-                            .font(.bodySmall)
-                            .foregroundColor(.appSecondary)
-                    }
+                    Text("Edit work")
+                        .font(.bodySemibold)
+                        .foregroundColor(.appPrimary)
+                        .lineLimit(1)
 
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                    Text("Rearrange your widgets")
+                        .font(.caption12)
                         .foregroundColor(.appSecondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                 }
+                .frame(width: 150, alignment: .leading)
                 .padding(Spacing.md)
                 .background(Color.appSurface)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
@@ -249,7 +256,7 @@ struct EditProfileSheet: View {
                 )
                 .contentShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
             }
-            .buttonStyle(.pressableScale(0.98))
+            .buttonStyle(.pressableScale(0.97))
         }
     }
 
@@ -338,11 +345,13 @@ struct EditProfileSheet: View {
 /// Local-first — only syncs the new order on Save.
 struct WidgetLayoutEditor: View {
     let userId: String
+    var vocation: SkillCategory? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var items: [PortfolioItemResponse] = []
     @State private var isLoading = true
     @State private var isSaving = false
     @State private var showAddSheet = false
+    @State private var activeSuggestion: VocationSuggestion?
 
     var body: some View {
         Group {
@@ -374,26 +383,28 @@ struct WidgetLayoutEditor: View {
                     .foregroundColor(.appPrimary)
                     .disabled(isSaving)
             }
-
-            ToolbarItem(placement: .bottomBar) {
-                Button(action: { showAddSheet = true }) {
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 16))
-                        Text("Add Widget")
-                            .font(.bodySemibold)
-                    }
-                    .foregroundColor(.appOnAccent)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 42)
-                    .background(Color.appAccent)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
-                }
-                .buttonStyle(.pressableScale(0.97))
-            }
+        }
+        // Same starter-idea cards as the Work tab — adding widgets looks
+        // identical everywhere.
+        .safeAreaInset(edge: .bottom) {
+            WorkSuggestionRow(
+                headerTitle: "Add widgets",
+                vocation: vocation,
+                onSuggestion: { activeSuggestion = $0 },
+                onSomethingElse: { showAddSheet = true }
+            )
+            .padding(.vertical, Spacing.sm)
+            .background(Color.appBackground)
         }
         .fullScreenCover(isPresented: $showAddSheet) {
             AddPortfolioItemSheet(userId: userId)
+        }
+        .fullScreenCover(item: $activeSuggestion) { suggestion in
+            AddPortfolioItemSheet(
+                userId: userId,
+                initialType: suggestion.type,
+                suggestedTitle: suggestion.prefillTitle
+            )
         }
         .task { await loadItems() }
     }

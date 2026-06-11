@@ -95,128 +95,12 @@ struct PortfolioTabView: View {
     // MARK: - Vocation Suggestions
 
     private var suggestionsSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text(items.isEmpty ? "Build your portfolio".uppercased() : "Ideas for you".uppercased())
-                .font(.captionSmallSemibold)
-                .foregroundColor(.appSecondary)
-                .padding(.horizontal, Spacing.lg)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.sm) {
-                    ForEach(suggestions) { suggestion in
-                        suggestionCard(suggestion)
-                    }
-
-                    // Free-form fallback — the full type picker.
-                    Button(action: { showAddSheet = true }) {
-                        VStack(alignment: .leading, spacing: Spacing.sm) {
-                            Image("action.add.fill")
-                                .renderingMode(.template)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 16, height: 16)
-                                .foregroundColor(.appPrimary)
-                                .frame(width: 32, height: 32)
-                                .background(Color.appSurfaceSecondary)
-                                .clipShape(Circle())
-
-                            Text("Something else")
-                                .font(.bodySemibold)
-                                .foregroundColor(.appPrimary)
-
-                            Text("Repos, photos, links, roles")
-                                .font(.caption12)
-                                .foregroundColor(.appSecondary)
-                                .lineLimit(2)
-                        }
-                        .frame(width: 150, alignment: .leading)
-                        .padding(Spacing.md)
-                        .background(Color.appSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous)
-                                .strokeBorder(Color.appBorder, lineWidth: 1)
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
-                    }
-                    .buttonStyle(.pressableScale(0.97))
-                }
-                .padding(.horizontal, Spacing.lg)
-            }
-        }
-    }
-
-    private func suggestionCard(_ suggestion: VocationSuggestion) -> some View {
-        Button(action: { activeSuggestion = suggestion }) {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                Image(suggestion.icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 16, height: 16)
-                    .foregroundColor(.appPrimary)
-                    .frame(width: 32, height: 32)
-                    .background(Color.appSurfaceSecondary)
-                    .clipShape(Circle())
-
-                Text(suggestion.title)
-                    .font(.bodySemibold)
-                    .foregroundColor(.appPrimary)
-                    .lineLimit(1)
-
-                Text(suggestion.subtitle)
-                    .font(.caption12)
-                    .foregroundColor(.appSecondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-            }
-            .frame(width: 150, alignment: .leading)
-            .padding(Spacing.md)
-            .background(Color.appSurface)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous)
-                    .strokeBorder(Color.appBorder, lineWidth: 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
-        }
-        .buttonStyle(.pressableScale(0.97))
-    }
-
-    /// Starter ideas keyed to the maker's vocation.
-    private var suggestions: [VocationSuggestion] {
-        switch vocation {
-        case .software, .ai, .data:
-            return [
-                VocationSuggestion(icon: "topic.code.fill", title: "GitHub", subtitle: "Pull in your repos", type: .github),
-                VocationSuggestion(icon: "content.update.fill", title: "Side project", subtitle: "Shipped something? Link it", type: .link, prefillTitle: "Side project"),
-                VocationSuggestion(icon: "action.image.fill", title: "Hackathon build", subtitle: "Screenshots of the demo", type: .gallery, prefillTitle: "Hackathon build"),
-            ]
-        case .design, .content:
-            return [
-                VocationSuggestion(icon: "topic.design.fill", title: "Case study", subtitle: "Show the work, not just links", type: .gallery, prefillTitle: "Case study"),
-                VocationSuggestion(icon: "action.arrow.fill", title: "Portfolio site", subtitle: "Behance, Dribbble, your own", type: .link, prefillTitle: "Portfolio"),
-                VocationSuggestion(icon: "feed.opportunity.fill", title: "Client work", subtitle: "Freelance or org projects", type: .experience, prefillTitle: "Client work"),
-            ]
-        case .business, .finance, .marketing, .leadership, .impact:
-            return [
-                VocationSuggestion(icon: "topic.business.fill", title: "Pitch deck", subtitle: "Link the deck you pitched", type: .link, prefillTitle: "Pitch deck"),
-                VocationSuggestion(icon: "feed.opportunity.fill", title: "Venture", subtitle: "Startups, internships, roles", type: .experience),
-                VocationSuggestion(icon: "topic.analytics.fill", title: "Case competition", subtitle: "Slides and results", type: .gallery, prefillTitle: "Case competition"),
-            ]
-        case .science, .health, .hardware:
-            return [
-                VocationSuggestion(icon: "topic.sciences.fill", title: "Projects", subtitle: "Lab work and research", type: .experience, prefillTitle: "Project"),
-                VocationSuggestion(icon: "feed.opportunity.fill", title: "Experience", subtitle: "Title, photos, a short story", type: .experience),
-                VocationSuggestion(icon: "action.arrow.fill", title: "Publication", subtitle: "Papers and posters", type: .link, prefillTitle: "Publication"),
-            ]
-        default:
-            return [
-                VocationSuggestion(icon: "action.arrow.fill", title: "Project link", subtitle: "Anything you've made", type: .link),
-                VocationSuggestion(icon: "feed.opportunity.fill", title: "Experience", subtitle: "Jobs, clubs, programs", type: .experience),
-                VocationSuggestion(icon: "action.image.fill", title: "Photo gallery", subtitle: "Show what you work on", type: .gallery),
-            ]
-        }
+        WorkSuggestionRow(
+            headerTitle: items.isEmpty ? "Build your portfolio" : "Ideas for you",
+            vocation: vocation,
+            onSuggestion: { activeSuggestion = $0 },
+            onSomethingElse: { showAddSheet = true }
+        )
     }
 
     // MARK: - Subscription
@@ -258,4 +142,120 @@ struct VocationSuggestion: Identifiable {
     let subtitle: String
     let type: PortfolioItemResponse.PortfolioType
     var prefillTitle: String? = nil
+}
+
+// MARK: - Work Suggestion Row
+
+/// The vocation starter-idea card row — shared by the Work tab and the
+/// Edit Work page so adding widgets looks identical everywhere.
+struct WorkSuggestionRow: View {
+    var headerTitle: String
+    var vocation: SkillCategory? = nil
+    var onSuggestion: (VocationSuggestion) -> Void
+    var onSomethingElse: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text(headerTitle.uppercased())
+                .font(.captionSmallSemibold)
+                .foregroundColor(.appSecondary)
+                .padding(.horizontal, Spacing.lg)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.sm) {
+                    ForEach(Self.suggestions(for: vocation)) { suggestion in
+                        card(
+                            icon: suggestion.icon,
+                            title: suggestion.title,
+                            subtitle: suggestion.subtitle
+                        ) {
+                            onSuggestion(suggestion)
+                        }
+                    }
+
+                    // Free-form fallback — the full type picker.
+                    card(
+                        icon: "action.add.fill",
+                        title: "Something else",
+                        subtitle: "Repos, photos, links, roles",
+                        action: onSomethingElse
+                    )
+                }
+                .padding(.horizontal, Spacing.lg)
+            }
+        }
+    }
+
+    private func card(icon: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Image(icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+                    .foregroundColor(.appPrimary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.appSurfaceSecondary)
+                    .clipShape(Circle())
+
+                Text(title)
+                    .font(.bodySemibold)
+                    .foregroundColor(.appPrimary)
+                    .lineLimit(1)
+
+                Text(subtitle)
+                    .font(.caption12)
+                    .foregroundColor(.appSecondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(width: 150, alignment: .leading)
+            .padding(Spacing.md)
+            .background(Color.appSurface)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous)
+                    .strokeBorder(Color.appBorder, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
+        }
+        .buttonStyle(.pressableScale(0.97))
+    }
+
+    /// Starter ideas keyed to the maker's vocation.
+    static func suggestions(for vocation: SkillCategory?) -> [VocationSuggestion] {
+        switch vocation {
+        case .software, .ai, .data:
+            return [
+                VocationSuggestion(icon: "topic.code.fill", title: "GitHub", subtitle: "Pull in your repos", type: .github),
+                VocationSuggestion(icon: "content.update.fill", title: "Side project", subtitle: "Shipped something? Link it", type: .link, prefillTitle: "Side project"),
+                VocationSuggestion(icon: "action.image.fill", title: "Hackathon build", subtitle: "Screenshots of the demo", type: .gallery, prefillTitle: "Hackathon build"),
+            ]
+        case .design, .content:
+            return [
+                VocationSuggestion(icon: "topic.design.fill", title: "Case study", subtitle: "Show the work, not just links", type: .gallery, prefillTitle: "Case study"),
+                VocationSuggestion(icon: "action.arrow.fill", title: "Portfolio site", subtitle: "Behance, Dribbble, your own", type: .link, prefillTitle: "Portfolio"),
+                VocationSuggestion(icon: "feed.opportunity.fill", title: "Client work", subtitle: "Freelance or org projects", type: .experience, prefillTitle: "Client work"),
+            ]
+        case .business, .finance, .marketing, .leadership, .impact:
+            return [
+                VocationSuggestion(icon: "topic.business.fill", title: "Pitch deck", subtitle: "Link the deck you pitched", type: .link, prefillTitle: "Pitch deck"),
+                VocationSuggestion(icon: "feed.opportunity.fill", title: "Venture", subtitle: "Startups, internships, roles", type: .experience),
+                VocationSuggestion(icon: "topic.analytics.fill", title: "Case competition", subtitle: "Slides and results", type: .gallery, prefillTitle: "Case competition"),
+            ]
+        case .science, .health, .hardware:
+            return [
+                VocationSuggestion(icon: "topic.sciences.fill", title: "Projects", subtitle: "Lab work and research", type: .experience, prefillTitle: "Project"),
+                VocationSuggestion(icon: "feed.opportunity.fill", title: "Experience", subtitle: "Title, photos, a short story", type: .experience),
+                VocationSuggestion(icon: "action.arrow.fill", title: "Publication", subtitle: "Papers and posters", type: .link, prefillTitle: "Publication"),
+            ]
+        default:
+            return [
+                VocationSuggestion(icon: "action.arrow.fill", title: "Project link", subtitle: "Anything you've made", type: .link),
+                VocationSuggestion(icon: "feed.opportunity.fill", title: "Experience", subtitle: "Jobs, clubs, programs", type: .experience),
+                VocationSuggestion(icon: "action.image.fill", title: "Photo gallery", subtitle: "Show what you work on", type: .gallery),
+            ]
+        }
+    }
 }
