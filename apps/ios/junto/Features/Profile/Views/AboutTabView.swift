@@ -19,10 +19,6 @@ struct AboutTabView: View {
         VStack(alignment: .leading, spacing: Spacing.xxl) {
             storySections
 
-            if hasCampusInfo {
-                campusSection
-            }
-
             if let skills = context?.skillNames, !skills.isEmpty {
                 infoSection(title: "Skills") {
                     FlowLayout(spacing: Spacing.sm) {
@@ -135,75 +131,6 @@ struct AboutTabView: View {
         }
     }
 
-    // MARK: - Campus
-
-    private var hasCampusInfo: Bool {
-        context?.university != nil
-            || !(context?.majorNames.isEmpty ?? true)
-            || !(user.graduationSemester ?? "").isEmpty
-            || !(user.role ?? "").isEmpty
-    }
-
-    private var campusSection: some View {
-        infoSection(title: "Campus") {
-            VStack(alignment: .leading, spacing: Spacing.md) {
-                if let university = context?.university {
-                    campusRow(logoUrl: university.logoUrl) {
-                        Text(university.name)
-                            .font(.bodySemibold)
-                            .foregroundColor(.appPrimary)
-                    }
-                }
-
-                if let majors = context?.majorNames, !majors.isEmpty {
-                    detailRow(label: roleLabel, value: majors.joined(separator: ", "))
-                }
-
-                if let grad = user.graduationSemester, !grad.isEmpty {
-                    detailRow(label: "Graduates", value: grad)
-                }
-            }
-        }
-    }
-
-    private var roleLabel: String {
-        switch user.role?.lowercased() {
-        case "alumni": return "Studied"
-        case "faculty": return "Teaches"
-        default: return "Studying"
-        }
-    }
-
-    private func campusRow<Content: View>(logoUrl: String?, @ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: Spacing.sm) {
-            if let logoUrl, let url = URL(string: logoUrl) {
-                CachedAsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } placeholder: {
-                    Color.clear
-                }
-                .frame(width: 20, height: 20)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.xs, style: .continuous))
-            }
-            content()
-        }
-    }
-
-    private func detailRow(label: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
-            Text(label)
-                .font(.body14)
-                .foregroundColor(.appSecondary)
-
-            Text(value)
-                .font(.body14)
-                .foregroundColor(.appPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
     // MARK: - Section Builder
 
     private func infoSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -215,14 +142,16 @@ struct AboutTabView: View {
         }
     }
 
+    // Tag treatment matches the event detail page's tag pills — Radius.md
+    // continuous corners, md/sm padding.
     private func pillView(_ text: String) -> some View {
         Text(text)
-            .font(.bodySmall)
+            .font(.bodyMedium)
             .foregroundColor(.appPrimary)
             .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.xs)
+            .padding(.vertical, Spacing.sm)
             .background(Color.appSurfaceSecondary)
-            .clipShape(Capsule())
+            .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
     }
 
     // MARK: - Social Links
@@ -287,7 +216,6 @@ struct AboutTabView: View {
 
     private var isEmpty: Bool {
         !hasStory &&
-        !hasCampusInfo &&
         (context?.skillNames ?? []).isEmpty &&
         (user.programs ?? []).isEmpty &&
         !hasSocialLinks

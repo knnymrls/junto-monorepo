@@ -44,7 +44,7 @@ struct ProfileHeaderView: View {
             actionRow
         }
         .padding(.horizontal, Spacing.lg)
-        .padding(.top, Spacing.sm)
+        .padding(.top, Spacing.md)
     }
 
     // MARK: - Avatar + Thought Bubble
@@ -63,55 +63,11 @@ struct ProfileHeaderView: View {
     }
 
     private var avatarWithBadge: some View {
-        ZStack(alignment: .bottomTrailing) {
-            AvatarView(
-                avatarUrl: user.avatarUrl,
-                name: user.name,
-                size: avatarSize
-            )
-
-            // The exact feed-card connect badge (AvatarAction geometry):
-            // 22px surface ring → 18px dark disc → 10px Flex line icon.
-            // Always present on other people; tap to connect / accept.
-            if !isSelf {
-                Button(action: badgeAction) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.appSurface)
-                            .frame(width: 22, height: 22)
-                        Circle()
-                            .fill(Color.appPrimary)
-                            .frame(width: 18, height: 18)
-                        Image(badgeIconName)
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 10, height: 10)
-                            .foregroundColor(.appSurface)
-                    }
-                    .contentShape(Circle())
-                }
-                .buttonStyle(.pressableScale(0.85))
-                .disabled(isActioning || connectionStatus == .pendingSent || connectionStatus == .connected)
-                .offset(x: 4, y: 4)
-            }
-        }
-    }
-
-    private var badgeIconName: String {
-        switch connectionStatus {
-        case .connected: return "feed.connected"
-        case .pendingSent, .pendingReceived: return "feed.clock"
-        case .none: return "feed.connect"
-        }
-    }
-
-    private func badgeAction() {
-        switch connectionStatus {
-        case .none: onConnect()
-        case .pendingReceived: onAccept()
-        default: break
-        }
+        AvatarView(
+            avatarUrl: user.avatarUrl,
+            name: user.name,
+            size: avatarSize
+        )
     }
 
     @ViewBuilder
@@ -137,8 +93,8 @@ struct ProfileHeaderView: View {
         }
     }
 
-    /// Compact thought bubble — rounded cloud with two trailing thought dots
-    /// drifting back toward the avatar.
+    /// Compact thought bubble — rounded cloud with two thought dots flipped
+    /// above the bubble's leading edge, nudged toward the middle.
     private func bubble<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .padding(.horizontal, Spacing.md)
@@ -147,17 +103,17 @@ struct ProfileHeaderView: View {
                 Color.appSurfaceSecondary,
                 in: RoundedRectangle(cornerRadius: 16, style: .continuous)
             )
-            .overlay(alignment: .bottomLeading) {
+            .overlay(alignment: .leading) {
                 Circle()
                     .fill(Color.appSurfaceSecondary)
                     .frame(width: 7, height: 7)
-                    .offset(x: -7, y: 3)
+                    .offset(x: -8, y: 4)
             }
-            .overlay(alignment: .bottomLeading) {
+            .overlay(alignment: .leading) {
                 Circle()
                     .fill(Color.appSurfaceSecondary)
                     .frame(width: 4, height: 4)
-                    .offset(x: -14, y: 8)
+                    .offset(x: -14, y: -4)
             }
     }
 
@@ -226,15 +182,23 @@ struct ProfileHeaderView: View {
         }
     }
 
+    // A disabled SwiftUI Button auto-dims its label — which is why the
+    // connections stat kept rendering at lower opacity. Non-tappable stats
+    // are plain Text, never a disabled button.
+    @ViewBuilder
     private func statText(_ count: Int, _ label: String, action: (() -> Void)? = nil) -> some View {
-        Button(action: { action?() }) {
-            Text("\(count) \(label)")
-                .font(.bodySmall)
-                .foregroundColor(.appPrimary)
-                .contentShape(Rectangle())
+        let text = Text("\(count) \(label)")
+            .font(.bodySmall)
+            .foregroundColor(.appPrimary)
+
+        if let action {
+            Button(action: action) {
+                text.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            text
         }
-        .buttonStyle(.plain)
-        .disabled(action == nil)
     }
 
     // MARK: - Action Row

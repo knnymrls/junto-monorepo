@@ -173,7 +173,7 @@ struct ProfileView: View {
                     if selectedTab == tab {
                         Capsule()
                             .fill(Color.appPrimary)
-                            .frame(width: 28, height: 3)
+                            .frame(width: 44, height: 3)
                             .matchedGeometryEffect(id: "profile.tab.underline", in: tabNamespace)
                     }
                 }
