@@ -2,10 +2,11 @@
 //  ProfileHeaderView.swift
 //  junto
 //
-//  Profile hero — avatar with the feed-style connection badge, a "looking
-//  for" speech bubble rising off the avatar and spreading right, name /
-//  headline / campus, an inline text stat row (posts · connections · vouches
-//  — Junto has no followers), category chips, and action buttons.
+//  Profile hero — deliberately minimal: avatar (with the feed's connect
+//  badge), a small thought bubble for "looking for", name / headline /
+//  campus, an inline stat line, and the action buttons. Everything else
+//  (story, tags, skills, programs) lives in the About / Work / Vouches /
+//  Activity tabs.
 //
 
 import SwiftUI
@@ -19,7 +20,6 @@ struct ProfileHeaderView: View {
     let postCount: Int
     let hasVouched: Bool
     let isSelf: Bool
-    let isLoadingStatus: Bool
     @Binding var isActioning: Bool
 
     var onEdit: () -> Void = {}
@@ -31,43 +31,34 @@ struct ProfileHeaderView: View {
     var onTapPosts: () -> Void = {}
     var onTapVouches: () -> Void = {}
 
+    private let avatarSize: CGFloat = 72
+
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             avatarBubbleRow
 
             nameBlock
 
             statLine
 
-            if !categoryChips.isEmpty || !(user.programs ?? []).isEmpty {
-                chipRow
-            }
-
-            if !isLoadingStatus {
-                actionRow
-            }
+            actionRow
         }
         .padding(.horizontal, Spacing.lg)
-        .padding(.top, Spacing.md)
+        .padding(.top, Spacing.sm)
     }
 
-    // MARK: - Avatar + Looking-For Bubble
+    // MARK: - Avatar + Thought Bubble
 
     private var avatarBubbleRow: some View {
         HStack(spacing: 0) {
             avatarWithBadge
             Spacer(minLength: 0)
         }
-        // Headroom for a tall bubble — it grows upward from the anchor without
-        // ever moving the avatar or the rest of the hero.
-        .padding(.top, Spacing.lg)
-        // The bubble is absolutely placed off the avatar (overlay, not layout):
-        // anchored low on the avatar's shoulder, spreading right.
+        // The bubble is absolutely placed (overlay, never layout) so its
+        // presence or size can't shift the hero.
         .overlay(alignment: .bottomLeading) {
-            lookingForBubble
-                .padding(.leading, 84 + Spacing.md)
-                .padding(.bottom, Spacing.sm)
-                .allowsHitTesting(true)
+            thoughtBubble
+                .padding(.leading, avatarSize + Spacing.lg)
         }
     }
 
@@ -76,17 +67,32 @@ struct ProfileHeaderView: View {
             AvatarView(
                 avatarUrl: user.avatarUrl,
                 name: user.name,
-                size: 84
+                size: avatarSize
             )
 
-            // Feed-family connect badge, scaled up for the hero avatar.
-            // This IS the connect control on profile.
-            if !isSelf && !isLoadingStatus {
+            // The exact feed-card connect badge (AvatarAction geometry):
+            // 22px surface ring → 18px dark disc → 10px Flex line icon.
+            // Always present on other people; tap to connect / accept.
+            if !isSelf {
                 Button(action: badgeAction) {
-                    connectionBadge
+                    ZStack {
+                        Circle()
+                            .fill(Color.appSurface)
+                            .frame(width: 22, height: 22)
+                        Circle()
+                            .fill(Color.appPrimary)
+                            .frame(width: 18, height: 18)
+                        Image(badgeIconName)
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 10, height: 10)
+                            .foregroundColor(.appSurface)
+                    }
+                    .contentShape(Circle())
                 }
                 .buttonStyle(.pressableScale(0.85))
-                .disabled(isActioning || connectionStatus == .pendingSent)
+                .disabled(isActioning || connectionStatus == .pendingSent || connectionStatus == .connected)
                 .offset(x: 4, y: 4)
             }
         }
@@ -108,48 +114,22 @@ struct ProfileHeaderView: View {
         }
     }
 
-    // 30px ring (surface) → 26px dark disc → 14px Flex line icon — the
-    // FeedPostCard badge geometry scaled to the 84pt avatar.
-    private var connectionBadge: some View {
-        ZStack {
-            Circle()
-                .fill(Color.appSurface)
-                .frame(width: 30, height: 30)
-            Circle()
-                .fill(Color.appPrimary)
-                .frame(width: 26, height: 26)
-            Image(badgeIconName)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 14, height: 14)
-                .foregroundColor(.appSurface)
-        }
-        .contentShape(Circle())
-    }
-
     @ViewBuilder
-    private var lookingForBubble: some View {
+    private var thoughtBubble: some View {
         let looking = (user.lookingFor ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
         if !looking.isEmpty {
             bubble {
-                VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                    Text("LOOKING FOR")
-                        .font(.microSemibold)
-                        .foregroundColor(.appSecondary)
-
-                    Text(looking)
-                        .font(.body14)
-                        .foregroundColor(.appPrimary)
-                        .lineLimit(3)
-                }
+                Text(looking)
+                    .font(.bodySmall)
+                    .foregroundColor(.appPrimary)
+                    .lineLimit(2)
             }
         } else if isSelf {
             Button(action: onEdit) {
                 bubble {
                     Text("What are you looking for?")
-                        .font(.body14)
+                        .font(.bodySmall)
                         .foregroundColor(.appSecondary)
                 }
             }
@@ -157,23 +137,28 @@ struct ProfileHeaderView: View {
         }
     }
 
-    /// Message-bubble treatment from the chat surface: 18pt corners with a
-    /// tight bottom-leading corner as the tail pointing back at the avatar.
+    /// Compact thought bubble — rounded cloud with two trailing thought dots
+    /// drifting back toward the avatar.
     private func bubble<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(.horizontal, Spacing.lg)
-            .padding(.vertical, Spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
             .background(
                 Color.appSurfaceSecondary,
-                in: UnevenRoundedRectangle(
-                    topLeadingRadius: 18,
-                    bottomLeadingRadius: 4,
-                    bottomTrailingRadius: 18,
-                    topTrailingRadius: 18,
-                    style: .continuous
-                )
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
             )
+            .overlay(alignment: .bottomLeading) {
+                Circle()
+                    .fill(Color.appSurfaceSecondary)
+                    .frame(width: 7, height: 7)
+                    .offset(x: -7, y: 3)
+            }
+            .overlay(alignment: .bottomLeading) {
+                Circle()
+                    .fill(Color.appSurfaceSecondary)
+                    .frame(width: 4, height: 4)
+                    .offset(x: -14, y: 8)
+            }
     }
 
     // MARK: - Name / Headline / Campus
@@ -230,7 +215,8 @@ struct ProfileHeaderView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    // MARK: - Stat Line (X-style inline text counts)
+    // MARK: - Stat Line
+    // One text style for all three — same font, same color, no opacity games.
 
     private var statLine: some View {
         HStack(spacing: Spacing.lg) {
@@ -240,75 +226,19 @@ struct ProfileHeaderView: View {
         }
     }
 
-    // One text style across all three stats — same font, same color.
     private func statText(_ count: Int, _ label: String, action: (() -> Void)? = nil) -> some View {
         Button(action: { action?() }) {
             Text("\(count) \(label)")
                 .font(.bodySmall)
-                .foregroundColor(.appSecondary)
+                .foregroundColor(.appPrimary)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(action == nil)
     }
 
-    // MARK: - Category Chips
-
-    /// Maker categories — derived skillCategories first, then matched from
-    /// resolved skill names. Raw IDs never render.
-    private var categoryChips: [SkillCategory] {
-        var seen = Set<SkillCategory>()
-        var result: [SkillCategory] = []
-        let sources = (user.skillCategories ?? []) + (context?.skillNames ?? [])
-        for raw in sources {
-            guard let category = SkillCategory.match(raw), seen.insert(category).inserted else { continue }
-            result.append(category)
-            if result.count == 4 { break }
-        }
-        return result
-    }
-
-    private var chipRow: some View {
-        FlowLayout(spacing: Spacing.xs) {
-            ForEach(categoryChips, id: \.self) { category in
-                chip(label: category.label, icon: category.icon, iconColor: category.color)
-            }
-
-            // Programs (Raikes School, Accelerator, …) ride alongside the
-            // maker categories as plain chips.
-            ForEach(user.programs ?? [], id: \.self) { program in
-                chip(label: program)
-            }
-        }
-    }
-
-    private func chip(label: String, icon: String? = nil, iconColor: Color = .appPrimary) -> some View {
-        HStack(spacing: Spacing.xxs) {
-            if let icon {
-                Image(icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 14, height: 14)
-                    .foregroundColor(iconColor)
-            }
-
-            Text(label)
-                .font(.bodySmallMedium)
-                .foregroundColor(.appPrimary)
-        }
-        .padding(.horizontal, Spacing.sm + Spacing.xxs)
-        .padding(.vertical, Spacing.xs)
-        .background(Color.appSurface)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
-                .strokeBorder(Color.appBorder, lineWidth: 1)
-        )
-    }
-
     // MARK: - Action Row
-    // Connect lives on the avatar badge; the buttons handle everything else.
+    // Always rendered — connection state updates in place, never hides the row.
 
     @ViewBuilder
     private var actionRow: some View {
@@ -349,8 +279,6 @@ struct ProfileHeaderView: View {
     }
 
     // MARK: - Button Styles
-    // Solid = accent fill (the app's filled-action treatment); secondary =
-    // the frosted appSurfaceSecondary chip used by the nav circles + tab pill.
 
     private func solidButton(_ label: String, icon: String? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {

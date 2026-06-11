@@ -24,7 +24,6 @@ struct ProfileView: View {
 
     @State private var selectedTab: ProfileTab = .about
     @State private var connectionStatus: ConnectionStatus = .none
-    @State private var isLoadingStatus = true
     @State private var connectionCount = 0
     @State private var postCount = 0
     @State private var vouches: [VouchResponse] = []
@@ -68,7 +67,6 @@ struct ProfileView: View {
                         postCount: postCount,
                         hasVouched: hasVouched,
                         isSelf: isSelf,
-                        isLoadingStatus: isLoadingStatus,
                         isActioning: $isActioning,
                         onEdit: { showEditSheet = true },
                         onShare: { showShareSheet = true },
@@ -122,10 +120,13 @@ struct ProfileView: View {
         }
         .task {
             AnalyticsService.shared.track(.profileViewed(userId: user._id))
-            await loadConnectionData()
-            await loadVouches()
-            await loadContext()
             subscribePostCount()
+            // Independent loads run concurrently — one slow or failing call
+            // can never blank the others (counts, badge, campus line).
+            async let connections: Void = loadConnectionData()
+            async let vouchList: Void = loadVouches()
+            async let profileContext: Void = loadContext()
+            _ = await (connections, vouchList, profileContext)
         }
         .onDisappear { postsCancellable?.cancel() }
     }
@@ -238,10 +239,7 @@ struct ProfileView: View {
         }
 
         // Load connection status if not self
-        guard let userId = currentUser.userId, userId != user._id else {
-            isLoadingStatus = false
-            return
-        }
+        guard let userId = currentUser.userId, userId != user._id else { return }
         do {
             connectionStatus = try await ConvexClientManager.shared.getConnectionStatus(
                 fromUserId: userId,
@@ -262,7 +260,6 @@ struct ProfileView: View {
             }
         }
 
-        isLoadingStatus = false
     }
 
     private func loadVouches() async {
