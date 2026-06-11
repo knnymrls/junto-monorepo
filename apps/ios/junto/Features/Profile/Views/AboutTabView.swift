@@ -12,9 +12,13 @@ import SwiftUI
 struct AboutTabView: View {
     let user: UserResponse
     var context: ProfileContextResponse? = nil
+    var isSelf: Bool = false
+    var onEdit: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xxl) {
+            storySections
+
             if hasCampusInfo {
                 campusSection
             }
@@ -47,12 +51,88 @@ struct AboutTabView: View {
 
             memberSince
 
-            if isEmpty {
+            if isEmpty && !isSelf {
                 emptyState
             }
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.bottom, Spacing.xxxl)
+    }
+
+    // MARK: - Story (Building / Can help with / Looking for)
+
+    private var hasStory: Bool {
+        !(user.currentProject ?? "").isEmpty
+            || !(user.canHelpWith ?? "").isEmpty
+            || !(user.lookingFor ?? "").isEmpty
+    }
+
+    @ViewBuilder
+    private var storySections: some View {
+        if hasStory {
+            if let building = user.currentProject, !building.isEmpty {
+                storySection(icon: "content.update", title: "Building", text: building)
+            }
+            if let help = user.canHelpWith, !help.isEmpty {
+                storySection(icon: "content.sharing", title: "Can help with", text: help)
+            }
+            if let looking = user.lookingFor, !looking.isEmpty {
+                storySection(icon: "content.looking", title: "Looking for", text: looking)
+            }
+        } else if isSelf, let onEdit {
+            Button(action: onEdit) {
+                HStack(spacing: Spacing.md) {
+                    Image("content.sharing")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+                        .foregroundColor(.appSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(Color.appSurfaceSecondary)
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: Spacing.xxxs) {
+                        Text("Add your story")
+                            .font(.bodySemibold)
+                            .foregroundColor(.appPrimary)
+                        Text("What you're building and what you can help with")
+                            .font(.bodySmall)
+                            .foregroundColor(.appSecondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.appSecondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressableScale(0.98))
+        }
+    }
+
+    private func storySection(icon: String, title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(spacing: Spacing.xs) {
+                Image(icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 12, height: 12)
+                    .foregroundColor(.appSecondary)
+
+                Text(title.uppercased())
+                    .font(.captionSmallSemibold)
+                    .foregroundColor(.appSecondary)
+            }
+
+            Text(text)
+                .font(.body14)
+                .foregroundColor(.appPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     // MARK: - Campus
@@ -206,6 +286,7 @@ struct AboutTabView: View {
     // MARK: - Empty State
 
     private var isEmpty: Bool {
+        !hasStory &&
         !hasCampusInfo &&
         (context?.skillNames ?? []).isEmpty &&
         (user.programs ?? []).isEmpty &&

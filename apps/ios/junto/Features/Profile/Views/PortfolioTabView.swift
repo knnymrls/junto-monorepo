@@ -18,29 +18,31 @@ struct PortfolioTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if isSelf {
+            if isSelf && !items.isEmpty {
                 Button(action: { showAddSheet = true }) {
                     HStack(spacing: Spacing.xs) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 16))
-                        Text("Add to Portfolio")
-                            .font(.bodyMedium)
+                        Image("action.add")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 14, height: 14)
+                        Text("Add Widget")
+                            .font(.bodySemibold)
                     }
                     .foregroundColor(.appPrimary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.xs + Spacing.xxs)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.md)
-                            .stroke(Color.appDivider, lineWidth: 1)
-                    )
+                    .frame(height: 42)
+                    .background(Color.appSurfaceSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressableScale(0.97))
                 .padding(.horizontal, Spacing.lg)
                 .padding(.bottom, Spacing.md)
             }
 
             if isLoading {
                 ProgressView()
+                    .tint(.appSecondary)
                     .padding(.top, Spacing.huge)
             } else if items.isEmpty {
                 emptyState
@@ -90,29 +92,37 @@ struct PortfolioTabView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: Spacing.md) {
-            Image(systemName: "square.grid.2x2")
-                .font(.system(size: 32))
-                .foregroundColor(.appSecondary)
-
-            Text("Showcase your work")
-                .font(.bodyLargeMedium)
-                .foregroundColor(.appSecondary)
+        VStack(spacing: Spacing.lg) {
+            EmptyStateView(
+                icon: "square.grid.2x2",
+                title: "Showcase your work",
+                subtitle: isSelf
+                    ? "Add GitHub repos, images, links, or experiences."
+                    : "No work added yet.",
+                iconSize: 32
+            )
 
             if isSelf {
-                VStack(spacing: Spacing.xxs) {
-                    Text("Add GitHub repos, images, links, or experiences")
-                        .font(.body14)
-                        .foregroundColor(.appSecondary)
+                Button(action: { showAddSheet = true }) {
+                    HStack(spacing: Spacing.xs) {
+                        Image("action.add")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 14, height: 14)
+                        Text("Add Widget")
+                            .font(.bodySemibold)
+                    }
+                    .foregroundColor(.appOnAccent)
+                    .padding(.horizontal, Spacing.xxl)
+                    .frame(height: 42)
+                    .background(Color.appAccent)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
                 }
-            } else {
-                Text("No portfolio items yet.")
-                    .font(.body14)
-                    .foregroundColor(.appSecondary)
+                .buttonStyle(.pressableScale(0.97))
+                .padding(.top, -Spacing.xl)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Spacing.huge)
     }
 
     // MARK: - Subscription

@@ -1,8 +1,9 @@
 //
 //  VouchesTabView.swift
-//  mkrs-world
+//  junto
 //
-//  Vouches tab — list of all vouches received by this user
+//  Vouches tab — bordered vouch cards (voucher header + quote), matching the
+//  app's bordered-card family (CategoryChip / Discover chips).
 //
 
 import SwiftUI
@@ -18,17 +19,22 @@ struct VouchesTabView: View {
         VStack(spacing: 0) {
             if isLoading {
                 ProgressView()
+                    .tint(.appSecondary)
                     .padding(.top, Spacing.huge)
             } else if vouches.isEmpty {
-                emptyState
+                EmptyStateView(
+                    icon: "hands.clap",
+                    title: "No vouches yet",
+                    subtitle: "When collaborators vouch for this maker, the receipts show up here.",
+                    iconSize: 32
+                )
             } else {
-                LazyVStack(spacing: 0) {
+                LazyVStack(spacing: Spacing.md) {
                     ForEach(vouches) { vouch in
-                        vouchRow(vouch)
-                        Divider()
-                            .foregroundColor(.appDivider)
+                        vouchCard(vouch)
                     }
                 }
+                .padding(.horizontal, Spacing.lg)
             }
         }
         .padding(.bottom, Spacing.xxxl)
@@ -36,57 +42,41 @@ struct VouchesTabView: View {
         .onDisappear { cancellable?.cancel() }
     }
 
-    // MARK: - Vouch Row
+    // MARK: - Vouch Card
 
-    private func vouchRow(_ vouch: VouchResponse) -> some View {
-        HStack(alignment: .top, spacing: Spacing.md) {
-            AvatarView(
-                avatarUrl: vouch.fromUser?.avatarUrl,
-                name: vouch.fromUser?.name ?? "?",
-                size: 36
-            )
+    private func vouchCard(_ vouch: VouchResponse) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(spacing: Spacing.sm) {
+                AvatarView(
+                    avatarUrl: vouch.fromUser?.avatarUrl,
+                    name: vouch.fromUser?.name ?? "?",
+                    size: 32
+                )
 
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 Text(vouch.fromUser?.name ?? "Someone")
                     .font(.bodySemibold)
                     .foregroundColor(.appPrimary)
 
-                Text("\"\(vouch.reason)\"")
-                    .font(.body14)
-                    .foregroundColor(.appPrimary)
-                    .italic()
+                Spacer(minLength: 0)
 
-                Text(vouch.createdDate.timeAgoDisplay())
+                Text(vouch.createdDate.timeAgoShort())
                     .font(.caption12)
-                    .foregroundColor(.appTertiary)
-                    .padding(.top, Spacing.xxxs)
+                    .foregroundColor(.appSecondary)
             }
 
-            Spacer()
-        }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.md)
-    }
-
-    // MARK: - Empty State
-
-    private var emptyState: some View {
-        VStack(spacing: Spacing.sm) {
-            Image(systemName: "hand.thumbsup")
-                .font(.system(size: 32))
-                .foregroundColor(.appSecondary)
-
-            Text("No vouches yet")
-                .font(.bodyLargeMedium)
-                .foregroundColor(.appSecondary)
-
-            Text("Vouches from collaborators will show up here.")
+            Text("\u{201C}\(vouch.reason)\u{201D}")
                 .font(.body14)
-                .foregroundColor(.appSecondary)
-                .multilineTextAlignment(.center)
+                .foregroundColor(.appPrimary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Spacing.huge)
+        .padding(Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.appSurface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous)
+                .strokeBorder(Color.appBorder, lineWidth: 1)
+        )
     }
 
     // MARK: - Subscription

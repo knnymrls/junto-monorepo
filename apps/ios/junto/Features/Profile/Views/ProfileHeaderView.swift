@@ -2,11 +2,10 @@
 //  ProfileHeaderView.swift
 //  junto
 //
-//  Profile hero — left-aligned identity block (avatar + stat columns), name,
-//  headline, campus line, maker-category chips, action buttons, and the maker
-//  card (Building / Can help with / Looking for). Junto has no followers; the
-//  stats are posts, connections, and vouches. Reads as the same family as the
-//  Feed cards and Discover chips.
+//  Profile hero — avatar with the feed-style connection badge, a "looking
+//  for" speech bubble rising off the avatar and spreading right, name /
+//  headline / campus, an inline text stat row (posts · connections · vouches
+//  — Junto has no followers), category chips, and action buttons.
 //
 
 import SwiftUI
@@ -34,9 +33,11 @@ struct ProfileHeaderView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
-            identityRow
+            avatarBubbleRow
 
             nameBlock
+
+            statLine
 
             if !categoryChips.isEmpty {
                 chipRow
@@ -45,50 +46,130 @@ struct ProfileHeaderView: View {
             if !isLoadingStatus {
                 actionRow
             }
-
-            makerCard
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.top, Spacing.md)
     }
 
-    // MARK: - Identity Row (avatar + stats)
+    // MARK: - Avatar + Looking-For Bubble
 
-    private var identityRow: some View {
-        HStack(alignment: .center, spacing: Spacing.lg) {
+    private var avatarBubbleRow: some View {
+        HStack(alignment: .bottom, spacing: Spacing.md) {
+            avatarWithBadge
+
+            lookingForBubble
+                .padding(.bottom, 44) // bubble rises off the avatar's shoulder
+
+            Spacer(minLength: 0)
+        }
+        // The raised bubble extends above the avatar; reserve the headroom.
+        .padding(.top, Spacing.xl)
+    }
+
+    private var avatarWithBadge: some View {
+        ZStack(alignment: .bottomTrailing) {
             AvatarView(
                 avatarUrl: user.avatarUrl,
                 name: user.name,
                 size: 84
             )
 
-            Spacer(minLength: Spacing.lg)
-
-            HStack(spacing: 0) {
-                statColumn(count: postCount, label: "Posts", action: onTapPosts)
-                statColumn(count: connectionCount, label: "Connections")
-                statColumn(count: vouchCount, label: "Vouches", action: onTapVouches)
+            // Feed-family connect badge, scaled up for the hero avatar.
+            // This IS the connect control on profile.
+            if !isSelf && !isLoadingStatus {
+                Button(action: badgeAction) {
+                    connectionBadge
+                }
+                .buttonStyle(.pressableScale(0.85))
+                .disabled(isActioning || connectionStatus == .pendingSent)
+                .offset(x: 4, y: 4)
             }
         }
     }
 
-    private func statColumn(count: Int, label: String, action: (() -> Void)? = nil) -> some View {
-        Button(action: { action?() }) {
-            VStack(spacing: Spacing.xxxs) {
-                Text("\(count)")
-                    .font(.heading2)
-                    .foregroundColor(.appPrimary)
-                    .contentTransition(.numericText())
-
-                Text(label)
-                    .font(.caption12)
-                    .foregroundColor(.appSecondary)
-            }
-            .frame(minWidth: 64)
-            .contentShape(Rectangle())
+    private var badgeIconName: String {
+        switch connectionStatus {
+        case .connected: return "feed.connected"
+        case .pendingSent, .pendingReceived: return "feed.clock"
+        case .none: return "feed.connect"
         }
-        .buttonStyle(.plain)
-        .disabled(action == nil)
+    }
+
+    private func badgeAction() {
+        switch connectionStatus {
+        case .none: onConnect()
+        case .pendingReceived: onAccept()
+        default: break
+        }
+    }
+
+    // 30px ring (surface) → 26px dark disc → 14px Flex line icon — the
+    // FeedPostCard badge geometry scaled to the 84pt avatar.
+    private var connectionBadge: some View {
+        ZStack {
+            Circle()
+                .fill(Color.appSurface)
+                .frame(width: 30, height: 30)
+            Circle()
+                .fill(Color.appPrimary)
+                .frame(width: 26, height: 26)
+            Image(badgeIconName)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 14, height: 14)
+                .foregroundColor(.appSurface)
+        }
+        .contentShape(Circle())
+    }
+
+    @ViewBuilder
+    private var lookingForBubble: some View {
+        let looking = (user.lookingFor ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !looking.isEmpty {
+            bubble {
+                VStack(alignment: .leading, spacing: Spacing.xxxs) {
+                    Text("LOOKING FOR")
+                        .font(.microSemibold)
+                        .foregroundColor(.appSecondary)
+
+                    Text(looking)
+                        .font(.body14)
+                        .foregroundColor(.appPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(4)
+                }
+            }
+        } else if isSelf {
+            Button(action: onEdit) {
+                bubble {
+                    Text("What are you looking for?")
+                        .font(.body14)
+                        .foregroundColor(.appSecondary)
+                }
+            }
+            .buttonStyle(.pressableScale(0.97))
+        }
+    }
+
+    /// Message-bubble treatment from the chat surface: 18pt corners with a
+    /// tight bottom-leading corner as the tail pointing back at the avatar.
+    private func bubble<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Color.appSurfaceSecondary,
+                in: UnevenRoundedRectangle(
+                    topLeadingRadius: 18,
+                    bottomLeadingRadius: 4,
+                    bottomTrailingRadius: 18,
+                    topTrailingRadius: 18,
+                    style: .continuous
+                )
+            )
     }
 
     // MARK: - Name / Headline / Campus
@@ -145,6 +226,32 @@ struct ProfileHeaderView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    // MARK: - Stat Line (X-style inline text counts)
+
+    private var statLine: some View {
+        HStack(spacing: Spacing.lg) {
+            statText(postCount, postCount == 1 ? "post" : "posts", action: onTapPosts)
+            statText(connectionCount, connectionCount == 1 ? "connection" : "connections")
+            statText(vouchCount, vouchCount == 1 ? "vouch" : "vouches", action: onTapVouches)
+        }
+    }
+
+    private func statText(_ count: Int, _ label: String, action: (() -> Void)? = nil) -> some View {
+        Button(action: { action?() }) {
+            (
+                Text("\(count) ")
+                    .font(.bodySmallSemibold)
+                    .foregroundColor(.appPrimary)
+                + Text(label)
+                    .font(.bodySmall)
+                    .foregroundColor(.appSecondary)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(action == nil)
+    }
+
     // MARK: - Category Chips
 
     /// Maker categories — derived skillCategories first, then matched from
@@ -189,6 +296,7 @@ struct ProfileHeaderView: View {
     }
 
     // MARK: - Action Row
+    // Connect lives on the avatar badge; the buttons handle everything else.
 
     @ViewBuilder
     private var actionRow: some View {
@@ -199,37 +307,17 @@ struct ProfileHeaderView: View {
             }
         } else {
             HStack(spacing: Spacing.sm) {
-                connectionButton
+                solidButton("Message", icon: "tab.envelope.fill", action: onMessage)
 
                 if connectionStatus == .connected {
                     if hasVouched {
                         secondaryButton("Vouched") {}
                             .disabled(true)
                     } else {
-                        solidButton("Vouch", action: onVouch)
+                        secondaryButton("Vouch", action: onVouch)
                     }
                 }
-
-                iconButton("tab.envelope.fill", action: onMessage)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var connectionButton: some View {
-        switch connectionStatus {
-        case .none:
-            solidButton("Connect", icon: "status.add.fill", action: onConnect)
-                .disabled(isActioning)
-        case .pendingSent:
-            secondaryButton("Pending", icon: "status.waiting.fill") {}
-                .disabled(true)
-        case .pendingReceived:
-            solidButton("Accept", icon: "status.connection.fill", action: onAccept)
-                .disabled(isActioning)
-        case .connected:
-            secondaryButton("Connected", icon: "status.connection.fill") {}
-                .disabled(true)
         }
     }
 
@@ -261,21 +349,6 @@ struct ProfileHeaderView: View {
         .buttonStyle(.pressableScale(0.97))
     }
 
-    private func iconButton(_ icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(icon)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 18, height: 18)
-                .foregroundColor(.appPrimary)
-                .frame(width: 48, height: 42)
-                .background(Color.appSurfaceSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
-        }
-        .buttonStyle(.pressableScale(0.9))
-    }
-
     private func buttonLabel(_ label: String, icon: String?) -> some View {
         HStack(spacing: Spacing.xs) {
             if let icon {
@@ -288,121 +361,5 @@ struct ProfileHeaderView: View {
             Text(label)
                 .font(.bodySemibold)
         }
-    }
-
-    // MARK: - Maker Card
-    // The PRD's trust core: "what I can help with" lives on the profile and the
-    // system turns it into Matches. Building / Can help with / Looking for.
-
-    private struct MakerRow: Identifiable {
-        let id: String
-        let icon: String
-        let title: String
-        let text: String
-    }
-
-    private var makerRows: [MakerRow] {
-        var rows: [MakerRow] = []
-        if let building = user.currentProject, !building.isEmpty {
-            rows.append(MakerRow(id: "building", icon: "content.update", title: "Building", text: building))
-        }
-        if let help = user.canHelpWith, !help.isEmpty {
-            rows.append(MakerRow(id: "help", icon: "content.sharing", title: "Can help with", text: help))
-        }
-        if let looking = user.lookingFor, !looking.isEmpty {
-            rows.append(MakerRow(id: "looking", icon: "content.looking", title: "Looking for", text: looking))
-        }
-        return rows
-    }
-
-    @ViewBuilder
-    private var makerCard: some View {
-        if !makerRows.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(makerRows.enumerated()), id: \.element.id) { index, row in
-                    makerRowView(row)
-
-                    if index < makerRows.count - 1 {
-                        Rectangle()
-                            .fill(Color.appDivider)
-                            .frame(height: 1 / UIScreen.main.scale)
-                            .padding(.leading, Spacing.lg + 32 + Spacing.md)
-                    }
-                }
-            }
-            .background(Color.appSurface)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous)
-                    .strokeBorder(Color.appBorder, lineWidth: 1)
-            )
-        } else if isSelf {
-            Button(action: onEdit) {
-                HStack(spacing: Spacing.md) {
-                    Image("content.sharing")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 16, height: 16)
-                        .foregroundColor(.appSecondary)
-                        .frame(width: 32, height: 32)
-                        .background(Color.appSurfaceSecondary)
-                        .clipShape(Circle())
-
-                    VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                        Text("Add what you can help with")
-                            .font(.bodySemibold)
-                            .foregroundColor(.appPrimary)
-                        Text("Junto turns it into matches when someone needs you")
-                            .font(.bodySmall)
-                            .foregroundColor(.appSecondary)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.appSecondary)
-                }
-                .padding(Spacing.lg)
-                .background(Color.appSurface)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous)
-                        .strokeBorder(Color.appBorder, lineWidth: 1)
-                )
-                .contentShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
-            }
-            .buttonStyle(.pressableScale(0.98))
-        }
-    }
-
-    private func makerRowView(_ row: MakerRow) -> some View {
-        HStack(alignment: .top, spacing: Spacing.md) {
-            Image(row.icon)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 16, height: 16)
-                .foregroundColor(.appPrimary)
-                .frame(width: 32, height: 32)
-                .background(Color.appSurfaceSecondary)
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                Text(row.title.uppercased())
-                    .font(.captionSmallSemibold)
-                    .foregroundColor(.appSecondary)
-
-                Text(row.text)
-                    .font(.body14)
-                    .foregroundColor(.appPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.md)
     }
 }

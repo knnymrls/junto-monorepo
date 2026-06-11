@@ -187,7 +187,12 @@ struct ProfileView: View {
     private var tabContent: some View {
         switch selectedTab {
         case .about:
-            AboutTabView(user: user, context: context)
+            AboutTabView(
+                user: user,
+                context: context,
+                isSelf: isSelf,
+                onEdit: { showEditSheet = true }
+            )
         case .work:
             PortfolioTabView(userId: user._id, isSelf: isSelf)
         case .vouches:

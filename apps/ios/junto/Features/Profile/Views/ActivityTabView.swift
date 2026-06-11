@@ -1,8 +1,10 @@
 //
 //  ActivityTabView.swift
-//  mkrs-world
+//  junto
 //
-//  Activity tab — posts, events attended, connection stats
+//  Activity tab — the maker's posts as bordered cards (category pill + time +
+//  content) and the events they've shown up to. Connection count lives in the
+//  hero stat line, not here.
 //
 
 import SwiftUI
@@ -25,34 +27,29 @@ struct ActivityTabView: View {
     }
 
     private var hasNoActivity: Bool {
-        isFullyLoaded && posts.isEmpty && events.isEmpty && connectionCount == 0
+        isFullyLoaded && posts.isEmpty && events.isEmpty
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.xl) {
+        VStack(alignment: .leading, spacing: Spacing.xxl) {
             if !isFullyLoaded {
                 ProgressView()
+                    .tint(.appSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, Spacing.huge)
             } else if hasNoActivity {
                 emptyState
             } else {
-                // Posts (most relevant, show first)
                 if !posts.isEmpty {
                     postsSection
                 }
 
-                // Events Attended
                 if !events.isEmpty {
                     eventsSection
                 }
-
-                // Connection Stats
-                if connectionCount > 0 {
-                    statsSection
-                }
             }
         }
+        .padding(.horizontal, Spacing.lg)
         .padding(.bottom, Spacing.xxxl)
         .onAppear {
             startPostsSubscription()
@@ -64,32 +61,75 @@ struct ActivityTabView: View {
         }
     }
 
-    // MARK: - Stats Section
+    // MARK: - Posts
 
-    private var statsSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            sectionHeader("Connections")
+    private var postsSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            sectionHeader("Posts")
 
-            HStack(spacing: Spacing.md) {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(.appAccent)
-
-                Text("\(connectionCount) connection\(connectionCount == 1 ? "" : "s")")
-                    .font(.body14)
-                    .foregroundColor(.appPrimary)
+            LazyVStack(spacing: Spacing.md) {
+                ForEach(posts) { post in
+                    postCard(post)
+                }
             }
-            .padding(.horizontal, Spacing.lg)
         }
     }
 
-    // MARK: - Events Section
+    private func postCard(_ post: PostResponse) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack {
+                CategoryPill(category: post.categoryType)
+
+                Spacer(minLength: 0)
+
+                Text(post.createdDate.timeAgoShort())
+                    .font(.caption12)
+                    .foregroundColor(.appSecondary)
+            }
+
+            Text(post.content)
+                .font(.body14)
+                .foregroundColor(.appPrimary)
+                .lineLimit(5)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !post.allImageUrls.isEmpty {
+                ImageCarousel(imageUrls: post.allImageUrls)
+                    .frame(height: 160)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+            }
+
+            if let commentCount = post.commentCount, commentCount > 0 {
+                HStack(spacing: Spacing.xxs) {
+                    Image("content.comments")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 14, height: 14)
+
+                    Text("\(commentCount) \(commentCount == 1 ? "reply" : "replies")")
+                        .font(.caption12)
+                }
+                .foregroundColor(.appSecondary)
+            }
+        }
+        .padding(Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.appSurface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.xxl, style: .continuous)
+                .strokeBorder(Color.appBorder, lineWidth: 1)
+        )
+    }
+
+    // MARK: - Events
 
     private var eventsSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            sectionHeader("Events Attended")
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            sectionHeader("Events")
 
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: Spacing.lg) {
                 ForEach(events) { event in
                     eventRow(event)
                 }
@@ -99,10 +139,15 @@ struct ActivityTabView: View {
 
     private func eventRow(_ event: AttendedEventResponse) -> some View {
         HStack(spacing: Spacing.md) {
-            Image(systemName: "calendar")
-                .font(.system(size: 14))
-                .foregroundColor(.appSecondary)
-                .frame(width: 28, height: 28)
+            Image("feed.calendar")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
+                .foregroundColor(.appPrimary)
+                .frame(width: 36, height: 36)
+                .background(Color.appSurfaceSecondary)
+                .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: Spacing.xxxs) {
                 Text(event.title)
@@ -115,8 +160,9 @@ struct ActivityTabView: View {
                         .font(.caption12)
                         .foregroundColor(.appSecondary)
 
-                    if let location = event.location {
+                    if let location = event.location, !location.isEmpty {
                         Text("·")
+                            .font(.caption12)
                             .foregroundColor(.appSecondary)
                         Text(location)
                             .font(.caption12)
@@ -126,92 +172,29 @@ struct ActivityTabView: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.sm)
-    }
-
-    // MARK: - Posts Section
-
-    private var postsSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            sectionHeader("Posts")
-
-            LazyVStack(spacing: 0) {
-                ForEach(posts) { post in
-                    postRow(post)
-                    Divider()
-                        .foregroundColor(.appDivider)
-                }
-            }
-        }
-    }
-
-    // MARK: - Empty State
-
-    private var emptyState: some View {
-        VStack(spacing: Spacing.sm) {
-            Image(systemName: "clock")
-                .font(.system(size: 32))
-                .foregroundColor(.appSecondary)
-
-            Text("No activity yet")
-                .font(.bodyLargeMedium)
-                .foregroundColor(.appSecondary)
-
-            Text("Posts, events, and connections will show up here.")
-                .font(.body14)
-                .foregroundColor(.appSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Spacing.huge)
-    }
-
-    private func postRow(_ post: PostResponse) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.xs) {
-                Text(post.categoryType.displayName)
-                    .font(.captionSemibold)
-                    .foregroundColor(.appSecondary)
-
-                Text("·")
-                    .foregroundColor(.appSecondary)
-
-                Text(post.createdDate.timeAgoDisplay())
-                    .font(.caption12)
-                    .foregroundColor(.appSecondary)
-            }
-
-            Text(post.content)
-                .font(.body14)
-                .foregroundColor(.appPrimary)
-                .lineLimit(4)
-
-            if !post.allImageUrls.isEmpty {
-                ImageCarousel(imageUrls: post.allImageUrls)
-                    .frame(height: 160)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.md))
-            }
-
-            if let commentCount = post.commentCount, commentCount > 0 {
-                Text("\(commentCount) comment\(commentCount == 1 ? "" : "s")")
-                    .font(.caption12)
-                    .foregroundColor(.appSecondary)
-            }
-        }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.md)
     }
 
     // MARK: - Section Header
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.bodySmallSemibold)
+            .font(.captionSmallSemibold)
             .foregroundColor(.appSecondary)
-            .padding(.horizontal, Spacing.lg)
+    }
+
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        EmptyStateView(
+            icon: "clock",
+            title: "No activity yet",
+            subtitle: isSelf
+                ? "Your posts and events will show up here."
+                : "\(userName.components(separatedBy: " ").first ?? userName)'s posts and events will show up here.",
+            iconSize: 32
+        )
     }
 
     // MARK: - Subscriptions
