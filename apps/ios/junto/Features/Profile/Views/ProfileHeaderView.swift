@@ -54,13 +54,20 @@ struct ProfileHeaderView: View {
                 size: avatarSize
             )
 
-            Spacer(minLength: Spacing.lg)
+            // Name stacked over the stats, flexing to fill the right side.
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text(user.name)
+                    .font(.heading2)
+                    .foregroundColor(.appPrimary)
+                    .lineLimit(1)
 
-            HStack(spacing: 0) {
-                statColumn(postCount, postCount == 1 ? "Post" : "Posts", action: onTapPosts)
-                statColumn(connectionCount, connectionCount == 1 ? "Connection" : "Connections")
-                statColumn(vouchCount, vouchCount == 1 ? "Vouch" : "Vouches", action: onTapVouches)
+                HStack(spacing: Spacing.lg) {
+                    statColumn(postCount, postCount == 1 ? "Post" : "Posts", action: onTapPosts)
+                    statColumn(connectionCount, connectionCount == 1 ? "Connection" : "Connections")
+                    statColumn(vouchCount, vouchCount == 1 ? "Vouch" : "Vouches", action: onTapVouches)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -68,7 +75,7 @@ struct ProfileHeaderView: View {
     // auto-dims its label, which made the stats render in mismatched colors.
     @ViewBuilder
     private func statColumn(_ count: Int, _ label: String, action: (() -> Void)? = nil) -> some View {
-        let column = VStack(spacing: Spacing.xxxs) {
+        let column = VStack(alignment: .leading, spacing: Spacing.xxxs) {
             Text("\(count)")
                 .font(.bodyLargeBold)
                 .foregroundColor(.appPrimary)
@@ -77,7 +84,6 @@ struct ProfileHeaderView: View {
                 .font(.caption12)
                 .foregroundColor(.appSecondary)
         }
-        .frame(minWidth: 64)
 
         if let action {
             Button(action: action) {
@@ -89,14 +95,11 @@ struct ProfileHeaderView: View {
         }
     }
 
-    // MARK: - Name / Headline / Campus
+    // MARK: - Headline / Campus
+    // The name sits up in the identity row, stacked over the stats.
 
     private var nameBlock: some View {
         VStack(alignment: .leading, spacing: Spacing.xxs) {
-            Text(user.name)
-                .font(.heading2)
-                .foregroundColor(.appPrimary)
-
             if let headline = user.headline, !headline.isEmpty {
                 Text(headline)
                     .font(.body14)
