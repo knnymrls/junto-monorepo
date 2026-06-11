@@ -2,19 +2,22 @@
 //  ImageCache.swift
 //  mkrs-world
 //
-//  Image caching with memory + disk persistence
+//  Image caching with memory + disk persistence. Disk I/O and JPEG encoding
+//  run off the main thread; concurrent requests for the same URL share one
+//  network fetch.
 //
 
 import SwiftUI
 import UIKit
 
-/// Shared image cache with memory and disk storage
-final class ImageCache {
+/// Shared image cache with memory and disk storage.
+final class ImageCache: @unchecked Sendable {
     static let shared = ImageCache()
 
     private let memoryCache = NSCache<NSString, UIImage>()
     private let fileManager = FileManager.default
     private let cacheDirectory: URL
+    private let diskQueue = DispatchQueue(label: "ImageCache.disk", qos: .utility)
 
     private init() {
         // Set up disk cache directory
@@ -29,46 +32,48 @@ final class ImageCache {
         memoryCache.totalCostLimit = 50 * 1024 * 1024 // 50MB
     }
 
-    /// Get cached image for URL
-    func image(for url: URL) -> UIImage? {
-        let key = cacheKey(for: url)
-
-        // Check memory cache first
-        if let cached = memoryCache.object(forKey: key as NSString) {
-            return cached
-        }
-
-        // Check disk cache
-        let filePath = cacheDirectory.appendingPathComponent(key)
-        if let data = try? Data(contentsOf: filePath),
-           let image = UIImage(data: data) {
-            // Store in memory for faster subsequent access
-            memoryCache.setObject(image, forKey: key as NSString, cost: data.count)
-            return image
-        }
-
-        return nil
+    /// Synchronous memory-only lookup — safe to call from view bodies.
+    func memoryImage(for url: URL) -> UIImage? {
+        memoryCache.object(forKey: cacheKey(for: url) as NSString)
     }
 
-    /// Store image in cache
-    func store(_ image: UIImage, for url: URL) {
+    /// Memory, then disk (off-main) lookup.
+    func image(for url: URL) async -> UIImage? {
+        if let cached = memoryImage(for: url) { return cached }
+
         let key = cacheKey(for: url)
-
-        // Store in memory
-        if let data = image.jpegData(compressionQuality: 0.8) {
-            memoryCache.setObject(image, forKey: key as NSString, cost: data.count)
-
-            // Store on disk asynchronously
-            let filePath = cacheDirectory.appendingPathComponent(key)
-            DispatchQueue.global(qos: .utility).async {
-                try? data.write(to: filePath)
+        let filePath = cacheDirectory.appendingPathComponent(key)
+        let loaded: UIImage? = await withCheckedContinuation { continuation in
+            diskQueue.async {
+                guard let data = try? Data(contentsOf: filePath),
+                      let image = UIImage(data: data) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: image)
             }
         }
+        if let loaded {
+            memoryCache.setObject(loaded, forKey: key as NSString)
+        }
+        return loaded
     }
 
-    /// Generate cache key from URL
+    /// Store image in memory now, on disk asynchronously (encode included —
+    /// jpegData on the caller's thread was a main-thread stall).
+    func store(_ image: UIImage, for url: URL) {
+        let key = cacheKey(for: url)
+        memoryCache.setObject(image, forKey: key as NSString)
+
+        let filePath = cacheDirectory.appendingPathComponent(key)
+        diskQueue.async {
+            guard let data = image.jpegData(compressionQuality: 0.8) else { return }
+            try? data.write(to: filePath)
+        }
+    }
+
+    /// Generate cache key from URL (djb2 hash of the absolute string).
     private func cacheKey(for url: URL) -> String {
-        // Use SHA256-like hash of URL string for filename
         let urlString = url.absoluteString
         var hash: UInt64 = 5381
         for char in urlString.utf8 {
@@ -80,37 +85,73 @@ final class ImageCache {
     /// Clear all cached images
     func clearCache() {
         memoryCache.removeAllObjects()
-        try? fileManager.removeItem(at: cacheDirectory)
-        try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        diskQueue.async { [cacheDirectory, fileManager] in
+            try? fileManager.removeItem(at: cacheDirectory)
+            try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        }
     }
 
     /// Clear old cache entries (older than 7 days)
     func clearOldEntries() {
-        let sevenDaysAgo = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+        diskQueue.async { [cacheDirectory, fileManager] in
+            let sevenDaysAgo = Date().addingTimeInterval(-7 * 24 * 60 * 60)
 
-        guard let files = try? fileManager.contentsOfDirectory(
-            at: cacheDirectory,
-            includingPropertiesForKeys: [.contentModificationDateKey]
-        ) else { return }
+            guard let files = try? fileManager.contentsOfDirectory(
+                at: cacheDirectory,
+                includingPropertiesForKeys: [.contentModificationDateKey]
+            ) else { return }
 
-        for file in files {
-            if let attributes = try? fileManager.attributesOfItem(atPath: file.path),
-               let modDate = attributes[.modificationDate] as? Date,
-               modDate < sevenDaysAgo {
-                try? fileManager.removeItem(at: file)
+            for file in files {
+                if let attributes = try? fileManager.attributesOfItem(atPath: file.path),
+                   let modDate = attributes[.modificationDate] as? Date,
+                   modDate < sevenDaysAgo {
+                    try? fileManager.removeItem(at: file)
+                }
             }
         }
     }
 }
 
-/// SwiftUI view that loads images with caching
+/// Deduplicates concurrent fetches: N views asking for the same URL share one
+/// network request.
+@MainActor
+private final class ImageFetchCoordinator {
+    static let shared = ImageFetchCoordinator()
+    private var inFlight: [URL: Task<UIImage?, Never>] = [:]
+
+    func fetch(_ url: URL) async -> UIImage? {
+        if let existing = inFlight[url] {
+            return await existing.value
+        }
+        let task = Task<UIImage?, Never> {
+            if let cached = await ImageCache.shared.image(for: url) {
+                return cached
+            }
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard let image = UIImage(data: data) else { return nil }
+                ImageCache.shared.store(image, for: url)
+                return image
+            } catch {
+                return nil
+            }
+        }
+        inFlight[url] = task
+        let image = await task.value
+        inFlight[url] = nil
+        return image
+    }
+}
+
+/// SwiftUI view that loads images with caching. Reloads when `url` changes —
+/// the old version kept showing the previous image after e.g. an avatar
+/// upload produced a new URL.
 struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     let url: URL?
     let content: (Image) -> Content
     let placeholder: () -> Placeholder
 
     @State private var loadedImage: UIImage?
-    @State private var isLoading = false
 
     init(
         url: URL?,
@@ -128,39 +169,29 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                 content(Image(uiImage: image))
             } else {
                 placeholder()
-                    .onAppear {
-                        loadImage()
-                    }
             }
+        }
+        .task(id: url) {
+            await load()
         }
     }
 
-    private func loadImage() {
-        guard let url = url, !isLoading else { return }
-
-        // Check cache first
-        if let cached = ImageCache.shared.image(for: url) {
+    private func load() async {
+        guard let url else {
+            loadedImage = nil
+            return
+        }
+        // Memory hit renders without a placeholder frame.
+        if let cached = ImageCache.shared.memoryImage(for: url) {
             loadedImage = cached
             return
         }
-
-        // Fetch from network
-        isLoading = true
-        Task {
-            do {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                if let image = UIImage(data: data) {
-                    ImageCache.shared.store(image, for: url)
-                    await MainActor.run {
-                        loadedImage = image
-                    }
-                }
-            } catch {
-                print("ImageCache: Failed to load image: \(error)")
-            }
-            await MainActor.run {
-                isLoading = false
-            }
+        loadedImage = nil
+        let image = await ImageFetchCoordinator.shared.fetch(url)
+        // task(id:) cancelled us if the URL changed mid-flight — don't apply
+        // a stale result over the newer load.
+        if !Task.isCancelled {
+            loadedImage = image
         }
     }
 }

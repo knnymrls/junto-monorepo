@@ -309,10 +309,13 @@ export const getUserRsvp = query({
 export const getAttendees = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, args) => {
-    const rsvps = await ctx.db
+    const allRsvps = await ctx.db
       .query("eventRsvps")
       .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
       .collect();
+
+    // People who cancelled or declined are not attendees.
+    const rsvps = allRsvps.filter((r) => r.status !== "not_going");
 
     const attendees = await Promise.all(
       rsvps.map(async (rsvp) => {

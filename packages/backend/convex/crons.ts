@@ -59,4 +59,11 @@ crons.weekly(
   internal.weeklyMatches.generateForAllUsers
 );
 
+// Search session cleanup — hourly; the table grew forever without this
+crons.interval(
+  "search session cleanup",
+  { hours: 1 },
+  internal.searchSessions.cleanupOldSessions
+);
+
 export default crons;

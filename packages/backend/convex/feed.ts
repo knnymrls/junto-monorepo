@@ -136,7 +136,9 @@ export const getFeed = query({
       .collect();
     const reportedPostIds = new Set<string>(myReports.map((r) => r.postId));
 
-    // --- Post spine (scored + paginated), excluding own/reported posts ---
+    // --- Post spine (scored + paginated), excluding reported posts ---
+    // Own posts are included: hiding them made a successful post invisible,
+    // indistinguishable from a failed one. A fresh post ranks top via recency.
     const allPosts = await ctx.db
       .query("posts")
       .withIndex("by_created")
@@ -144,7 +146,7 @@ export const getFeed = query({
       .take((offset + limit) * 2 + 10);
 
     const eligiblePosts = allPosts.filter(
-      (p) => p.authorId !== args.userId && !reportedPostIds.has(p._id)
+      (p) => !reportedPostIds.has(p._id)
     );
 
     // We need each post's comment count for both the engagement signal and the
@@ -176,7 +178,16 @@ export const getFeed = query({
       }))
       .sort((a, b) => b.score - a.score);
 
-    const page = scored.slice(offset, offset + limit);
+    // Your own posts from the last 24h lead the feed: after posting, the post
+    // must visibly exist. Deterministic reorder, so pagination stays stable.
+    const OWN_FRESH_MS = 24 * 60 * 60 * 1000;
+    const ownFresh = scored.filter(
+      (s) => s.post.authorId === args.userId && now - s.post.createdAt < OWN_FRESH_MS
+    );
+    const rest = scored.filter((s) => !ownFresh.includes(s));
+    const ranked = [...ownFresh, ...rest];
+
+    const page = ranked.slice(offset, offset + limit);
 
     // Enrich spine posts: author + comment count + recent commenters
     const postItems = await Promise.all(

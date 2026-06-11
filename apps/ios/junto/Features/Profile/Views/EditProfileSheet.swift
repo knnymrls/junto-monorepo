@@ -317,13 +317,12 @@ struct EditProfileSheet: View {
 
                 _ = try await ConvexClientManager.shared.upsertUser(input)
 
+                // CurrentUserManager's live subscription picks up the change;
+                // fetch once here only for the caller's onSaved payload.
                 let fresh = try await ConvexClientManager.shared.fetchUser(id: user._id)
 
                 await MainActor.run {
                     if let fresh {
-                        if CurrentUserManager.shared.userId == fresh._id {
-                            CurrentUserManager.shared.user = fresh
-                        }
                         onSaved?(fresh)
                     }
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
