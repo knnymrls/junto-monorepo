@@ -34,11 +34,10 @@ class FeedViewModel: ObservableObject {
     // Current user's user profile (set by FeedView from CurrentUserManager)
     @Published var currentUser: UserResponse?
 
-    // Connected user IDs for quick lookup
-    @Published var connectedUserIds: Set<String> = []
-
-    // Pending connection request IDs (users we sent requests to)
-    @Published var pendingConnectionIds: Set<String> = []
+    /// Single source of truth for connection state — shared across every
+    /// screen, so badges can't drift between tabs anymore.
+    let connections = ConnectionStore.shared
+    var connectedUserIds: Set<String> { connections.connectedUserIds }
 
     // MARK: - Private
 
@@ -50,34 +49,10 @@ class FeedViewModel: ObservableObject {
     // MARK: - Init
 
     init() {
-        // Keep avatar badges in sync when a connection changes from another
-        // surface (e.g. tapping Connect inside a profile sheet over the feed).
-        NotificationCenter.default.publisher(for: .connectionStatusChanged)
-            .compactMap { ConnectionEvents.decode($0) }
-            .sink { [weak self] change in
-                guard let self else { return }
-                Task { @MainActor in
-                    self.applyConnectionChange(userId: change.userId, status: change.status)
-                }
-            }
+        // Re-render feed rows when shared connection state changes.
+        connections.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
-    }
-
-    /// Apply an externally-broadcast connection change to the cached sets.
-    private func applyConnectionChange(userId: String, status: ConnectionStatus) {
-        switch status {
-        case .connected:
-            pendingConnectionIds.remove(userId)
-            connectedUserIds.insert(userId)
-        case .pendingSent:
-            connectedUserIds.remove(userId)
-            pendingConnectionIds.insert(userId)
-        case .pendingReceived:
-            break
-        case .none:
-            connectedUserIds.remove(userId)
-            pendingConnectionIds.remove(userId)
-        }
     }
 
     // MARK: - Public Methods
@@ -136,7 +111,7 @@ class FeedViewModel: ObservableObject {
     func bootstrap(userId: String) async {
         await loadInitialFeed(userId: userId)
         await loadSuggestedMatches(userId: userId)
-        await loadConnections(userId: userId)
+        connections.start(userId: userId)
     }
 
     /// Load suggested matches (pre-computed weekly, with on-demand fallback)
@@ -240,134 +215,33 @@ class FeedViewModel: ObservableObject {
         }
     }
 
-    /// Load user's connections
-    func loadConnections(userId: String) async {
-        do {
-            let connections = try await convex.fetchConnections(userId: userId)
-            connectedUserIds = Set(connections.map { $0._id })
-            print("FeedViewModel: Loaded \(connectedUserIds.count) connections")
-
-            // Also load pending sent requests
-            let pendingIds = try await convex.fetchPendingSentIds(userId: userId)
-            pendingConnectionIds = Set(pendingIds)
-            print("FeedViewModel: Loaded \(pendingConnectionIds.count) pending requests")
-        } catch {
-            print("FeedViewModel: Error loading connections: \(error)")
-        }
-    }
+    // MARK: - Connections (delegated to the shared ConnectionStore)
 
     /// Check if a user is connected
     func isConnected(userId: String) -> Bool {
-        return connectedUserIds.contains(userId)
+        connections.isConnected(userId)
     }
 
     /// Check if we have a pending request to this user
     func isPending(userId: String) -> Bool {
-        return pendingConnectionIds.contains(userId)
+        connections.isPending(userId)
     }
 
     /// Get connection status for a user
     func connectionStatus(userId: String) -> ConnectionDisplayStatus {
-        if connectedUserIds.contains(userId) {
-            return .connected
-        } else if pendingConnectionIds.contains(userId) {
-            return .pending
-        } else {
-            return .none
-        }
+        connections.displayStatus(for: userId)
     }
 
     /// Send a connection request
+    @discardableResult
     func sendConnectionRequest(toUserId: String, source: ConnectionSource = .feed) async -> Bool {
-        guard let myUserId = currentUser?._id else {
-            error = "Not signed in"
-            return false
-        }
-
-        // Optimistically add to pending
-        pendingConnectionIds.insert(toUserId)
-
-        do {
-            _ = try await convex.sendConnectionRequest(requesterId: myUserId, accepterId: toUserId)
-            print("FeedViewModel: Sent connection request to \(toUserId)")
-            ConnectionEvents.post(userId: toUserId, status: .pendingSent)
-
-            // Track connection request
-            AnalyticsService.shared.track(.connectionSent(toUserId: toUserId, source: source))
-
-            // Reload connections in case they had already sent us a request (auto-accept)
-            await loadConnections(userId: myUserId)
-            return true
-        } catch {
-            // Revert optimistic update
-            pendingConnectionIds.remove(toUserId)
-            self.error = error.localizedDescription
-            print("FeedViewModel: Error sending connection request: \(error)")
-            return false
-        }
-    }
-
-    /// Withdraw a pending connection request
-    func withdrawConnectionRequest(toUserId: String) async -> Bool {
-        guard let myUserId = currentUser?._id else {
-            error = "Not signed in"
-            return false
-        }
-
-        // Optimistically remove from pending
-        pendingConnectionIds.remove(toUserId)
-
-        do {
-            _ = try await convex.withdrawConnectionRequest(requesterId: myUserId, accepterId: toUserId)
-            print("FeedViewModel: Withdrew connection request to \(toUserId)")
-            ConnectionEvents.post(userId: toUserId, status: .none)
-            await loadConnections(userId: myUserId)
-            return true
-        } catch {
-            // Revert optimistic update
-            pendingConnectionIds.insert(toUserId)
-            self.error = error.localizedDescription
-            print("FeedViewModel: Error withdrawing connection request: \(error)")
-            return false
-        }
+        await connections.sendRequest(to: toUserId, source: source)
     }
 
     /// Handle disconnect/withdraw based on current connection status
     @discardableResult
     func handleDisconnect(userId: String) async -> Bool {
-        let status = connectionStatus(userId: userId)
-        if status == .connected {
-            return await removeConnection(withUserId: userId)
-        } else if status == .pending {
-            return await withdrawConnectionRequest(toUserId: userId)
-        }
-        return false
-    }
-
-    /// Remove an existing connection
-    func removeConnection(withUserId: String) async -> Bool {
-        guard let myUserId = currentUser?._id else {
-            error = "Not signed in"
-            return false
-        }
-
-        // Optimistically remove from connections
-        connectedUserIds.remove(withUserId)
-
-        do {
-            _ = try await convex.removeConnection(userId1: myUserId, userId2: withUserId)
-            print("FeedViewModel: Removed connection with \(withUserId)")
-            ConnectionEvents.post(userId: withUserId, status: .none)
-            // Reload to stay in sync with backend
-            await loadConnections(userId: myUserId)
-            return true
-        } catch {
-            // Revert optimistic update
-            connectedUserIds.insert(withUserId)
-            self.error = error.localizedDescription
-            print("FeedViewModel: Error removing connection: \(error)")
-            return false
-        }
+        await connections.disconnect(from: userId)
     }
 }
 

@@ -74,6 +74,7 @@ struct ContentView: View {
             } else {
                 Task { await PushNotificationManager.shared.unregister() }
                 currentUser.clear()
+                ConnectionStore.shared.stop()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .onboardingComplete)) { _ in

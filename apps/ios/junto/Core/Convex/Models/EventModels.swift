@@ -11,28 +11,6 @@ import Combine
 import UIKit
 
 
-enum ConnectionEvents {
-    static let userIdKey = "userId"
-    static let statusKey = "status"
-
-    /// Broadcast that the current user's connection status with `userId` is now `status`.
-    static func post(userId: String, status: ConnectionStatus) {
-        NotificationCenter.default.post(
-            name: .connectionStatusChanged,
-            object: nil,
-            userInfo: [userIdKey: userId, statusKey: status]
-        )
-    }
-
-    /// Decode a `.connectionStatusChanged` notification. Returns nil if malformed.
-    static func decode(_ note: Notification) -> (userId: String, status: ConnectionStatus)? {
-        guard let userId = note.userInfo?[userIdKey] as? String,
-              let status = note.userInfo?[statusKey] as? ConnectionStatus else { return nil }
-        return (userId, status)
-    }
-}
-
-
 struct EventResponse: Codable, Identifiable, Hashable {
     let _id: String
     let title: String

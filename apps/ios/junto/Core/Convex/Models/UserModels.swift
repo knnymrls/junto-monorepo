@@ -21,17 +21,6 @@ enum ConnectionStatus: String {
 }
 
 
-// MARK: - Connection Events
-
-extension Notification.Name {
-    /// Broadcast whenever the current user's connection status with someone
-    /// changes (request sent / accepted / withdrawn / removed). Lets every
-    /// surface that caches connection state (feed, search, attendees) update
-    /// its avatar badges immediately instead of waiting for the next reload.
-    static let connectionStatusChanged = Notification.Name("connectionStatusChanged")
-}
-
-
 // MARK: - Response Types
 
 struct UserMajorResponse: Codable, Hashable {

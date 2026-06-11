@@ -326,6 +326,9 @@ struct TabBarView: View {
             await checkForFeedbackPrompt()
 
             if let userId = currentUser.userId {
+                // Shared connection state for every tab's avatar badges.
+                ConnectionStore.shared.start(userId: userId)
+
                 // Badges are always-on state: auto-resubscribe on failure
                 // (a single dropped subscription used to freeze them forever).
                 unreadNotificationCancellable = convex.subscribeUnreadCount(userId: userId)

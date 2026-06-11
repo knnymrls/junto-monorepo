@@ -35,8 +35,9 @@ class SearchViewModel: ObservableObject {
     @Published var userProfiles: [String: UserResponse] = [:]
 
     // Connection state
-    @Published var connectedUserIds: Set<String> = []
-    @Published var pendingConnectionIds: Set<String> = []
+    /// Shared source of truth for connection state.
+    let connections = ConnectionStore.shared
+    var connectedUserIds: Set<String> { connections.connectedUserIds }
 
     // Default discover masonry — populated from users:list, shown when search is idle
     @Published var defaultUsers: [UserResponse] = []
@@ -201,35 +202,10 @@ class SearchViewModel: ObservableObject {
                 }
             }
 
-        // Keep avatar badges in sync when a connection changes from another
-        // surface (e.g. tapping Connect inside a profile sheet opened from here).
+        // Re-render result rows when shared connection state changes.
         if connectionEventsCancellable == nil {
-            connectionEventsCancellable = NotificationCenter.default
-                .publisher(for: .connectionStatusChanged)
-                .compactMap { ConnectionEvents.decode($0) }
-                .sink { [weak self] change in
-                    guard let self else { return }
-                    Task { @MainActor in
-                        self.applyConnectionChange(userId: change.userId, status: change.status)
-                    }
-                }
-        }
-    }
-
-    /// Apply an externally-broadcast connection change to the cached sets.
-    private func applyConnectionChange(userId: String, status: ConnectionStatus) {
-        switch status {
-        case .connected:
-            pendingConnectionIds.remove(userId)
-            connectedUserIds.insert(userId)
-        case .pendingSent:
-            connectedUserIds.remove(userId)
-            pendingConnectionIds.insert(userId)
-        case .pendingReceived:
-            break
-        case .none:
-            connectedUserIds.remove(userId)
-            pendingConnectionIds.remove(userId)
+            connectionEventsCancellable = connections.objectWillChange
+                .sink { [weak self] _ in self?.objectWillChange.send() }
         }
     }
 
@@ -504,15 +480,7 @@ class SearchViewModel: ObservableObject {
     // MARK: - Connections
 
     func loadConnections(userId: String) async {
-        do {
-            let connections = try await convex.fetchConnections(userId: userId)
-            connectedUserIds = Set(connections.map { $0._id })
-
-            let pendingIds = try await convex.fetchPendingSentIds(userId: userId)
-            pendingConnectionIds = Set(pendingIds)
-        } catch {
-            print("SearchViewModel: Error loading connections: \(error)")
-        }
+        connections.start(userId: userId)
     }
 
     func connectionStatus(for result: SearchResultItem) -> ConnectionStatus {
@@ -544,30 +512,15 @@ class SearchViewModel: ObservableObject {
     }
 
     private func fallbackConnectionStatus(userId: String) -> ConnectionStatus {
-        if connectedUserIds.contains(userId) {
-            return .connected
-        } else if pendingConnectionIds.contains(userId) {
-            return .pendingSent
-        } else {
-            return .none
+        switch connections.displayStatus(for: userId) {
+        case .connected: return .connected
+        case .pending: return .pendingSent
+        case .none: return .none
         }
     }
 
+    @discardableResult
     func sendConnectionRequest(toUserId: String) async -> Bool {
-        guard let myUserId = currentUserId else { return false }
-
-        pendingConnectionIds.insert(toUserId)
-
-        do {
-            _ = try await convex.sendConnectionRequest(requesterId: myUserId, accepterId: toUserId)
-            ConnectionEvents.post(userId: toUserId, status: .pendingSent)
-            AnalyticsService.shared.track(.connectionSent(toUserId: toUserId, source: .search))
-            await loadConnections(userId: myUserId)
-            return true
-        } catch {
-            pendingConnectionIds.remove(toUserId)
-            print("SearchViewModel: Error sending connection: \(error)")
-            return false
-        }
+        await connections.sendRequest(to: toUserId, source: .search)
     }
 }

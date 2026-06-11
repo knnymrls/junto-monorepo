@@ -18,6 +18,11 @@ extension ConvexClientManager {
     func subscribeConnections(userId: String) -> AnyPublisher<[UserResponse], ClientError> {
         return client.subscribe(to: "connections:listForUser", with: ["userId": userId], yielding: [UserResponse].self)
     }
+
+    /// Subscribe to the IDs of users this user has sent pending requests to
+    func subscribePendingSentIds(userId: String) -> AnyPublisher<[String], ClientError> {
+        return client.subscribe(to: "connections:listPendingSentIds", with: ["userId": userId], yielding: [String].self)
+    }
 }
 
 extension ConvexClientManager {
