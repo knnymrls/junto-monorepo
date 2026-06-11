@@ -167,9 +167,20 @@ struct ProfileHeaderView: View {
                     secondaryButton("Message", icon: "tab.envelope.fill", action: onMessage)
 
                 case .pendingSent:
-                    // Tap to withdraw — ProfileView confirms before canceling.
-                    secondaryButton("Pending", icon: "status.waiting.fill", action: onCancelRequest)
-                        .disabled(isActioning)
+                    // Anchored menu — the cancel action pops right off the button.
+                    Menu {
+                        Button(role: .destructive, action: onCancelRequest) {
+                            Label("Cancel Request", systemImage: "xmark")
+                        }
+                    } label: {
+                        buttonLabel("Pending", icon: "status.waiting.fill")
+                            .foregroundColor(.appPrimary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
+                            .background(Color.appSurfaceSecondary)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+                    }
+                    .disabled(isActioning)
                     secondaryButton("Message", icon: "tab.envelope.fill", action: onMessage)
 
                 case .pendingReceived:

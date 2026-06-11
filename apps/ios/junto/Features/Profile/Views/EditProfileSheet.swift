@@ -186,19 +186,20 @@ struct EditProfileSheet: View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             sectionHeader("Links")
 
-            linkField("LinkedIn", icon: "link", text: $linkedin)
-            linkField("Instagram", icon: "camera", text: $instagram)
-            linkField("X", icon: "at", text: $twitter)
-            linkField("GitHub", icon: "chevron.left.forwardslash.chevron.right", text: $github)
-            linkField("Website", icon: "globe", text: $website)
+            linkField("LinkedIn", icon: "link.linkedin", text: $linkedin)
+            linkField("Instagram", icon: "link.instagram", text: $instagram)
+            linkField("X", icon: "link.x", text: $twitter)
+            linkField("GitHub", icon: "link.github", text: $github)
+            linkField("Website", icon: "link.website", text: $website)
         }
     }
 
+    // Solid Streamline Flex brand glyphs — same set as the About tab's link row.
     private func linkField(_ label: String, icon: String, text: Binding<String>) -> some View {
         JuntoTextField(
             placeholder: label,
             text: text,
-            icon: Image(systemName: icon),
+            icon: Image(icon).renderingMode(.template),
             keyboardType: .URL,
             autocapitalization: .never
         )
@@ -208,7 +209,7 @@ struct EditProfileSheet: View {
 
     private var portfolioSection: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
-            sectionHeader("Portfolio")
+            sectionHeader("Work")
 
             NavigationLink {
                 WidgetLayoutEditor(userId: user._id)
@@ -225,7 +226,7 @@ struct EditProfileSheet: View {
                         .clipShape(Circle())
 
                     VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                        Text("Edit widgets")
+                        Text("Edit work")
                             .font(.bodySemibold)
                             .foregroundColor(.appPrimary)
                         Text("Add, remove, and rearrange your work")
@@ -362,7 +363,7 @@ struct WidgetLayoutEditor: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("Edit Widgets")
+                Text("Edit Work")
                     .font(.bodyLargeSemibold)
                     .foregroundColor(.appPrimary)
             }

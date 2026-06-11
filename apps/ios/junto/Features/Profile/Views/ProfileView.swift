@@ -31,7 +31,6 @@ struct ProfileView: View {
     @State private var isActioning = false
     @State private var hasVouched = false
     @State private var showVouchSheet = false
-    @State private var showCancelConfirm = false
     @State private var showRemoveConfirm = false
     @State private var showEditSheet = false
     @State private var showShareSheet = false
@@ -87,7 +86,9 @@ struct ProfileView: View {
                         onMessage: { showChat = true },
                         onConnect: sendRequest,
                         onAccept: acceptRequest,
-                        onCancelRequest: { showCancelConfirm = true },
+                        // The header anchors both in menus next to their buttons —
+                        // the menu tap IS the confirmation.
+                        onCancelRequest: cancelRequest,
                         onRemoveConnection: { showRemoveConfirm = true },
                         onTapPosts: { selectTab(.activity) },
                         onTapVouches: { selectTab(.vouches) }
@@ -105,14 +106,6 @@ struct ProfileView: View {
             .scrollEdgeFade(top: true, bottom: false)
         }
         .background(Color.appBackground)
-        .confirmationDialog(
-            "Cancel your connection request?",
-            isPresented: $showCancelConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Cancel Request", role: .destructive) { cancelRequest() }
-            Button("Keep Pending", role: .cancel) {}
-        }
         .confirmationDialog(
             "Remove \(user.name) from your connections?",
             isPresented: $showRemoveConfirm,

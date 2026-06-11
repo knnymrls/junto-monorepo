@@ -23,7 +23,7 @@ struct AboutTabView: View {
                 infoSection(title: "Skills") {
                     FlowLayout(spacing: Spacing.sm) {
                         ForEach(skills, id: \.self) { skill in
-                            pillView(skill)
+                            skillPill(skill)
                         }
                     }
                 }
@@ -141,6 +141,30 @@ struct AboutTabView: View {
             .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
     }
 
+    /// Skill pill — the skill's maker category drives the icon and its brand
+    /// color, same vocabulary as Discover's category chips.
+    private func skillPill(_ skill: String) -> some View {
+        let category = SkillCategory.match(skill)
+        return HStack(spacing: Spacing.xxs) {
+            if let category {
+                Image(category.icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
+                    .foregroundColor(category.color)
+            }
+
+            Text(skill)
+                .font(.bodyMedium)
+                .foregroundColor(.appPrimary)
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(Color.appSurfaceSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+    }
+
     // MARK: - Social Links
 
     private var hasSocialLinks: Bool {
@@ -151,28 +175,33 @@ struct AboutTabView: View {
     private var socialLinksRow: some View {
         HStack(spacing: Spacing.lg) {
             if let github = user.socialLinks?.github, let url = URL(string: github) {
-                socialLinkButton(icon: "chevron.left.forwardslash.chevron.right", url: url, label: "GitHub")
+                socialLinkButton(icon: "link.github", url: url, label: "GitHub")
             }
             if let linkedin = user.socialLinks?.linkedin, let url = URL(string: linkedin) {
-                socialLinkButton(icon: "link", url: url, label: "LinkedIn")
+                socialLinkButton(icon: "link.linkedin", url: url, label: "LinkedIn")
             }
             if let twitter = user.socialLinks?.twitter, let url = URL(string: twitter) {
-                socialLinkButton(icon: "at", url: url, label: "X")
+                socialLinkButton(icon: "link.x", url: url, label: "X")
             }
             if let instagram = user.socialLinks?.instagram, let url = URL(string: instagram) {
-                socialLinkButton(icon: "camera", url: url, label: "Instagram")
+                socialLinkButton(icon: "link.instagram", url: url, label: "Instagram")
             }
             if let website = user.socialLinks?.website, let url = URL(string: website) {
-                socialLinkButton(icon: "globe", url: url, label: "Website")
+                socialLinkButton(icon: "link.website", url: url, label: "Website")
             }
         }
     }
 
+    // Solid Streamline Flex brand glyphs — icons on a background container
+    // are always the solid set.
     private func socialLinkButton(icon: String, url: URL, label: String) -> some View {
         Link(destination: url) {
             VStack(spacing: Spacing.xxs) {
-                Image(systemName: icon)
-                    .font(.system(size: 18))
+                Image(icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
                     .foregroundColor(.appPrimary)
                     .frame(width: 40, height: 40)
                     .background(Color.appSurfaceSecondary)
