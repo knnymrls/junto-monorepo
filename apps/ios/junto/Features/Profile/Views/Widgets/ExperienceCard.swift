@@ -9,6 +9,11 @@ import SwiftUI
 
 struct ExperienceCard: View {
     let item: PortfolioItemResponse
+    @State private var resolvedUrls: [String: URL] = [:]
+
+    private var storageIds: [String] {
+        item.imageUrls ?? []
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -47,9 +52,57 @@ struct ExperienceCard: View {
                     .lineSpacing(3)
                     .padding(.top, Spacing.xxs)
             }
+
+            if !storageIds.isEmpty {
+                photoStrip
+                    .padding(.top, Spacing.xxs)
+            }
         }
         .padding(Spacing.lg)
         .cardStyle()
+        .task { await resolveStorageIds() }
+    }
+
+    // Horizontal thumbnail strip — same resolve-then-expand flow as the
+    // gallery widget.
+    private var photoStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Spacing.sm) {
+                ForEach(storageIds, id: \.self) { storageId in
+                    if let url = resolvedUrls[storageId] {
+                        ExpandableImage(url: url, cornerRadius: Radius.md) {
+                            CachedAsyncImage(url: url) { image in
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } placeholder: {
+                                Color.appSurfaceSecondary
+                            }
+                            .frame(width: 96, height: 72)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                        }
+                    } else {
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .fill(Color.appSurfaceSecondary)
+                            .frame(width: 96, height: 72)
+                            .overlay(ProgressView())
+                    }
+                }
+            }
+        }
+    }
+
+    private func resolveStorageIds() async {
+        for storageId in storageIds {
+            do {
+                if let urlString = try await ConvexClientManager.shared.getFileUrl(storageId: storageId),
+                   let url = URL(string: urlString) {
+                    resolvedUrls[storageId] = url
+                }
+            } catch {
+                print("ExperienceCard: resolve error for \(storageId): \(error)")
+            }
+        }
     }
 
     private var formattedDateRange: String? {

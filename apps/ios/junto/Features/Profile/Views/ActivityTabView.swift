@@ -225,13 +225,12 @@ struct ActivityTabView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        EmptyStateView(
-            icon: "clock",
+        FeedMessageState(
+            icon: "feed.empty",
             title: "No activity yet",
             subtitle: isSelf
-                ? "Your posts and events will show up here."
-                : "\(userName.components(separatedBy: " ").first ?? userName)'s posts and events will show up here.",
-            iconSize: 32
+                ? "Your posts and events will show up here"
+                : "\(userName.components(separatedBy: " ").first ?? userName)'s posts and events will show up here"
         )
     }
 

@@ -48,11 +48,10 @@ struct PortfolioTabView: View {
                     }
                     .padding(.horizontal, Spacing.lg)
                 } else if !isSelf {
-                    EmptyStateView(
-                        icon: "square.grid.2x2",
+                    FeedMessageState(
+                        icon: "content.sparkles.fill",
                         title: "No work yet",
-                        subtitle: "This maker hasn't showcased anything.",
-                        iconSize: 32
+                        subtitle: "This maker hasn't showcased anything"
                     )
                 }
 
@@ -207,8 +206,8 @@ struct PortfolioTabView: View {
             ]
         case .science, .health, .hardware:
             return [
-                VocationSuggestion(icon: "topic.sciences", title: "Research", subtitle: "Lab work and projects", type: .experience, prefillTitle: "Research project"),
-                VocationSuggestion(icon: "action.image", title: "Build photos", subtitle: "Prototypes, posters, labs", type: .gallery),
+                VocationSuggestion(icon: "topic.sciences", title: "Projects", subtitle: "Lab work and research", type: .experience, prefillTitle: "Project"),
+                VocationSuggestion(icon: "feed.opportunity", title: "Experience", subtitle: "Title, photos, a short story", type: .experience),
                 VocationSuggestion(icon: "action.arrow", title: "Publication", subtitle: "Papers and posters", type: .link, prefillTitle: "Publication"),
             ]
         default:

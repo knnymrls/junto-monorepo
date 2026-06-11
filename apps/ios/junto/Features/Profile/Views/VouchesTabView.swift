@@ -22,11 +22,10 @@ struct VouchesTabView: View {
                     .tint(.appSecondary)
                     .padding(.top, Spacing.huge)
             } else if vouches.isEmpty {
-                EmptyStateView(
-                    icon: "hands.clap",
+                FeedMessageState(
+                    icon: "feed.replies.empty",
                     title: "No vouches yet",
-                    subtitle: "When collaborators vouch for this maker, the receipts show up here.",
-                    iconSize: 32
+                    subtitle: "Vouches from collaborators show up here"
                 )
             } else {
                 LazyVStack(spacing: Spacing.md) {

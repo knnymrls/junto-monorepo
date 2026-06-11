@@ -46,8 +46,10 @@ struct AddPortfolioItemSheet: View {
     @State private var expTitle = ""
     @State private var expOrganization = ""
     @State private var expDescription = ""
-    @State private var expStartDate = ""
-    @State private var expEndDate = ""
+    @State private var expStartDate = Date()
+    @State private var expEndDate = Date()
+    @State private var expIsOngoing = true
+    @State private var expImages: [UIImage] = []
 
     var body: some View {
         NavigationStack {
@@ -269,8 +271,20 @@ struct AddPortfolioItemSheet: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             formField("Title", text: $expTitle, placeholder: "e.g. Software Engineering Intern")
             formField("Organization", text: $expOrganization, placeholder: "e.g. Google")
-            formField("Start Date", text: $expStartDate, placeholder: "e.g. Jan 2025")
-            formField("End Date (optional)", text: $expEndDate, placeholder: "e.g. May 2025 or leave blank for Present")
+
+            // Same compact date components as Create Event (month/year matters here).
+            dateField("Starts", selection: $expStartDate, range: nil)
+
+            Toggle(isOn: $expIsOngoing) {
+                Text("I'm still doing this")
+                    .font(.body14)
+                    .foregroundColor(.appPrimary)
+            }
+            .tint(.appAccent)
+
+            if !expIsOngoing {
+                dateField("Ends", selection: $expEndDate, range: expStartDate...)
+            }
 
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 Text("Description (optional)")
@@ -283,6 +297,72 @@ struct AddPortfolioItemSheet: View {
                     .padding(Spacing.sm)
                     .background(Color.appSurfaceSecondary)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            }
+
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text("Photos (optional, max 4)")
+                    .font(.bodySmallMedium)
+                    .foregroundColor(.appSecondary)
+
+                MultiImagePickerButton(selectedImages: $expImages, maxImages: 4)
+            }
+
+            if !expImages.isEmpty {
+                imagePreviewGrid($expImages)
+            }
+        }
+        .onChange(of: expStartDate) { _, newStart in
+            if expEndDate < newStart {
+                expEndDate = newStart
+            }
+        }
+    }
+
+    /// Compact date picker field — mirrors CreateEventSheet's dateField, minus
+    /// the time-of-day components (experiences live at month/year granularity).
+    private func dateField(_ label: String, selection: Binding<Date>, range: PartialRangeFrom<Date>?) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text(label)
+                .font(.bodyLargeSemibold)
+                .foregroundColor(.appPrimary)
+
+            HStack {
+                if let range {
+                    DatePicker("", selection: selection, in: range, displayedComponents: [.date])
+                        .datePickerStyle(.compact)
+                        .labelsHidden()
+                        .tint(.appAccent)
+                } else {
+                    DatePicker("", selection: selection, displayedComponents: [.date])
+                        .datePickerStyle(.compact)
+                        .labelsHidden()
+                        .tint(.appAccent)
+                }
+
+                Spacer()
+            }
+        }
+    }
+
+    private func imagePreviewGrid(_ images: Binding<[UIImage]>) -> some View {
+        let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+        return LazyVGrid(columns: columns, spacing: Spacing.sm) {
+            ForEach(images.wrappedValue.indices, id: \.self) { index in
+                ZStack(alignment: .topTrailing) {
+                    Image(uiImage: images.wrappedValue[index])
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 80)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+
+                    Button(action: { images.wrappedValue.remove(at: index) }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white)
+                            .shadow(radius: 2)
+                    }
+                    .offset(x: -Spacing.xxs, y: Spacing.xxs)
+                }
             }
         }
     }
@@ -363,14 +443,20 @@ struct AddPortfolioItemSheet: View {
                     )
 
                 case .experience:
+                    var storageIds: [String] = []
+                    for image in expImages {
+                        let storageId = try await ConvexClientManager.shared.uploadImage(image)
+                        storageIds.append(storageId)
+                    }
                     _ = try await ConvexClientManager.shared.createPortfolioItem(
                         userId: userId,
                         type: "experience",
                         title: expTitle.trimmingCharacters(in: .whitespaces),
                         description: expDescription.isEmpty ? nil : expDescription,
+                        imageUrls: storageIds.isEmpty ? nil : storageIds,
                         organization: expOrganization.isEmpty ? nil : expOrganization,
-                        startDate: expStartDate.isEmpty ? nil : expStartDate,
-                        endDate: expEndDate.isEmpty ? nil : expEndDate
+                        startDate: monthYearText(expStartDate),
+                        endDate: expIsOngoing ? nil : monthYearText(expEndDate)
                     )
                 }
 
@@ -383,6 +469,13 @@ struct AddPortfolioItemSheet: View {
     }
 
     // MARK: - Helpers
+
+    /// Experiences live at month/year granularity — "Jan 2025".
+    private func monthYearText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM yyyy"
+        return formatter.string(from: date)
+    }
 
     private func pasteFromClipboard() {
         if let string = UIPasteboard.general.string {

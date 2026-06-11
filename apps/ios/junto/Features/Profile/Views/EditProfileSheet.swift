@@ -346,8 +346,8 @@ struct WidgetLayoutEditor: View {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if items.isEmpty {
-                EmptyStateView(
-                    icon: "square.grid.2x2",
+                FeedMessageState(
+                    icon: "content.sparkles.fill",
                     title: "No widgets yet",
                     subtitle: "Add GitHub repos, images, links, or experiences"
                 )
