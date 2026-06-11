@@ -10,9 +10,26 @@ import PhotosUI
 
 struct AddPortfolioItemSheet: View {
     let userId: String
+    /// When set, the sheet opens straight on that type's form (vocation
+    /// suggestions on the Work tab deep-link here).
+    private let initialType: PortfolioItemResponse.PortfolioType?
     @Environment(\.dismiss) private var dismiss
     @State private var selectedType: PortfolioItemResponse.PortfolioType?
     @State private var isSaving = false
+
+    init(userId: String, initialType: PortfolioItemResponse.PortfolioType? = nil, suggestedTitle: String? = nil) {
+        self.userId = userId
+        self.initialType = initialType
+        _selectedType = State(initialValue: initialType)
+        if let suggestedTitle {
+            switch initialType {
+            case .gallery: _galleryTitle = State(initialValue: suggestedTitle)
+            case .link: _linkTitle = State(initialValue: suggestedTitle)
+            case .experience: _expTitle = State(initialValue: suggestedTitle)
+            default: break
+            }
+        }
+    }
 
     // GitHub fields
     @State private var githubUrl = ""
@@ -47,13 +64,14 @@ struct AddPortfolioItemSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: {
-                        if selectedType != nil {
+                        // Deep-linked sheets have no picker to go back to.
+                        if selectedType != nil && initialType == nil {
                             selectedType = nil
                         } else {
                             dismiss()
                         }
                     }) {
-                        if selectedType != nil {
+                        if selectedType != nil && initialType == nil {
                             Image(systemName: "chevron.left")
                                 .font(.bodyMedium)
                         } else {

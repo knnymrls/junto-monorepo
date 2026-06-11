@@ -2,9 +2,9 @@
 //  AboutTabView.swift
 //  junto
 //
-//  About tab — campus details (resolved names, never raw IDs), skills,
-//  programs, social links, and member-since. The story fields (building /
-//  can help with / looking for) live in the profile hero's maker card.
+//  About tab — minimal: what they're looking for, skills, programs, social
+//  links, member-since. "Can help with" is implied by skills; work lives in
+//  the Work tab.
 //
 
 import SwiftUI
@@ -17,7 +17,7 @@ struct AboutTabView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xxl) {
-            storySections
+            lookingForSection
 
             if let skills = context?.skillNames, !skills.isEmpty {
                 infoSection(title: "Skills") {
@@ -55,30 +55,39 @@ struct AboutTabView: View {
         .padding(.bottom, Spacing.xxxl)
     }
 
-    // MARK: - Story (Building / Can help with / Looking for)
-
-    private var hasStory: Bool {
-        !(user.currentProject ?? "").isEmpty
-            || !(user.canHelpWith ?? "").isEmpty
-            || !(user.lookingFor ?? "").isEmpty
-    }
+    // MARK: - Looking For
 
     @ViewBuilder
-    private var storySections: some View {
-        if hasStory {
-            if let building = user.currentProject, !building.isEmpty {
-                storySection(icon: "content.update", title: "Building", text: building)
-            }
-            if let help = user.canHelpWith, !help.isEmpty {
-                storySection(icon: "content.sharing", title: "Can help with", text: help)
-            }
-            if let looking = user.lookingFor, !looking.isEmpty {
-                storySection(icon: "content.looking", title: "Looking for", text: looking)
+    private var lookingForSection: some View {
+        let looking = (user.lookingFor ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !looking.isEmpty {
+            HStack(alignment: .top, spacing: Spacing.md) {
+                Image("content.looking")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+                    .foregroundColor(.appPrimary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.appSurfaceSecondary)
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: Spacing.xxxs) {
+                    Text("Looking for")
+                        .font(.bodySemibold)
+                        .foregroundColor(.appPrimary)
+
+                    Text(looking)
+                        .font(.body14)
+                        .foregroundColor(.appSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         } else if isSelf, let onEdit {
             Button(action: onEdit) {
                 HStack(spacing: Spacing.md) {
-                    Image("content.sharing")
+                    Image("content.looking")
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
@@ -89,10 +98,10 @@ struct AboutTabView: View {
                         .clipShape(Circle())
 
                     VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                        Text("Add your story")
+                        Text("What are you looking for?")
                             .font(.bodySemibold)
                             .foregroundColor(.appPrimary)
-                        Text("What you're building and what you can help with")
+                        Text("Junto matches you with people who can help")
                             .font(.bodySmall)
                             .foregroundColor(.appSecondary)
                     }
@@ -106,31 +115,6 @@ struct AboutTabView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressableScale(0.98))
-        }
-    }
-
-    private func storySection(icon: String, title: String, text: String) -> some View {
-        HStack(alignment: .top, spacing: Spacing.md) {
-            Image(icon)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 16, height: 16)
-                .foregroundColor(.appPrimary)
-                .frame(width: 32, height: 32)
-                .background(Color.appSurfaceSecondary)
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                Text(title)
-                    .font(.bodySemibold)
-                    .foregroundColor(.appPrimary)
-
-                Text(text)
-                    .font(.body14)
-                    .foregroundColor(.appSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 
@@ -218,7 +202,7 @@ struct AboutTabView: View {
     // MARK: - Empty State
 
     private var isEmpty: Bool {
-        !hasStory &&
+        (user.lookingFor ?? "").isEmpty &&
         (context?.skillNames ?? []).isEmpty &&
         (user.programs ?? []).isEmpty &&
         !hasSocialLinks

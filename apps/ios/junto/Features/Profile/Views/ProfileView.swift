@@ -48,6 +48,18 @@ struct ProfileView: View {
         currentUser.userId == user._id
     }
 
+    /// Vocation bucket for the Work tab's starter ideas — major first, then
+    /// derived skill categories.
+    private var vocation: SkillCategory? {
+        for major in context?.majorNames ?? [] {
+            if let match = SkillCategory.match(major) { return match }
+        }
+        for category in user.skillCategories ?? [] {
+            if let match = SkillCategory.match(category) { return match }
+        }
+        return nil
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             PostDetailTopNav(
@@ -194,7 +206,7 @@ struct ProfileView: View {
                 onEdit: { showEditSheet = true }
             )
         case .work:
-            PortfolioTabView(userId: user._id, isSelf: isSelf)
+            PortfolioTabView(userId: user._id, isSelf: isSelf, vocation: vocation)
         case .vouches:
             VouchesTabView(userId: user._id)
         case .activity:

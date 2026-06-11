@@ -23,8 +23,6 @@ struct EditProfileSheet: View {
     @State private var headline: String
 
     // Maker story
-    @State private var building: String
-    @State private var canHelpWith: String
     @State private var lookingFor: String
 
     // Links
@@ -42,8 +40,6 @@ struct EditProfileSheet: View {
         self.onSaved = onSaved
         _name = State(initialValue: user.name)
         _headline = State(initialValue: user.headline ?? "")
-        _building = State(initialValue: user.currentProject ?? "")
-        _canHelpWith = State(initialValue: user.canHelpWith ?? "")
         _lookingFor = State(initialValue: user.lookingFor ?? "")
         _linkedin = State(initialValue: user.socialLinks?.linkedin ?? "")
         _instagram = State(initialValue: user.socialLinks?.instagram ?? "")
@@ -170,35 +166,17 @@ struct EditProfileSheet: View {
     // MARK: - Maker Story
 
     private var storySection: some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
-            sectionHeader("Your story")
-
-            JuntoTextArea(
-                placeholder: "The project, idea, or venture you're on right now",
-                text: $building,
-                label: "What you're building",
-                characterLimit: 140
-            )
-
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                JuntoTextArea(
-                    placeholder: "e.g. SwiftUI, pitch decks, cold outreach, brand design",
-                    text: $canHelpWith,
-                    label: "What you can help with",
-                    characterLimit: 200
-                )
-
-                Text("Junto turns this into matches when someone needs you.")
-                    .font(.caption12)
-                    .foregroundColor(.appSecondary)
-            }
-
+        VStack(alignment: .leading, spacing: Spacing.xs) {
             JuntoTextArea(
                 placeholder: "e.g. a technical co-founder, beta testers, an intro to UNL faculty",
                 text: $lookingFor,
                 label: "What you're looking for",
                 characterLimit: 200
             )
+
+            Text("Junto matches you with people who can help.")
+                .font(.caption12)
+                .foregroundColor(.appSecondary)
         }
     }
 
@@ -316,8 +294,6 @@ struct EditProfileSheet: View {
                     headline: headline.trimmingCharacters(in: .whitespacesAndNewlines),
                     avatarUrl: avatarUrl,
                     lookingFor: lookingFor.trimmingCharacters(in: .whitespacesAndNewlines),
-                    canHelpWith: canHelpWith.trimmingCharacters(in: .whitespacesAndNewlines),
-                    currentProject: building.trimmingCharacters(in: .whitespacesAndNewlines),
                     socialLinks: UserInput.SocialLinksInput(
                         linkedin: normalizedLink(linkedin),
                         instagram: normalizedLink(instagram),

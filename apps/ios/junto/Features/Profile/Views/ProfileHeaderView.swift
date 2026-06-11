@@ -41,7 +41,7 @@ struct ProfileHeaderView: View {
             actionRow
         }
         .padding(.horizontal, Spacing.lg)
-        .padding(.top, Spacing.md)
+        .padding(.top, Spacing.lg)
     }
 
     // MARK: - Avatar + Stats
