@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Junto for Universities — theme directions</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+    background: #0a0a0b;
+    color: #e6e6e8;
+    padding: 40px 36px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page-title { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 6px; }
+  .page-sub { font-size: 13.5px; color: #8a8a90; margin: 0 0 36px; }
+  .theme { margin-bottom: 44px; }
+  .theme-name { font-size: 12px; letter-spacing: 0.10em; text-transform: uppercase; color: #76767c; margin: 0 0 4px; }
+  .theme-desc { font-size: 13px; color: #9a9aa0; margin: 0 0 14px; }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+
+  /* ---- component styles, all token-driven ---- */
+  .panel {
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 22px 22px 24px;
+    box-shadow: var(--shadow);
+  }
+  .mode-tag { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  .brand { display:flex; align-items:center; gap:8px; margin-bottom: 18px; }
+  .brand .dot { width: 18px; height: 18px; border-radius: 6px; background: var(--accent); }
+  .brand .name { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; color: var(--muted); }
+
+  .verdict { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .metric { display:flex; align-items: baseline; gap: 10px; margin-bottom: 18px; }
+  .metric .num { font-size: 44px; font-weight: 680; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .metric .delta { font-size: 12.5px; font-weight: 600; color: var(--accent); }
+
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 12px 13px; }
+  .tile .v { font-size: 20px; font-weight: 640; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .tile .l { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .pills { display: flex; gap: 7px; margin-bottom: 18px; }
+  .pill { font-size: 11px; font-weight: 550; padding: 4px 10px; border-radius: 999px; display:flex; align-items:center; gap:6px; }
+  .pill .pdot { width: 6px; height: 6px; border-radius: 999px; }
+  .pill.open  { background: var(--open-bg);  color: var(--open-fg); }
+  .pill.open .pdot { background: var(--open-fg); }
+  .pill.matched { background: var(--matched-bg); color: var(--matched-fg); }
+  .pill.matched .pdot { background: var(--matched-fg); }
+  .pill.resolved { background: var(--resolved-bg); color: var(--resolved-fg); }
+  .pill.resolved .pdot { background: var(--resolved-fg); }
+
+  .graphwrap { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 4px; margin-bottom: 16px; overflow: hidden; }
+  .graphwrap svg { display: block; width: 100%; height: 150px; }
+
+  .person { display:flex; align-items:center; gap: 11px; padding-top: 4px; }
+  .person .av { width: 34px; height: 34px; border-radius: 999px; background: var(--accent); color: var(--accent-fg); display:flex; align-items:center; justify-content:center; font-size: 13px; font-weight: 650; }
+  .person .meta { flex: 1; }
+  .person .pn { font-size: 13px; font-weight: 600; }
+  .person .ps { font-size: 11px; color: var(--muted); }
+  .person .strength { font-size: 11px; font-weight: 600; color: var(--accent); }
+
+  .btns { display:flex; gap: 9px; margin-top: 16px; }
+  .btn { font-size: 12.5px; font-weight: 560; padding: 8px 14px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; }
+  .btn.primary { background: var(--accent); color: var(--accent-fg); }
+  .btn.ghost { background: transparent; color: var(--fg); border-color: var(--border); }
+</style>
+</head>
+<body>
+  <h1 class="page-title">Junto for Universities — theme directions</h1>
+  <p class="page-sub">Three design-language directions. Each shown in light + dark. Real CSS tokens (oklch). Components: verdict + headline metric, KPI tiles, status pills, the connection Map, a person/provenance row.</p>
+  <div id="root"></div>
+
+<script>
+const cohorts = ['oklch(0.62 0.19 255)', 'oklch(0.66 0.17 150)', 'oklch(0.74 0.15 70)', 'oklch(0.64 0.20 25)'];
+const nodes = [
+  {x:60,y:70,r:11,c:0},{x:120,y:40,r:8,c:0},{x:110,y:110,r:9,c:1},
+  {x:175,y:80,r:14,c:1},{x:235,y:50,r:9,c:2},{x:250,y:115,r:8,c:2},
+  {x:300,y:75,r:11,c:3},{x:200,y:130,r:7,c:3}
+];
+const edges = [[0,1],[0,2],[2,3],[3,4],[3,5],[4,6],[5,7],[3,7],[1,3],[6,4]];
+
+function graphSVG(edgeColor){
+  let e = edges.map(([a,b])=>`<line x1="${nodes[a].x}" y1="${nodes[a].y}" x2="${nodes[b].x}" y2="${nodes[b].y}" stroke="${edgeColor}" stroke-width="1.2"/>`).join('');
+  let n = nodes.map(nd=>`<circle cx="${nd.x}" cy="${nd.y}" r="${nd.r}" fill="${cohorts[nd.c]}"/>`).join('');
+  return `<svg viewBox="0 0 360 160" preserveAspectRatio="xMidYMid meet"><g opacity="0.9">${e}</g>${n}</svg>`;
+}
+
+function panel(vars, modeLabel, edgeColor){
+  const style = Object.entries(vars).map(([k,v])=>`--${k}:${v}`).join(';');
+  return `<div class="panel" style="${style}">
+    <div class="mode-tag">${modeLabel}</div>
+    <div class="brand"><div class="dot"></div><div><div class="name">Junto</div><div class="sub">UNL · Center for Entrepreneurship</div></div></div>
+    <div class="verdict">Your ecosystem is growing</div>
+    <div class="metric"><div class="num">318</div><div class="delta">+12% this month</div></div>
+    <div class="tiles">
+      <div class="tile"><div class="v">142</div><div class="l">Students active</div></div>
+      <div class="tile"><div class="v">61%</div><div class="l">Cross-discipline</div></div>
+    </div>
+    <div class="pills">
+      <div class="pill open"><span class="pdot"></span>Open 24</div>
+      <div class="pill matched"><span class="pdot"></span>Matched 11</div>
+      <div class="pill resolved"><span class="pdot"></span>Resolved 7</div>
+    </div>
+    <div class="graphwrap">${graphSVG(edgeColor)}</div>
+    <div class="person">
+      <div class="av">MR</div>
+      <div class="meta"><div class="pn">Maya Rodriguez</div><div class="ps">CS · connected to 9 · via Pitch Night</div></div>
+      <div class="strength">Strong</div>
+    </div>
+    <div class="btns"><div class="btn primary">Generate report</div><div class="btn ghost">Ask anything</div></div>
+  </div>`;
+}
+
+const themes = [
+  {
+    name: 'A — Precise',
+    desc: 'Near-mono, cool electric-blue accent. Linear/Vercel lineage. Calm, exact, instrument-like.',
+    light: { bg:'oklch(0.995 0 0)', surface:'oklch(0.975 0 0)', fg:'oklch(0.18 0 0)', muted:'oklch(0.55 0 0)', border:'oklch(0.92 0 0)', accent:'oklch(0.52 0.20 256)', 'accent-fg':'oklch(0.99 0 0)', shadow:'0 1px 2px rgba(0,0,0,0.04)', 'open-bg':'oklch(0.95 0.02 70)','open-fg':'oklch(0.52 0.13 70)','matched-bg':'oklch(0.95 0.03 256)','matched-fg':'oklch(0.5 0.18 256)','resolved-bg':'oklch(0.95 0.04 150)','resolved-fg':'oklch(0.48 0.13 150)' },
+    dark:  { bg:'oklch(0.165 0.006 260)', surface:'oklch(0.21 0.008 260)', fg:'oklch(0.97 0 0)', muted:'oklch(0.66 0.01 260)', border:'oklch(0.30 0.012 260)', accent:'oklch(0.66 0.18 256)', 'accent-fg':'oklch(0.16 0.01 260)', shadow:'0 1px 2px rgba(0,0,0,0.3)', 'open-bg':'oklch(0.30 0.04 70)','open-fg':'oklch(0.82 0.12 75)','matched-bg':'oklch(0.30 0.06 256)','matched-fg':'oklch(0.78 0.14 256)','resolved-bg':'oklch(0.30 0.05 150)','resolved-fg':'oklch(0.80 0.13 150)' }
+  },
+  {
+    name: 'B — Warm editorial',
+    desc: 'Warm paper surfaces, terracotta/amber accent. Human, less "tool", more "campus". Stands apart from blue SaaS.',
+    light: { bg:'oklch(0.985 0.008 80)', surface:'oklch(0.965 0.01 80)', fg:'oklch(0.23 0.02 60)', muted:'oklch(0.52 0.02 62)', border:'oklch(0.90 0.012 75)', accent:'oklch(0.60 0.15 47)', 'accent-fg':'oklch(0.99 0.01 80)', shadow:'0 1px 2px rgba(60,40,20,0.05)', 'open-bg':'oklch(0.94 0.03 80)','open-fg':'oklch(0.52 0.12 70)','matched-bg':'oklch(0.93 0.04 47)','matched-fg':'oklch(0.52 0.15 47)','resolved-bg':'oklch(0.93 0.05 150)','resolved-fg':'oklch(0.48 0.12 150)' },
+    dark:  { bg:'oklch(0.175 0.012 55)', surface:'oklch(0.215 0.014 55)', fg:'oklch(0.96 0.012 80)', muted:'oklch(0.67 0.02 65)', border:'oklch(0.31 0.014 55)', accent:'oklch(0.70 0.15 52)', 'accent-fg':'oklch(0.18 0.02 55)', shadow:'0 1px 2px rgba(0,0,0,0.32)', 'open-bg':'oklch(0.31 0.04 80)','open-fg':'oklch(0.84 0.11 80)','matched-bg':'oklch(0.32 0.06 47)','matched-fg':'oklch(0.82 0.13 52)','resolved-bg':'oklch(0.30 0.05 150)','resolved-fg':'oklch(0.80 0.12 150)' }
+  },
+  {
+    name: 'C — Signal',
+    desc: 'High-contrast, confident green signature, graph-forward. The most "alive"/energetic. Reads as momentum.',
+    light: { bg:'oklch(0.995 0 0)', surface:'oklch(0.97 0.005 160)', fg:'oklch(0.15 0 0)', muted:'oklch(0.52 0 0)', border:'oklch(0.91 0.004 160)', accent:'oklch(0.58 0.15 152)', 'accent-fg':'oklch(0.99 0 0)', shadow:'0 1px 2px rgba(0,0,0,0.04)', 'open-bg':'oklch(0.95 0.03 75)','open-fg':'oklch(0.52 0.13 70)','matched-bg':'oklch(0.94 0.04 256)','matched-fg':'oklch(0.5 0.17 256)','resolved-bg':'oklch(0.93 0.06 152)','resolved-fg':'oklch(0.46 0.14 152)' },
+    dark:  { bg:'oklch(0.145 0.008 160)', surface:'oklch(0.185 0.01 160)', fg:'oklch(0.98 0 0)', muted:'oklch(0.65 0.01 160)', border:'oklch(0.28 0.012 160)', accent:'oklch(0.74 0.18 152)', 'accent-fg':'oklch(0.14 0.02 160)', shadow:'0 1px 2px rgba(0,0,0,0.35)', 'open-bg':'oklch(0.30 0.04 75)','open-fg':'oklch(0.82 0.12 75)','matched-bg':'oklch(0.30 0.06 256)','matched-fg':'oklch(0.78 0.14 256)','resolved-bg':'oklch(0.31 0.07 152)','resolved-fg':'oklch(0.84 0.16 152)' }
+  }
+];
+
+const root = document.getElementById('root');
+root.innerHTML = themes.map(t => `
+  <div class="theme">
+    <div class="theme-name">${t.name}</div>
+    <div class="theme-desc">${t.desc}</div>
+    <div class="modes">
+      ${panel(t.light, 'Light', 'oklch(0.85 0 0)')}
+      ${panel(t.dark, 'Dark', 'oklch(0.45 0.01 260)')}
+    </div>
+  </div>
+`).join('');
+</script>
+</body>
+</html>
